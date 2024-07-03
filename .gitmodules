@@ -1,0 +1,6 @@
+[submodule "Core/extern/glfw"]
+	path = Core/extern/glfw
+	url = https://github.com/glfw/glfw
+[submodule "Core/extern/spdlog"]
+	path = Core/extern/spdlog
+	url = https://github.com/gabime/spdlog
