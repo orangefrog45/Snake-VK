@@ -1,0 +1,2 @@
+#pragma code_page(65001)
+1 /* CREATEPROCESS_MANIFEST_RESOURCE_ID */ 24 /* RT_MANIFEST */ "C:/Users/carol/Documents/Dev/vscode/ORNG-VK/out/build/x64-Debug/Core/CMakeFiles/ORNG_VK_CORE.dir/embed.manifest"

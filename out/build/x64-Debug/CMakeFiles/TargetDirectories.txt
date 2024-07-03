@@ -1,0 +1,5 @@
+C:/Users/carol/Documents/Dev/vscode/ORNG-VK/out/build/x64-Debug/CMakeFiles/edit_cache.dir
+C:/Users/carol/Documents/Dev/vscode/ORNG-VK/out/build/x64-Debug/CMakeFiles/rebuild_cache.dir
+C:/Users/carol/Documents/Dev/vscode/ORNG-VK/out/build/x64-Debug/Core/CMakeFiles/ORNG_VK_CORE.dir
+C:/Users/carol/Documents/Dev/vscode/ORNG-VK/out/build/x64-Debug/Core/CMakeFiles/edit_cache.dir
+C:/Users/carol/Documents/Dev/vscode/ORNG-VK/out/build/x64-Debug/Core/CMakeFiles/rebuild_cache.dir
