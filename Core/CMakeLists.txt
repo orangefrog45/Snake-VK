@@ -32,14 +32,18 @@ set(VK_LIBRARIES
 )
 endif()
 
+find_package(Vulkan REQUIRED)
+find_library(SHADERC_LIB shaderc_combined $ENV{VULKAN_SDK}/Lib)
+
 target_link_libraries(ORNG_VK_CORE PUBLIC
-${VK_LIBRARIES}
+${Vulkan_LIBRARIES}
+${SHADERC_LIB}
 spdlog::spdlog
 glfw
 )
 
 target_include_directories(ORNG_VK_CORE PUBLIC
-$ENV{VULKAN_SDK}/Include
+${Vulkan_INCLUDE_DIRS}
 headers
 extern/spdlog/include
 extern/glfw/include
