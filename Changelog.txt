@@ -1,2 +1,5 @@
-3/7/24
+6/7/24:
+-Beautiful red triangle
+
+3/7/24:
 -Project creation, logging + glfw window setup

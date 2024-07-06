@@ -4,8 +4,12 @@
 #define GLFW_INCLUDE_VULKAN
 #include "GLFW/glfw3.h"
 #include "util.h"
+#include "FileUtil.h"
+#include <filesystem>
 
 VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE
+
+using namespace SNAKE;
 
 void GLFW_KeyCallback(GLFWwindow* p_window, int key, [[maybe_unused]] int scancode, int action, [[maybe_unused]] int mods) {
 	if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) {
@@ -104,6 +108,13 @@ public:
 		PickPhysicalDevice();
 		CreateLogicalDevice();
 		CreateSwapChain(p_window);
+		CreateImageViews();
+		CreateGraphicsPipeline();
+		CreateFramebuffers();
+		CreateCommandPool();
+		CreateCommandBuffer();
+		CreateSyncObjects();
+
 	}
 
 	SwapChainSupportDetails QuerySwapChainSupport(vk::PhysicalDevice device) {
@@ -234,17 +245,17 @@ public:
 	}
 
 	void CreateSwapChain(GLFWwindow* p_window) {
-		SwapChainSupportDetails swap_chain_support = QuerySwapChainSupport(m_physical_device);
+		SwapChainSupportDetails swapchain_support = QuerySwapChainSupport(m_physical_device);
 
-		vk::SurfaceFormatKHR surface_format = ChooseSwapSurfaceFormat(swap_chain_support.formats);
-		vk::PresentModeKHR present_mode = ChooseSwapPresentMode(swap_chain_support.present_modes);
-		vk::Extent2D extent = ChooseSwapExtent(swap_chain_support.capabilities, p_window);
+		vk::SurfaceFormatKHR surface_format = ChooseSwapSurfaceFormat(swapchain_support.formats);
+		vk::PresentModeKHR present_mode = ChooseSwapPresentMode(swapchain_support.present_modes);
+		vk::Extent2D extent = ChooseSwapExtent(swapchain_support.capabilities, p_window);
 
-		uint32_t image_count = swap_chain_support.capabilities.minImageCount + 1; // Add extra image to prevent having to wait on driver before acquiring another image
+		uint32_t image_count = swapchain_support.capabilities.minImageCount + 1; // Add extra image to prevent having to wait on driver before acquiring another image
 
 		// 0 means no maximum
-		if (swap_chain_support.capabilities.maxImageCount > 0 && image_count > swap_chain_support.capabilities.maxImageCount)
-			image_count = swap_chain_support.capabilities.maxImageCount;
+		if (swapchain_support.capabilities.maxImageCount > 0 && image_count > swapchain_support.capabilities.maxImageCount)
+			image_count = swapchain_support.capabilities.maxImageCount;
 
 		vk::SwapchainCreateInfoKHR create_info{ vk::SwapchainCreateFlagsKHR(0),
 			*m_surface,
@@ -270,13 +281,29 @@ public:
 			create_info.pQueueFamilyIndices = nullptr;
 		}
 
-		create_info.preTransform = swap_chain_support.capabilities.currentTransform;
+		create_info.preTransform = swapchain_support.capabilities.currentTransform;
 		create_info.compositeAlpha = vk::CompositeAlphaFlagBitsKHR::eOpaque; // Don't blend with other windows in window system
 		create_info.presentMode = present_mode;
 		create_info.clipped = VK_TRUE; // Don't care about color of pixels that are obscured by other windows
 		create_info.oldSwapchain = VK_NULL_HANDLE;
 
-		m_swap_chain = m_device->createSwapchainKHRUnique(create_info);
+		m_swapchain = m_device->createSwapchainKHRUnique(create_info);
+
+		uint32_t swapchain_image_count;
+		SNK_CHECK_VK_RESULT(
+			m_device->getSwapchainImagesKHR(*m_swapchain, &swapchain_image_count, nullptr),
+			"device->getSwapChainImagesKHR 0"
+		)
+
+		m_swapchain_images.resize(image_count);
+
+		SNK_CHECK_VK_RESULT(
+			m_device->getSwapchainImagesKHR(*m_swapchain, &swapchain_image_count, m_swapchain_images.data()),
+			"device->getSwapChainImagesKHR 1"
+		)
+
+		m_swapchain_format = surface_format.format;
+		m_swapchain_extent = extent;
 	}
 
 	bool IsDeviceSuitable(vk::PhysicalDevice device) {
@@ -286,11 +313,11 @@ public:
 		if (!CheckDeviceExtensionSupport(device))
 			return false;
 
-		SwapChainSupportDetails swap_chain_support = QuerySwapChainSupport(device);
-		bool swap_chain_valid = !swap_chain_support.formats.empty() && !swap_chain_support.present_modes.empty();
+		SwapChainSupportDetails swapchain_support = QuerySwapChainSupport(device);
+		bool swapchain_valid = !swapchain_support.formats.empty() && !swapchain_support.present_modes.empty();
 
 		QueueFamilyIndices qf_indices = FindQueueFamilies(device);
-		return properties.deviceType == vk::PhysicalDeviceType::eDiscreteGpu && qf_indices.IsComplete() && swap_chain_valid;
+		return properties.deviceType == vk::PhysicalDeviceType::eDiscreteGpu && qf_indices.IsComplete() && swapchain_valid;
 	}
 
 	bool CheckDeviceExtensionSupport(vk::PhysicalDevice device) {
@@ -421,8 +448,338 @@ public:
 		m_instance = vk::createInstanceUnique(create_info, nullptr, VULKAN_HPP_DEFAULT_DISPATCHER);
 		SNK_ASSERT(m_instance, "Vulkan instance created");
 	}
+	
+	void CreateImageViews() {
+		m_swapchain_image_views.resize(m_swapchain_images.size());
+
+		for (int i = 0; i < m_swapchain_images.size(); i++) {
+			vk::ImageViewCreateInfo create_info{ vk::ImageViewCreateFlags{0}, m_swapchain_images[i], vk::ImageViewType::e2D, m_swapchain_format };
+			create_info.subresourceRange.aspectMask = vk::ImageAspectFlagBits::eColor;
+			create_info.subresourceRange.baseMipLevel = 0;
+			create_info.subresourceRange.levelCount = 1;
+			create_info.subresourceRange.baseArrayLayer = 0;
+			create_info.subresourceRange.layerCount = 1;
+
+			m_swapchain_image_views[i] = m_device->createImageViewUnique(create_info);
+
+			SNK_ASSERT(m_swapchain_image_views[i], "Swapchain image view {0} created", i);
+		}
+	}
+
+	void CreateGraphicsPipeline() {
+		constexpr char vert_fp[] = "res/shaders/vert.spv";
+		constexpr char frag_fp[] = "res/shaders/frag.spv";
+
+		auto vert_code = ReadFileBinary(vert_fp);
+		auto frag_code = ReadFileBinary(frag_fp);
+
+		SNK_ASSERT(!vert_code.empty(), "Vertex shader code loaded");
+		SNK_ASSERT(!frag_code.empty(), "Fragment shader code loaded");
+
+		auto vert_module = CreateShaderModule(vert_code, vert_fp);
+		auto frag_module = CreateShaderModule(frag_code, frag_fp);
+
+		vk::PipelineShaderStageCreateInfo vert_info{ vk::PipelineShaderStageCreateFlags{0}, vk::ShaderStageFlagBits::eVertex, vert_module.get(), "main"};
+		vk::PipelineShaderStageCreateInfo frag_info{ vk::PipelineShaderStageCreateFlags{0}, vk::ShaderStageFlagBits::eFragment, frag_module.get(), "main"};
+
+		vk::PipelineShaderStageCreateInfo shader_stages[] = {vert_info, frag_info};
+
+		// Stores vertex data
+		vk::PipelineVertexInputStateCreateInfo vert_input_state_create_info{ vk::PipelineVertexInputStateCreateFlags{0}, nullptr, {} };
+
+		// Stores how vertex data is interpreted
+		vk::PipelineInputAssemblyStateCreateInfo input_assembly_create_info{ vk::PipelineInputAssemblyStateCreateFlags{0}, vk::PrimitiveTopology::eTriangleList, VK_FALSE };
+
+		vk::Viewport viewport{ 0.f, 0.f, (float)m_swapchain_extent.width, (float)m_swapchain_extent.height, 0.f, 1.f };
+
+		// Scissor region is region in which pixels are drawn, in this case the whole framebuffer
+		vk::Rect2D scissor{ {0, 0}, m_swapchain_extent };
+
+		std::vector<vk::DynamicState> dynamic_states = {
+			vk::DynamicState::eViewport,
+			vk::DynamicState::eScissor
+		};
+
+		vk::PipelineDynamicStateCreateInfo dynamic_state_create_info{ vk::PipelineDynamicStateCreateFlags{0}, dynamic_states };
+
+		vk::PipelineViewportStateCreateInfo viewport_create_info{}; // Don't set pviewport or pscissor to keep this dynamic
+		viewport_create_info.viewportCount = 1;
+		viewport_create_info.scissorCount = 1;
+
+		vk::PipelineRasterizationStateCreateInfo rasterizer_create_info{};
+		rasterizer_create_info.depthClampEnable = VK_FALSE; // if fragments beyond near and far plane are clamped to them instead of discarding
+		rasterizer_create_info.rasterizerDiscardEnable = VK_FALSE; // if geometry should never pass through rasterizer stage
+		rasterizer_create_info.polygonMode = vk::PolygonMode::eFill;
+		rasterizer_create_info.lineWidth = 1.f;
+		rasterizer_create_info.cullMode = vk::CullModeFlagBits::eBack;
+		rasterizer_create_info.frontFace = vk::FrontFace::eClockwise;
+		rasterizer_create_info.depthBiasEnable = VK_FALSE;
+
+		vk::PipelineMultisampleStateCreateInfo multisampling{};
+		multisampling.sampleShadingEnable = VK_FALSE;
+		multisampling.rasterizationSamples = vk::SampleCountFlagBits::e1;
+		multisampling.minSampleShading = 1.f;
+
+		vk::PipelineColorBlendAttachmentState colour_blend_attachment{};
+		// Enable alpha blending
+		colour_blend_attachment.colorWriteMask = vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG | vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA;
+		colour_blend_attachment.blendEnable = VK_TRUE;
+		colour_blend_attachment.srcColorBlendFactor = vk::BlendFactor::eSrcAlpha;
+		colour_blend_attachment.dstColorBlendFactor = vk::BlendFactor::eOneMinusSrcAlpha;
+		colour_blend_attachment.colorBlendOp = vk::BlendOp::eAdd;
+		colour_blend_attachment.srcAlphaBlendFactor = vk::BlendFactor::eOne;
+		colour_blend_attachment.dstAlphaBlendFactor = vk::BlendFactor::eZero;
+		colour_blend_attachment.alphaBlendOp = vk::BlendOp::eAdd;
+
+		vk::PipelineColorBlendStateCreateInfo colour_blend_state;
+		colour_blend_state.logicOpEnable = VK_FALSE;
+		colour_blend_state.attachmentCount = 1;
+		colour_blend_state.pAttachments = &colour_blend_attachment;
+
+		
+		vk::PipelineLayoutCreateInfo pipeline_layout_info{};
+		pipeline_layout_info.setLayoutCount = 0;
+
+		m_pipeline_layout = m_device->createPipelineLayoutUnique(pipeline_layout_info);
+
+		SNK_ASSERT(m_pipeline_layout, "Graphics pipeline layout created");
+
+		CreateRenderpass();
+
+		vk::GraphicsPipelineCreateInfo pipeline_info{};
+		pipeline_info.stageCount = 2;
+		pipeline_info.pStages = shader_stages;
+		pipeline_info.pVertexInputState = &vert_input_state_create_info;
+		pipeline_info.pInputAssemblyState = &input_assembly_create_info;
+		pipeline_info.pViewportState = &viewport_create_info;
+		pipeline_info.pRasterizationState = &rasterizer_create_info;
+		pipeline_info.pMultisampleState = &multisampling;
+		pipeline_info.pDepthStencilState = nullptr;
+		pipeline_info.pColorBlendState = &colour_blend_state;
+		pipeline_info.pDynamicState = &dynamic_state_create_info;
+		pipeline_info.layout = *m_pipeline_layout;
+		pipeline_info.renderPass = *m_renderpass;
+		pipeline_info.subpass = 0; // index of subpass where this pipeline is used
+
+		auto [result, pipeline] = m_device->createGraphicsPipelineUnique(VK_NULL_HANDLE, pipeline_info).asTuple();
+		m_graphics_pipeline = std::move(pipeline);
+
+		SNK_CHECK_VK_RESULT(result, "Graphics pipeline result successful");
+		SNK_ASSERT(m_graphics_pipeline, "Graphics pipeline successfully created");
+	}
+
+	void CreateRenderpass() {
+		// Setup framebuffer attachments
+		vk::AttachmentDescription colour_attachment{};
+		colour_attachment.format = m_swapchain_format;
+		colour_attachment.samples = vk::SampleCountFlagBits::e1;
+		colour_attachment.loadOp = vk::AttachmentLoadOp::eClear; // clear values at start
+		colour_attachment.storeOp = vk::AttachmentStoreOp::eStore; // rendered contents are stored in memory to be read later
+		colour_attachment.stencilLoadOp = vk::AttachmentLoadOp::eDontCare;
+		colour_attachment.stencilStoreOp = vk::AttachmentStoreOp::eDontCare; // values undefined after rendering
+		colour_attachment.initialLayout = vk::ImageLayout::eUndefined; // don't care what previous layout of the image was, it's cleared at the start anyway
+		colour_attachment.finalLayout = vk::ImageLayout::ePresentSrcKHR; // image will be presented to swapchain, this value should be based on what the image is going to be used for next
+
+		vk::AttachmentReference colour_attachment_ref{};
+		colour_attachment_ref.attachment = 0; // which attachment to reference by its index in the attachment descriptions array
+		colour_attachment_ref.layout = vk::ImageLayout::eColorAttachmentOptimal; // the layout the attachment image has when this subpass starts
+
+		vk::SubpassDescription subpass{};
+		subpass.pipelineBindPoint = vk::PipelineBindPoint::eGraphics;
+		subpass.colorAttachmentCount = 1;
+		subpass.pColorAttachments = &colour_attachment_ref; // Index of colour attachment referenced directly in shader with layout(location = 0)
+
+		vk::RenderPassCreateInfo renderpass_info{};
+		renderpass_info.attachmentCount = 1;
+		renderpass_info.pAttachments = &colour_attachment;
+		renderpass_info.subpassCount = 1;
+		renderpass_info.pSubpasses = &subpass;
+
+		vk::SubpassDependency dependency{};
+		dependency.srcSubpass = VK_SUBPASS_EXTERNAL; // Implicit subpass before renderpass (would be after if specified in dstSubpass)
+		dependency.dstSubpass = 0;
+		dependency.srcStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput;
+		dependency.srcAccessMask = vk::AccessFlagBits::eNone;
+		dependency.dstStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput;
+		dependency.dstAccessMask = vk::AccessFlagBits::eColorAttachmentWrite;
+
+		renderpass_info.dependencyCount = 1;
+		renderpass_info.pDependencies = &dependency;
+
+		m_renderpass = m_device->createRenderPassUnique(renderpass_info);
+		SNK_ASSERT(m_renderpass, "Renderpass created");
+
+	}
+
+	void CreateFramebuffers() {
+		m_swapchain_framebuffers.resize(m_swapchain_image_views.size());
+
+		for (size_t i = 0; i < m_swapchain_framebuffers.size(); i++) {
+			vk::ImageView attachments[] = {
+				*m_swapchain_image_views[i]
+			};
+
+			vk::FramebufferCreateInfo framebuffer_info{};
+			framebuffer_info.renderPass = *m_renderpass;
+			framebuffer_info.attachmentCount = 1;
+			framebuffer_info.pAttachments = attachments;
+			framebuffer_info.width = m_swapchain_extent.width;
+			framebuffer_info.height = m_swapchain_extent.height;
+			framebuffer_info.layers = 1;
+
+			m_swapchain_framebuffers[i] = std::move(m_device->createFramebufferUnique(framebuffer_info));
+
+			SNK_ASSERT(m_swapchain_framebuffers[i], "Framebuffer '{0}' created", i);
+		}
+	}
+
+	void CreateCommandPool() {
+		QueueFamilyIndices qf_indices = FindQueueFamilies(m_physical_device);
+
+		vk::CommandPoolCreateInfo pool_info{};
+		pool_info.flags = vk::CommandPoolCreateFlagBits::eResetCommandBuffer; // allow command buffers to be rerecorded individually instead of having to be reset together
+		pool_info.queueFamilyIndex = qf_indices.graphics_family.value();
+
+		m_cmd_pool = m_device->createCommandPoolUnique(pool_info);
+		SNK_ASSERT(m_cmd_pool, "Command pool created");
+	}
+
+	void CreateCommandBuffer() {
+		vk::CommandBufferAllocateInfo alloc_info{};
+		alloc_info.commandPool = *m_cmd_pool;
+		alloc_info.level = vk::CommandBufferLevel::ePrimary; // can be submitted to a queue for execution, can't be called by other command buffers
+		alloc_info.commandBufferCount = 1;
+
+		m_cmd_buffer = std::move(m_device->allocateCommandBuffersUnique(alloc_info)[0]);
+		SNK_ASSERT(m_cmd_buffer, "Command buffer created");
+	}
+
+	void RecordCommandBuffer(vk::CommandBuffer cmd_buffer, uint32_t image_index) {
+		vk::CommandBufferBeginInfo begin_info{};
+		m_cmd_buffer->begin(begin_info);
+
+		vk::RenderPassBeginInfo renderpass_info{};
+		renderpass_info.renderPass = *m_renderpass;
+		renderpass_info.framebuffer = *m_swapchain_framebuffers[image_index];
+		renderpass_info.renderArea.offset = vk::Offset2D{ 0, 0 };
+		renderpass_info.renderArea.extent = m_swapchain_extent;
+		renderpass_info.clearValueCount = 1;
+		vk::ClearValue clear_col = { { 0.f, 0.f, 0.f, 1.f } };
+		renderpass_info.pClearValues = &clear_col;
+
+		cmd_buffer.beginRenderPass(
+			renderpass_info, 
+			vk::SubpassContents::eInline // renderpass commands embedded in primary command buffer, no secondary command buffers will be executed
+		);
+
+		cmd_buffer.bindPipeline(vk::PipelineBindPoint::eGraphics, *m_graphics_pipeline);
+
+		vk::Viewport viewport{};
+		viewport.x = 0.0f;
+		viewport.y = 0.0f;
+		viewport.width = static_cast<float>(m_swapchain_extent.width);
+		viewport.height = static_cast<float>(m_swapchain_extent.height);
+		viewport.minDepth = 0.0f;
+		viewport.maxDepth = 1.0f;
+		cmd_buffer.setViewport(0, 1, &viewport);
+
+		vk::Rect2D scissor{};
+		scissor.offset = vk::Offset2D{ 0, 0 };
+		scissor.extent = m_swapchain_extent;
+		cmd_buffer.setScissor(0, 1, &scissor);
+
+		cmd_buffer.draw(3, 1, 0, 0);
+
+		cmd_buffer.endRenderPass();
+		cmd_buffer.end();
+	}
+
+	vk::UniqueShaderModule CreateShaderModule(const std::vector<char>& code, const std::string& filepath) {
+		vk::ShaderModuleCreateInfo create_info{
+			vk::ShaderModuleCreateFlags{0},
+			*reinterpret_cast<const std::vector<uint32_t>*>(&code)
+		};
+
+		vk::UniqueShaderModule shader_module = m_device->createShaderModuleUnique(create_info);
+
+		SNK_ASSERT(shader_module, "Shader module for shader '{0}' created successfully", filepath)
+		return shader_module;
+	}
+
+	void CreateSyncObjects() {
+		vk::SemaphoreCreateInfo semaphore_info{};
+		vk::FenceCreateInfo fence_info{};
+		fence_info.flags = vk::FenceCreateFlagBits::eSignaled; // Create in initially signalled state so execution begins immediately
+
+		m_image_avail_semaphore = m_device->createSemaphoreUnique(semaphore_info);
+		m_render_finished_semaphore = m_device->createSemaphoreUnique(semaphore_info);
+		m_in_flight_fence = m_device->createFenceUnique(fence_info);
+
+		SNK_ASSERT(m_image_avail_semaphore && m_render_finished_semaphore && m_in_flight_fence, "Synchronization objects created");
+	}
+
+	void RenderLoop() {
+
+	}
+
+	void DrawFrame() {
+		
+		SNK_CHECK_VK_RESULT(
+			m_device->waitForFences(1, &*m_in_flight_fence, VK_TRUE, UINT64_MAX),
+			"DrawFrame waitForFences"
+		);
+
+		SNK_CHECK_VK_RESULT(
+			m_device->resetFences(1, &*m_in_flight_fence),
+			"DrawFrame resetFences"
+		);
+
+		uint32_t image_index;
+		
+		SNK_CHECK_VK_RESULT(
+			m_device->acquireNextImageKHR(*m_swapchain, UINT64_MAX, *m_image_avail_semaphore, VK_NULL_HANDLE, &image_index),
+			"DrawFrame acquireNextImage"
+		);
+
+		m_cmd_buffer->reset();
+		RecordCommandBuffer(*m_cmd_buffer, image_index);
+
+		vk::SubmitInfo submit_info{};
+		vk::Semaphore wait_semaphores[] = {*m_image_avail_semaphore}; // Which semaphores to wait on
+		vk::PipelineStageFlags wait_stages[] = { vk::PipelineStageFlagBits::eColorAttachmentOutput }; // Which stages of the pipeline to wait in
+		submit_info.waitSemaphoreCount = 1;
+		submit_info.pWaitSemaphores = wait_semaphores;
+		submit_info.pWaitDstStageMask = wait_stages;
+		submit_info.commandBufferCount = 1;
+		submit_info.pCommandBuffers = &*m_cmd_buffer;
+
+		vk::Semaphore signal_semaphores[] = { *m_render_finished_semaphore }; // Which semaphores to signal once command buffer(s) have finished execution
+		submit_info.signalSemaphoreCount = 1;
+		submit_info.pSignalSemaphores = signal_semaphores;
+
+		SNK_CHECK_VK_RESULT(
+			m_graphics_queue.submit(1, &submit_info, *m_in_flight_fence), // Fence is signalled once command buffer finishes execution
+			"DrawFrame submit to graphics queue"
+		);
+
+		vk::SwapchainKHR swapchains[] = {*m_swapchain};
+
+		vk::PresentInfoKHR present_info{};
+		present_info.waitSemaphoreCount = 1;
+		present_info.pWaitSemaphores = signal_semaphores;
+		present_info.swapchainCount = 1;
+		present_info.pSwapchains = swapchains;
+		present_info.pImageIndices = &image_index;
+		
+		SNK_CHECK_VK_RESULT(
+			m_presentation_queue.presentKHR(present_info),
+			"DrawFrame presentKHR"
+		);
+
+	}
 
 	~VulkanApp() {
+
 	}
 
 	vk::UniqueInstance m_instance;
@@ -432,7 +789,26 @@ public:
 	vk::UniqueDevice m_device;
 	vk::Queue m_graphics_queue;
 	vk::Queue m_presentation_queue;
-	vk::UniqueSwapchainKHR m_swap_chain;
+	vk::UniqueSwapchainKHR m_swapchain;
+
+	std::vector<vk::Image> m_swapchain_images;
+	std::vector<vk::UniqueImageView> m_swapchain_image_views;
+
+	vk::Format m_swapchain_format;
+	vk::Extent2D m_swapchain_extent;
+
+	vk::UniquePipelineLayout m_pipeline_layout;
+	vk::UniqueRenderPass m_renderpass;
+	vk::UniquePipeline m_graphics_pipeline;
+
+	std::vector<vk::UniqueFramebuffer> m_swapchain_framebuffers;
+
+	vk::UniqueCommandPool m_cmd_pool;
+	vk::UniqueCommandBuffer m_cmd_buffer;
+
+	vk::UniqueSemaphore m_image_avail_semaphore;
+	vk::UniqueSemaphore m_render_finished_semaphore;
+	vk::UniqueFence m_in_flight_fence;
 
 	static constexpr std::array<const char*, 1> m_required_device_extensions = {
 		VK_KHR_SWAPCHAIN_EXTENSION_NAME
@@ -442,6 +818,7 @@ public:
 
 
 int main() {
+	std::filesystem::current_path("../../../../Core");
 	SNAKE::Logger::Init();
 
 	if (!glfwInit() || !glfwVulkanSupported())
@@ -453,6 +830,8 @@ int main() {
 	VulkanApp app;
 	app.Init("Snake", window.GetWindow());
 	while (!glfwWindowShouldClose(window.GetWindow())) {
+		app.RenderLoop();
+		app.DrawFrame();
 		glfwPollEvents();
 	}
 

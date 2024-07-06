@@ -4,7 +4,7 @@ project(ORNG_VK_CORE)
 
 add_executable(ORNG_VK_CORE
 src/main.cpp
- "headers/util.h" "headers/Logger.h" "src/util/util.cpp" "src/util/Logger.cpp" "src/pch/pch.cpp" "headers/pch/pch.h")
+ "headers/util.h" "headers/Logger.h" "src/util/util.cpp" "src/util/Logger.cpp" "src/pch/pch.cpp" "headers/pch/pch.h" "headers/FileUtil.h" "src/util/FileUtil.cpp")
 
 target_link_directories(ORNG_VK_CORE PUBLIC $ENV{VULKAN_SDK}/Lib)
 
