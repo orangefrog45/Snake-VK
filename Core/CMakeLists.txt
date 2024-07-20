@@ -47,6 +47,7 @@ ${Vulkan_INCLUDE_DIRS}
 headers
 extern/spdlog/include
 extern/glfw/include
+extern/glm
 )
 
 target_precompile_headers(ORNG_VK_CORE PUBLIC

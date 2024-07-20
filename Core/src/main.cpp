@@ -1,21 +1,22 @@
 #include <iostream>
 #define VULKAN_HPP_DISPATCH_LOADER_DYNAMIC 1
+#define VULKAN_HPP_NO_EXCEPTIONS
+#define VULKAN_HPP_ASSERT_ON_RESULT
 #include <vulkan/vulkan.hpp>
+
 #define GLFW_INCLUDE_VULKAN
 #include "GLFW/glfw3.h"
 #include "util.h"
 #include "FileUtil.h"
 #include <filesystem>
+#include <glm/glm.hpp>
 
 VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE
 
 using namespace SNAKE;
 
-void GLFW_KeyCallback(GLFWwindow* p_window, int key, [[maybe_unused]] int scancode, int action, [[maybe_unused]] int mods) {
-	if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) {
-		glfwSetWindowShouldClose(p_window, GLFW_TRUE);
-	}
-}
+constexpr unsigned MAX_FRAMES_IN_FLIGHT = 2;
+
 
 static VKAPI_ATTR vk::Bool32 VKAPI_CALL DebugCallback(
 	VkDebugUtilsMessageSeverityFlagBitsEXT severity,
@@ -70,51 +71,93 @@ struct SwapChainSupportDetails {
 	std::vector<vk::PresentModeKHR> present_modes;
 };
 
-class Window {
+struct Vertex {
+	Vertex(glm::vec2 _pos, glm::vec3 _col) : pos(_pos), colour(_col) {};
+	glm::vec2 pos;
+	glm::vec3 colour;
+
+	// Struct which describes how to move through the data provided
+	[[nodiscard]] constexpr inline static vk::VertexInputBindingDescription GetBindingDescription() {
+		vk::VertexInputBindingDescription desc{};
+		desc.binding = 0;
+		desc.stride = sizeof(Vertex);
+		desc.inputRate = vk::VertexInputRate::eVertex;
+
+		return desc;
+	}
+
+	// Struct which describes vertex attribute access in shaders
+	[[nodiscard]] constexpr inline static std::array<vk::VertexInputAttributeDescription, 2> GetAttributeDescriptions() {
+		std::array<vk::VertexInputAttributeDescription, 2> descs{};
+
+		descs[0].binding = 0;
+		descs[0].location = 0;
+		descs[0].format = vk::Format::eR32G32Sfloat;
+		descs[0].offset = offsetof(Vertex, pos);
+
+		descs[1].binding = 0;
+		descs[1].location = 1;
+		descs[1].format = vk::Format::eR32G32B32Sfloat;
+		descs[1].offset = offsetof(Vertex, colour);
+
+		return descs;
+	}
+};
+
+
+class VulkanApp {
 public:
-	void Init() {
+	void Init(const char* app_name) {
+		InitWindow();
+
+		VULKAN_HPP_DEFAULT_DISPATCHER.init();
+		CreateInstance(app_name); 
+		VULKAN_HPP_DEFAULT_DISPATCHER.init(m_instance.get());
+
+		CreateDebugCallback();
+		CreateWindowSurface();
+		PickPhysicalDevice();
+		CreateLogicalDevice();
+		CreateSwapChain();
+		CreateImageViews();
+		CreateGraphicsPipeline();
+		CreateFramebuffers();
+		CreateCommandPool();
+		CreateVertexBuffer();
+		CreateCommandBuffers();
+		CreateSyncObjects();
+	}
+
+
+	void InitWindow() {
+		if (!glfwInit() || !glfwVulkanSupported())
+			SNK_BREAK("GLFW failed to initialize");
+
 		// Default API is OpenGL so set to GLFW_NO_API
 		glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-		glfwWindowHint(GLFW_RESIZABLE, false);
+		glfwWindowHint(GLFW_RESIZABLE, true);
 
 		p_window = glfwCreateWindow(1920, 1080, "ORNG VK", nullptr, nullptr);
+		glfwSetWindowUserPointer(p_window, this);
+
 		if (!p_window) {
 			glfwTerminate();
 			SNK_BREAK("Failed to create GLFW window");
 		}
 
 		glfwSetKeyCallback(p_window, GLFW_KeyCallback);
+		glfwSetFramebufferSizeCallback(p_window, FramebufferResizeCallback);
 	}
 
-	GLFWwindow* GetWindow() {
-		return p_window;
+	static void GLFW_KeyCallback(GLFWwindow* p_window, int key, [[maybe_unused]] int scancode, int action, [[maybe_unused]] int mods) {
+		if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) {
+			glfwSetWindowShouldClose(p_window, GLFW_TRUE);
+		}
 	}
 
-private:
-	GLFWwindow* p_window = nullptr;
-};
-
-class VulkanApp {
-public:
-	void Init(const char* app_name, GLFWwindow* p_window) {
-		VULKAN_HPP_DEFAULT_DISPATCHER.init();
-
-		CreateInstance(app_name); 
-
-		VULKAN_HPP_DEFAULT_DISPATCHER.init(m_instance.get());
-
-		CreateDebugCallback();
-		CreateWindowSurface(p_window);
-		PickPhysicalDevice();
-		CreateLogicalDevice();
-		CreateSwapChain(p_window);
-		CreateImageViews();
-		CreateGraphicsPipeline();
-		CreateFramebuffers();
-		CreateCommandPool();
-		CreateCommandBuffer();
-		CreateSyncObjects();
-
+	static void FramebufferResizeCallback(GLFWwindow* p_window, [[maybe_unused]] int width, [[maybe_unused]] int height) {
+		auto* p_app = reinterpret_cast<VulkanApp*>(glfwGetWindowUserPointer(p_window));
+		p_app->m_framebuffer_resized = true;
 	}
 
 	SwapChainSupportDetails QuerySwapChainSupport(vk::PhysicalDevice device) {
@@ -192,7 +235,7 @@ public:
 			if (queue_families[i].queueFlags & vk::QueueFlagBits::eGraphics)
 				indices.graphics_family = i;
 
-			vk::Bool32 present_support = device.getSurfaceSupportKHR(i, m_surface.get(), VULKAN_HPP_DEFAULT_DISPATCHER);
+			auto [result, present_support] = device.getSurfaceSupportKHR(i, m_surface.get(), VULKAN_HPP_DEFAULT_DISPATCHER);
 			if (present_support)
 				indices.present_family = i;
 
@@ -226,7 +269,7 @@ public:
 	}
 
 	// Choose resolution of swap chain images
-	vk::Extent2D ChooseSwapExtent(const vk::SurfaceCapabilitiesKHR& capabilities, GLFWwindow* p_window) {
+	vk::Extent2D ChooseSwapExtent(const vk::SurfaceCapabilitiesKHR& capabilities) {
 		if (capabilities.currentExtent.width != std::numeric_limits<uint32_t>::max()) {
 			return capabilities.currentExtent;
 		} else { // Width/height can differ from capabilities.currentExtent
@@ -244,12 +287,12 @@ public:
 		}
 	}
 
-	void CreateSwapChain(GLFWwindow* p_window) {
+	void CreateSwapChain() {
 		SwapChainSupportDetails swapchain_support = QuerySwapChainSupport(m_physical_device);
 
 		vk::SurfaceFormatKHR surface_format = ChooseSwapSurfaceFormat(swapchain_support.formats);
 		vk::PresentModeKHR present_mode = ChooseSwapPresentMode(swapchain_support.present_modes);
-		vk::Extent2D extent = ChooseSwapExtent(swapchain_support.capabilities, p_window);
+		vk::Extent2D extent = ChooseSwapExtent(swapchain_support.capabilities);
 
 		uint32_t image_count = swapchain_support.capabilities.minImageCount + 1; // Add extra image to prevent having to wait on driver before acquiring another image
 
@@ -287,7 +330,7 @@ public:
 		create_info.clipped = VK_TRUE; // Don't care about color of pixels that are obscured by other windows
 		create_info.oldSwapchain = VK_NULL_HANDLE;
 
-		m_swapchain = m_device->createSwapchainKHRUnique(create_info);
+		m_swapchain = m_device->createSwapchainKHRUnique(create_info).value;
 
 		uint32_t swapchain_image_count;
 		SNK_CHECK_VK_RESULT(
@@ -344,7 +387,7 @@ public:
 		return required_extensions.empty();
 	}
 
-	void CreateWindowSurface(GLFWwindow* p_window) {
+	void CreateWindowSurface() {
 		VkSurfaceKHR surface_temp;
 		
 		auto res = vk::Result(glfwCreateWindowSurface(m_instance.get(), p_window, nullptr, &surface_temp));
@@ -372,7 +415,7 @@ public:
 			nullptr
 		};
 
-		m_messenger = m_instance->createDebugUtilsMessengerEXTUnique(messenger_create_info, nullptr, VULKAN_HPP_DEFAULT_DISPATCHER);
+		m_messenger = m_instance->createDebugUtilsMessengerEXTUnique(messenger_create_info, nullptr, VULKAN_HPP_DEFAULT_DISPATCHER).value;
 		SNK_ASSERT(m_messenger, "Debug messenger created");
 	}
 
@@ -404,7 +447,7 @@ public:
 			&device_features
 		};
 
-		m_device = m_physical_device.createDeviceUnique(device_create_info, nullptr, VULKAN_HPP_DEFAULT_DISPATCHER);
+		m_device = m_physical_device.createDeviceUnique(device_create_info, nullptr, VULKAN_HPP_DEFAULT_DISPATCHER).value;
 		SNK_ASSERT(m_device, "Logical device creation");
 
 		m_graphics_queue = m_device->getQueue(indices.graphics_family.value(), 0, VULKAN_HPP_DEFAULT_DISPATCHER);
@@ -445,7 +488,7 @@ public:
 			{(uint32_t)extensions.size(), extensions.data()}
 		};
 
-		m_instance = vk::createInstanceUnique(create_info, nullptr, VULKAN_HPP_DEFAULT_DISPATCHER);
+		m_instance = vk::createInstanceUnique(create_info, nullptr, VULKAN_HPP_DEFAULT_DISPATCHER).value;
 		SNK_ASSERT(m_instance, "Vulkan instance created");
 	}
 	
@@ -460,7 +503,7 @@ public:
 			create_info.subresourceRange.baseArrayLayer = 0;
 			create_info.subresourceRange.layerCount = 1;
 
-			m_swapchain_image_views[i] = m_device->createImageViewUnique(create_info);
+			m_swapchain_image_views[i] = m_device->createImageViewUnique(create_info).value;
 
 			SNK_ASSERT(m_swapchain_image_views[i], "Swapchain image view {0} created", i);
 		}
@@ -481,17 +524,23 @@ public:
 
 		vk::PipelineShaderStageCreateInfo vert_info{ vk::PipelineShaderStageCreateFlags{0}, vk::ShaderStageFlagBits::eVertex, vert_module.get(), "main"};
 		vk::PipelineShaderStageCreateInfo frag_info{ vk::PipelineShaderStageCreateFlags{0}, vk::ShaderStageFlagBits::eFragment, frag_module.get(), "main"};
-
 		vk::PipelineShaderStageCreateInfo shader_stages[] = {vert_info, frag_info};
 
-		// Stores vertex data
-		vk::PipelineVertexInputStateCreateInfo vert_input_state_create_info{ vk::PipelineVertexInputStateCreateFlags{0}, nullptr, {} };
+		auto binding_desc = Vertex::GetBindingDescription();
+		auto attribute_desc = Vertex::GetAttributeDescriptions();
 
-		// Stores how vertex data is interpreted
-		vk::PipelineInputAssemblyStateCreateInfo input_assembly_create_info{ vk::PipelineInputAssemblyStateCreateFlags{0}, vk::PrimitiveTopology::eTriangleList, VK_FALSE };
+		// Stores vertex layout data
+		vk::PipelineVertexInputStateCreateInfo vert_input_info{ vk::PipelineVertexInputStateCreateFlags{0}, nullptr, {} };
+		vert_input_info.vertexBindingDescriptionCount = 1;
+		vert_input_info.vertexAttributeDescriptionCount = (uint32_t)attribute_desc.size();
+		vert_input_info.pVertexBindingDescriptions = &binding_desc;
+		vert_input_info.pVertexAttributeDescriptions = attribute_desc.data();
+
+		// Stores how vertex data is interpreted by input assembler
+		vk::PipelineInputAssemblyStateCreateInfo input_assembly_create_info{ 
+			vk::PipelineInputAssemblyStateCreateFlags{0}, vk::PrimitiveTopology::eTriangleList, VK_FALSE };
 
 		vk::Viewport viewport{ 0.f, 0.f, (float)m_swapchain_extent.width, (float)m_swapchain_extent.height, 0.f, 1.f };
-
 		// Scissor region is region in which pixels are drawn, in this case the whole framebuffer
 		vk::Rect2D scissor{ {0, 0}, m_swapchain_extent };
 
@@ -535,12 +584,11 @@ public:
 		colour_blend_state.logicOpEnable = VK_FALSE;
 		colour_blend_state.attachmentCount = 1;
 		colour_blend_state.pAttachments = &colour_blend_attachment;
-
 		
 		vk::PipelineLayoutCreateInfo pipeline_layout_info{};
 		pipeline_layout_info.setLayoutCount = 0;
 
-		m_pipeline_layout = m_device->createPipelineLayoutUnique(pipeline_layout_info);
+		m_pipeline_layout = m_device->createPipelineLayoutUnique(pipeline_layout_info).value;
 
 		SNK_ASSERT(m_pipeline_layout, "Graphics pipeline layout created");
 
@@ -549,7 +597,7 @@ public:
 		vk::GraphicsPipelineCreateInfo pipeline_info{};
 		pipeline_info.stageCount = 2;
 		pipeline_info.pStages = shader_stages;
-		pipeline_info.pVertexInputState = &vert_input_state_create_info;
+		pipeline_info.pVertexInputState = &vert_input_info;
 		pipeline_info.pInputAssemblyState = &input_assembly_create_info;
 		pipeline_info.pViewportState = &viewport_create_info;
 		pipeline_info.pRasterizationState = &rasterizer_create_info;
@@ -573,7 +621,7 @@ public:
 		vk::AttachmentDescription colour_attachment{};
 		colour_attachment.format = m_swapchain_format;
 		colour_attachment.samples = vk::SampleCountFlagBits::e1;
-		colour_attachment.loadOp = vk::AttachmentLoadOp::eClear; // clear values at start
+		colour_attachment.loadOp = vk::AttachmentLoadOp::eClear; // clear values at start, eLoad would keep them, eDontCare makes them undefined
 		colour_attachment.storeOp = vk::AttachmentStoreOp::eStore; // rendered contents are stored in memory to be read later
 		colour_attachment.stencilLoadOp = vk::AttachmentLoadOp::eDontCare;
 		colour_attachment.stencilStoreOp = vk::AttachmentStoreOp::eDontCare; // values undefined after rendering
@@ -598,15 +646,17 @@ public:
 		vk::SubpassDependency dependency{};
 		dependency.srcSubpass = VK_SUBPASS_EXTERNAL; // Implicit subpass before renderpass (would be after if specified in dstSubpass)
 		dependency.dstSubpass = 0;
-		dependency.srcStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput;
+		// Wait for colour attachment output stage to finish before starting, this is the swap chain reading from the image when it's acquired
+		dependency.srcStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput; 
 		dependency.srcAccessMask = vk::AccessFlagBits::eNone;
+		// Operations that should wait on this subpass include the colour attachment as it's being written to
 		dependency.dstStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput;
 		dependency.dstAccessMask = vk::AccessFlagBits::eColorAttachmentWrite;
 
 		renderpass_info.dependencyCount = 1;
 		renderpass_info.pDependencies = &dependency;
 
-		m_renderpass = m_device->createRenderPassUnique(renderpass_info);
+		m_renderpass = m_device->createRenderPassUnique(renderpass_info).value;
 		SNK_ASSERT(m_renderpass, "Renderpass created");
 
 	}
@@ -627,7 +677,7 @@ public:
 			framebuffer_info.height = m_swapchain_extent.height;
 			framebuffer_info.layers = 1;
 
-			m_swapchain_framebuffers[i] = std::move(m_device->createFramebufferUnique(framebuffer_info));
+			m_swapchain_framebuffers[i] = std::move(m_device->createFramebufferUnique(framebuffer_info)).value;
 
 			SNK_ASSERT(m_swapchain_framebuffers[i], "Framebuffer '{0}' created", i);
 		}
@@ -640,23 +690,29 @@ public:
 		pool_info.flags = vk::CommandPoolCreateFlagBits::eResetCommandBuffer; // allow command buffers to be rerecorded individually instead of having to be reset together
 		pool_info.queueFamilyIndex = qf_indices.graphics_family.value();
 
-		m_cmd_pool = m_device->createCommandPoolUnique(pool_info);
+		m_cmd_pool = m_device->createCommandPoolUnique(pool_info).value;
 		SNK_ASSERT(m_cmd_pool, "Command pool created");
 	}
 
-	void CreateCommandBuffer() {
+	void CreateCommandBuffers() {
 		vk::CommandBufferAllocateInfo alloc_info{};
 		alloc_info.commandPool = *m_cmd_pool;
 		alloc_info.level = vk::CommandBufferLevel::ePrimary; // can be submitted to a queue for execution, can't be called by other command buffers
-		alloc_info.commandBufferCount = 1;
 
-		m_cmd_buffer = std::move(m_device->allocateCommandBuffersUnique(alloc_info)[0]);
-		SNK_ASSERT(m_cmd_buffer, "Command buffer created");
+		m_cmd_buffers.resize(MAX_FRAMES_IN_FLIGHT);
+		alloc_info.commandBufferCount = (uint32_t)m_cmd_buffers.size();
+		
+		m_cmd_buffers = std::move(m_device->allocateCommandBuffersUnique(alloc_info).value);
+		SNK_ASSERT(m_cmd_buffers[0], "Command buffers created");
 	}
 
 	void RecordCommandBuffer(vk::CommandBuffer cmd_buffer, uint32_t image_index) {
 		vk::CommandBufferBeginInfo begin_info{};
-		m_cmd_buffer->begin(begin_info);
+
+		SNK_CHECK_VK_RESULT(
+			m_cmd_buffers[m_current_frame]->begin(begin_info),
+			"Begin recording command buffer"
+		);
 
 		vk::RenderPassBeginInfo renderpass_info{};
 		renderpass_info.renderPass = *m_renderpass;
@@ -688,10 +744,19 @@ public:
 		scissor.extent = m_swapchain_extent;
 		cmd_buffer.setScissor(0, 1, &scissor);
 
+		std::vector<vk::Buffer> vert_buffers = { *m_vertex_buffer };
+		std::vector<vk::DeviceSize> offsets = { 0 };
+		cmd_buffer.bindVertexBuffers(0, 1, vert_buffers.data(), offsets.data());
+
+
 		cmd_buffer.draw(3, 1, 0, 0);
 
 		cmd_buffer.endRenderPass();
-		cmd_buffer.end();
+
+		SNK_CHECK_VK_RESULT(
+			cmd_buffer.end(),
+			"End recording command buffer"
+		);
 	}
 
 	vk::UniqueShaderModule CreateShaderModule(const std::vector<char>& code, const std::string& filepath) {
@@ -700,7 +765,7 @@ public:
 			*reinterpret_cast<const std::vector<uint32_t>*>(&code)
 		};
 
-		vk::UniqueShaderModule shader_module = m_device->createShaderModuleUnique(create_info);
+		vk::UniqueShaderModule shader_module = m_device->createShaderModuleUnique(create_info).value;
 
 		SNK_ASSERT(shader_module, "Shader module for shader '{0}' created successfully", filepath)
 		return shader_module;
@@ -711,54 +776,67 @@ public:
 		vk::FenceCreateInfo fence_info{};
 		fence_info.flags = vk::FenceCreateFlagBits::eSignaled; // Create in initially signalled state so execution begins immediately
 
-		m_image_avail_semaphore = m_device->createSemaphoreUnique(semaphore_info);
-		m_render_finished_semaphore = m_device->createSemaphoreUnique(semaphore_info);
-		m_in_flight_fence = m_device->createFenceUnique(fence_info);
 
-		SNK_ASSERT(m_image_avail_semaphore && m_render_finished_semaphore && m_in_flight_fence, "Synchronization objects created");
+		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+			m_image_avail_semaphores.push_back(std::move(m_device->createSemaphoreUnique(semaphore_info).value));
+			m_render_finished_semaphores.push_back(std::move(m_device->createSemaphoreUnique(semaphore_info).value));
+			m_in_flight_fences.push_back(std::move(m_device->createFenceUnique(fence_info).value));
+		}
+
+		SNK_ASSERT(m_image_avail_semaphores[0] && m_render_finished_semaphores[0] && m_in_flight_fences[0], "Synchronization objects created");
 	}
 
 	void RenderLoop() {
+		while (!glfwWindowShouldClose(p_window)) {
+			DrawFrame();
+			glfwPollEvents();
+		}
 
+		glfwTerminate();
 	}
 
 	void DrawFrame() {
-		
 		SNK_CHECK_VK_RESULT(
-			m_device->waitForFences(1, &*m_in_flight_fence, VK_TRUE, UINT64_MAX),
+			m_device->waitForFences(1, &*m_in_flight_fences[m_current_frame], VK_TRUE, UINT64_MAX),
 			"DrawFrame waitForFences"
 		);
 
+		uint32_t image_index;
+		auto image_result = m_device->acquireNextImageKHR(*m_swapchain, UINT64_MAX, *m_image_avail_semaphores[m_current_frame], VK_NULL_HANDLE, &image_index);
+
+		// Swap chain suddenly incompatible with surface, likely a window resize
+		if (image_result == vk::Result::eErrorOutOfDateKHR) {
+			RecreateSwapChain();
+			return;
+		}
+		else if (image_result != vk::Result::eSuccess) {
+			SNK_BREAK("Failed to acquire swap chain image");
+		}
+
 		SNK_CHECK_VK_RESULT(
-			m_device->resetFences(1, &*m_in_flight_fence),
+			m_device->resetFences(1, &*m_in_flight_fences[m_current_frame]),
 			"DrawFrame resetFences"
 		);
 
-		uint32_t image_index;
-		
-		SNK_CHECK_VK_RESULT(
-			m_device->acquireNextImageKHR(*m_swapchain, UINT64_MAX, *m_image_avail_semaphore, VK_NULL_HANDLE, &image_index),
-			"DrawFrame acquireNextImage"
-		);
-
-		m_cmd_buffer->reset();
-		RecordCommandBuffer(*m_cmd_buffer, image_index);
+		m_cmd_buffers[m_current_frame]->reset();
+		RecordCommandBuffer(*m_cmd_buffers[m_current_frame], image_index);
 
 		vk::SubmitInfo submit_info{};
-		vk::Semaphore wait_semaphores[] = {*m_image_avail_semaphore}; // Which semaphores to wait on
+		vk::Semaphore wait_semaphores[] = {*m_image_avail_semaphores[m_current_frame]}; // Which semaphores to wait on
 		vk::PipelineStageFlags wait_stages[] = { vk::PipelineStageFlagBits::eColorAttachmentOutput }; // Which stages of the pipeline to wait in
 		submit_info.waitSemaphoreCount = 1;
 		submit_info.pWaitSemaphores = wait_semaphores;
 		submit_info.pWaitDstStageMask = wait_stages;
 		submit_info.commandBufferCount = 1;
-		submit_info.pCommandBuffers = &*m_cmd_buffer;
+		submit_info.pCommandBuffers = &*m_cmd_buffers[m_current_frame];
 
-		vk::Semaphore signal_semaphores[] = { *m_render_finished_semaphore }; // Which semaphores to signal once command buffer(s) have finished execution
+		vk::Semaphore signal_semaphores[] = { *m_render_finished_semaphores[m_current_frame] }; // Which semaphores to signal once command buffer(s) have finished execution
 		submit_info.signalSemaphoreCount = 1;
 		submit_info.pSignalSemaphores = signal_semaphores;
 
+		// Queue work to draw triangle, triggers the fence to be active when it starts
 		SNK_CHECK_VK_RESULT(
-			m_graphics_queue.submit(1, &submit_info, *m_in_flight_fence), // Fence is signalled once command buffer finishes execution
+			m_graphics_queue.submit(1, &submit_info, *m_in_flight_fences[m_current_frame]), // Fence is signalled once command buffer finishes execution
 			"DrawFrame submit to graphics queue"
 		);
 
@@ -771,16 +849,171 @@ public:
 		present_info.pSwapchains = swapchains;
 		present_info.pImageIndices = &image_index;
 		
+		// Queue more work that waits on the render_finished semaphore
+		auto present_result = m_presentation_queue.presentKHR(present_info);
+		if (present_result == vk::Result::eErrorOutOfDateKHR || m_framebuffer_resized || present_result == vk::Result::eSuboptimalKHR) {
+			m_framebuffer_resized = false;
+			RecreateSwapChain();
+		}
+		else if (present_result != vk::Result::eSuccess) {
+			SNK_BREAK("Failed to present image");
+		}
+
+		m_current_frame = (m_current_frame + 1) % MAX_FRAMES_IN_FLIGHT;
+	}
+
+	void RecreateSwapChain() {
 		SNK_CHECK_VK_RESULT(
-			m_presentation_queue.presentKHR(present_info),
-			"DrawFrame presentKHR"
+			m_device->waitIdle(),
+			"WaitIdle"
 		);
 
+		m_swapchain.reset();
+		m_swapchain_images.clear();
+		m_swapchain_framebuffers.clear();
+		m_swapchain_image_views.clear();
+
+		CreateSwapChain();
+		CreateImageViews();
+		CreateFramebuffers();
+	}
+
+	void CreateVertexBuffer() {
+		std::vector<Vertex> vertices = {
+			{{0.0f, -0.5f}, {1.0f, 0.0f, 0.0f}},
+			{{0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}},
+			{{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}}
+		};
+
+		vk::UniqueBuffer staging_buffer;
+		vk::UniqueDeviceMemory staging_buffer_mem;
+
+		size_t size = vertices.size() * sizeof(Vertex);
+
+		// Create staging buffer to load data in from CPU, then transfer to a more optimized buffer only available on the GPU.
+		CreateBuffer(size, vk::BufferUsageFlagBits::eTransferSrc,
+			vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostVisible, staging_buffer, staging_buffer_mem);
+
+		void* data = nullptr;
+		SNK_CHECK_VK_RESULT(
+			m_device->mapMemory(*staging_buffer_mem, 0, size, {}, &data),
+			"Vertex buffer memory mapping"
+		);
+		memcpy(data, vertices.data(), size);
+		m_device->unmapMemory(*staging_buffer_mem);
+
+		CreateBuffer(size, vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eVertexBuffer,
+			vk::MemoryPropertyFlagBits::eDeviceLocal, m_vertex_buffer, m_vertex_buffer_memory);
+
+		CopyBuffer(*staging_buffer, *m_vertex_buffer, size);
+	}
+
+	void CopyBuffer(vk::Buffer& src, vk::Buffer dst, vk::DeviceSize size) {
+		vk::CommandBufferAllocateInfo alloc_info{};
+		alloc_info.level = vk::CommandBufferLevel::ePrimary;
+		alloc_info.commandPool = *m_cmd_pool;
+		alloc_info.commandBufferCount = 1;
+
+		// Create new command buffer to perform memory transfer
+		auto [result, bufs] = m_device->allocateCommandBuffersUnique(alloc_info);
+		SNK_CHECK_VK_RESULT(
+			result,
+			"CopyBuffer command buffer allocation"
+		);
+
+		vk::UniqueCommandBuffer cmd_buf = std::move(bufs[0]);
+
+		vk::CommandBufferBeginInfo begin_info{};
+		begin_info.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit;
+
+		// Start recording
+		SNK_CHECK_VK_RESULT(
+			cmd_buf->begin(begin_info),
+			"CopyBuffer command buffer begin()"
+		);
+
+		vk::BufferCopy copy_region{};
+		copy_region.srcOffset = 0;
+		copy_region.dstOffset = 0;
+		copy_region.size = size;
+
+		cmd_buf->copyBuffer(src, dst, copy_region);
+
+		// Stop recording
+		SNK_CHECK_VK_RESULT(
+			cmd_buf->end(),
+			"CopyBuffer command buffer end()"
+		);
+
+		vk::SubmitInfo submit_info{};
+		submit_info.commandBufferCount = 1;
+		submit_info.pCommandBuffers = &*cmd_buf;
+		
+		// Graphics queues implicitly support queue transfer operations, don't need special transfer queue
+		SNK_CHECK_VK_RESULT(
+			m_graphics_queue.submit(submit_info),
+			"Graphics queue transfer operation submission"
+		);
+
+		// Wait for transfer queue to become idle, this can be sped up with fences as multiple transfer ops can occur simultaneously
+		SNK_CHECK_VK_RESULT(m_graphics_queue.waitIdle(), "CopyBuffer graphics queue waitIdle");
+	}
+
+	void CreateBuffer(vk::DeviceSize size, vk::BufferUsageFlags usage, vk::MemoryPropertyFlags properties, vk::UniqueBuffer& buffer, vk::UniqueDeviceMemory& buffer_memory) {
+		vk::BufferCreateInfo buffer_info{};
+		buffer_info.size = size;
+		buffer_info.usage = usage;
+		buffer_info.sharingMode = vk::SharingMode::eExclusive;
+
+		auto [result, new_buffer] = m_device->createBufferUnique(buffer_info);
+		SNK_CHECK_VK_RESULT(result, "Buffer creation");
+		buffer = std::move(new_buffer);
+
+		vk::MemoryRequirements mem_requirements = m_device->getBufferMemoryRequirements(*buffer);
+
+		vk::MemoryAllocateInfo alloc_info{};
+		alloc_info.allocationSize = mem_requirements.size;
+		alloc_info.memoryTypeIndex = FindMemoryType(mem_requirements.memoryTypeBits, properties);
+
+		auto [alloc_result, mem] = m_device->allocateMemoryUnique(alloc_info);
+		SNK_CHECK_VK_RESULT(alloc_result, "Buffer memory allocation");
+
+		buffer_memory = std::move(mem);
+
+		SNK_CHECK_VK_RESULT(
+			m_device->bindBufferMemory(*buffer, *buffer_memory, 0),
+			"Buffer memory binding"
+		);
+	}
+
+	uint32_t FindMemoryType(uint32_t type_filter, vk::MemoryPropertyFlags properties) {
+		auto phys_mem_properties = m_physical_device.getMemoryProperties();
+
+		for (uint32_t i = 0; i < phys_mem_properties.memoryTypeCount; i++) {
+			if (type_filter & (1 << i) && 
+				(static_cast<uint32_t>(phys_mem_properties.memoryTypes[i].propertyFlags) & static_cast<uint32_t>(properties)) == static_cast<uint32_t>(properties)) {
+				return i;
+			}
+		}
+
+		SNK_BREAK("Failed to find memory type");
+		return 0;
 	}
 
 	~VulkanApp() {
-
+		// Wait for any fences before destroying them
+		for (auto& fence : m_in_flight_fences) {
+			SNK_CHECK_VK_RESULT(
+				m_device->waitForFences(*fence, true, std::numeric_limits<uint64_t>::max()),
+				"Cleanup - waiting for fences"
+			)
+		}
 	}
+
+	GLFWwindow* p_window = nullptr;
+
+	vk::UniqueBuffer m_vertex_buffer;
+	vk::UniqueDeviceMemory m_vertex_buffer_memory;
 
 	vk::UniqueInstance m_instance;
 	vk::UniqueDebugUtilsMessengerEXT m_messenger;
@@ -804,11 +1037,15 @@ public:
 	std::vector<vk::UniqueFramebuffer> m_swapchain_framebuffers;
 
 	vk::UniqueCommandPool m_cmd_pool;
-	vk::UniqueCommandBuffer m_cmd_buffer;
+	std::vector<vk::UniqueCommandBuffer> m_cmd_buffers;
 
-	vk::UniqueSemaphore m_image_avail_semaphore;
-	vk::UniqueSemaphore m_render_finished_semaphore;
-	vk::UniqueFence m_in_flight_fence;
+	std::vector<vk::UniqueSemaphore> m_image_avail_semaphores;
+	std::vector<vk::UniqueSemaphore> m_render_finished_semaphores;
+	std::vector<vk::UniqueFence> m_in_flight_fences;
+
+	bool m_framebuffer_resized = false;
+
+	uint32_t m_current_frame = 0;
 
 	static constexpr std::array<const char*, 1> m_required_device_extensions = {
 		VK_KHR_SWAPCHAIN_EXTENSION_NAME
@@ -821,21 +1058,9 @@ int main() {
 	std::filesystem::current_path("../../../../Core");
 	SNAKE::Logger::Init();
 
-	if (!glfwInit() || !glfwVulkanSupported())
-		return 1;
-
-	Window window;
-	window.Init();
-
 	VulkanApp app;
-	app.Init("Snake", window.GetWindow());
-	while (!glfwWindowShouldClose(window.GetWindow())) {
-		app.RenderLoop();
-		app.DrawFrame();
-		glfwPollEvents();
-	}
-
-	glfwTerminate();
+	app.Init("Snake");
+	app.RenderLoop();
 
 	return 0;
 }
