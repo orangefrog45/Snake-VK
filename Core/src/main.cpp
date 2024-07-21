@@ -104,6 +104,12 @@ struct Vertex {
 	}
 };
 
+struct UBO {
+	glm::mat4 model;
+	glm::mat4 view;
+	glm::mat4 proj;
+};
+
 
 class VulkanApp {
 public:
@@ -121,9 +127,9 @@ public:
 		CreateSwapChain();
 		CreateImageViews();
 		CreateGraphicsPipeline();
-		CreateFramebuffers();
 		CreateCommandPool();
 		CreateVertexBuffer();
+		CreateIndexBuffer();
 		CreateCommandBuffers();
 		CreateSyncObjects();
 	}
@@ -440,12 +446,17 @@ public:
 			queue_create_infos.push_back(queue_create_info);
 		}
 
-		vk::DeviceCreateInfo device_create_info{ vk::DeviceCreateFlags(0),
-			{(uint32_t)queue_create_infos.size(), queue_create_infos.data()},
-			{},
-			{(uint32_t)m_required_device_extensions.size(), m_required_device_extensions.data()},
-			&device_features
-		};
+		vk::PhysicalDeviceDynamicRenderingFeatures dynamic_rendering_features{};
+		dynamic_rendering_features.dynamicRendering = VK_TRUE;
+
+		auto device_create_info = vk::DeviceCreateInfo{}
+			.setQueueCreateInfoCount((uint32_t)queue_create_infos.size())
+			.setPQueueCreateInfos(queue_create_infos.data())
+			.setEnabledExtensionCount((uint32_t)m_required_device_extensions.size())
+			.setPpEnabledExtensionNames(m_required_device_extensions.data())
+			.setPNext(&dynamic_rendering_features)
+			.setPEnabledFeatures(&device_features);
+			
 
 		m_device = m_physical_device.createDeviceUnique(device_create_info, nullptr, VULKAN_HPP_DEFAULT_DISPATCHER).value;
 		SNK_ASSERT(m_device, "Logical device creation");
@@ -585,14 +596,19 @@ public:
 		colour_blend_state.attachmentCount = 1;
 		colour_blend_state.pAttachments = &colour_blend_attachment;
 		
+		// Use to attach descriptor sets
 		vk::PipelineLayoutCreateInfo pipeline_layout_info{};
-		pipeline_layout_info.setLayoutCount = 0;
+		//pipeline_layout_info.setLayoutCount = 1;
+		//pipeline_layout_info.pSetLayouts = &*m_descriptor_set_layout;
 
 		m_pipeline_layout = m_device->createPipelineLayoutUnique(pipeline_layout_info).value;
 
 		SNK_ASSERT(m_pipeline_layout, "Graphics pipeline layout created");
 
-		CreateRenderpass();
+		std::vector<vk::Format> formats = { m_swapchain_format };
+		vk::PipelineRenderingCreateInfo render_info{};
+		render_info.colorAttachmentCount = 1;
+		render_info.pColorAttachmentFormats = formats.data();
 
 		vk::GraphicsPipelineCreateInfo pipeline_info{};
 		pipeline_info.stageCount = 2;
@@ -606,8 +622,9 @@ public:
 		pipeline_info.pColorBlendState = &colour_blend_state;
 		pipeline_info.pDynamicState = &dynamic_state_create_info;
 		pipeline_info.layout = *m_pipeline_layout;
-		pipeline_info.renderPass = *m_renderpass;
+		pipeline_info.renderPass = nullptr;
 		pipeline_info.subpass = 0; // index of subpass where this pipeline is used
+		pipeline_info.pNext = &render_info;
 
 		auto [result, pipeline] = m_device->createGraphicsPipelineUnique(VK_NULL_HANDLE, pipeline_info).asTuple();
 		m_graphics_pipeline = std::move(pipeline);
@@ -616,72 +633,6 @@ public:
 		SNK_ASSERT(m_graphics_pipeline, "Graphics pipeline successfully created");
 	}
 
-	void CreateRenderpass() {
-		// Setup framebuffer attachments
-		vk::AttachmentDescription colour_attachment{};
-		colour_attachment.format = m_swapchain_format;
-		colour_attachment.samples = vk::SampleCountFlagBits::e1;
-		colour_attachment.loadOp = vk::AttachmentLoadOp::eClear; // clear values at start, eLoad would keep them, eDontCare makes them undefined
-		colour_attachment.storeOp = vk::AttachmentStoreOp::eStore; // rendered contents are stored in memory to be read later
-		colour_attachment.stencilLoadOp = vk::AttachmentLoadOp::eDontCare;
-		colour_attachment.stencilStoreOp = vk::AttachmentStoreOp::eDontCare; // values undefined after rendering
-		colour_attachment.initialLayout = vk::ImageLayout::eUndefined; // don't care what previous layout of the image was, it's cleared at the start anyway
-		colour_attachment.finalLayout = vk::ImageLayout::ePresentSrcKHR; // image will be presented to swapchain, this value should be based on what the image is going to be used for next
-
-		vk::AttachmentReference colour_attachment_ref{};
-		colour_attachment_ref.attachment = 0; // which attachment to reference by its index in the attachment descriptions array
-		colour_attachment_ref.layout = vk::ImageLayout::eColorAttachmentOptimal; // the layout the attachment image has when this subpass starts
-
-		vk::SubpassDescription subpass{};
-		subpass.pipelineBindPoint = vk::PipelineBindPoint::eGraphics;
-		subpass.colorAttachmentCount = 1;
-		subpass.pColorAttachments = &colour_attachment_ref; // Index of colour attachment referenced directly in shader with layout(location = 0)
-
-		vk::RenderPassCreateInfo renderpass_info{};
-		renderpass_info.attachmentCount = 1;
-		renderpass_info.pAttachments = &colour_attachment;
-		renderpass_info.subpassCount = 1;
-		renderpass_info.pSubpasses = &subpass;
-
-		vk::SubpassDependency dependency{};
-		dependency.srcSubpass = VK_SUBPASS_EXTERNAL; // Implicit subpass before renderpass (would be after if specified in dstSubpass)
-		dependency.dstSubpass = 0;
-		// Wait for colour attachment output stage to finish before starting, this is the swap chain reading from the image when it's acquired
-		dependency.srcStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput; 
-		dependency.srcAccessMask = vk::AccessFlagBits::eNone;
-		// Operations that should wait on this subpass include the colour attachment as it's being written to
-		dependency.dstStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput;
-		dependency.dstAccessMask = vk::AccessFlagBits::eColorAttachmentWrite;
-
-		renderpass_info.dependencyCount = 1;
-		renderpass_info.pDependencies = &dependency;
-
-		m_renderpass = m_device->createRenderPassUnique(renderpass_info).value;
-		SNK_ASSERT(m_renderpass, "Renderpass created");
-
-	}
-
-	void CreateFramebuffers() {
-		m_swapchain_framebuffers.resize(m_swapchain_image_views.size());
-
-		for (size_t i = 0; i < m_swapchain_framebuffers.size(); i++) {
-			vk::ImageView attachments[] = {
-				*m_swapchain_image_views[i]
-			};
-
-			vk::FramebufferCreateInfo framebuffer_info{};
-			framebuffer_info.renderPass = *m_renderpass;
-			framebuffer_info.attachmentCount = 1;
-			framebuffer_info.pAttachments = attachments;
-			framebuffer_info.width = m_swapchain_extent.width;
-			framebuffer_info.height = m_swapchain_extent.height;
-			framebuffer_info.layers = 1;
-
-			m_swapchain_framebuffers[i] = std::move(m_device->createFramebufferUnique(framebuffer_info)).value;
-
-			SNK_ASSERT(m_swapchain_framebuffers[i], "Framebuffer '{0}' created", i);
-		}
-	}
 
 	void CreateCommandPool() {
 		QueueFamilyIndices qf_indices = FindQueueFamilies(m_physical_device);
@@ -714,18 +665,40 @@ public:
 			"Begin recording command buffer"
 		);
 
-		vk::RenderPassBeginInfo renderpass_info{};
-		renderpass_info.renderPass = *m_renderpass;
-		renderpass_info.framebuffer = *m_swapchain_framebuffers[image_index];
-		renderpass_info.renderArea.offset = vk::Offset2D{ 0, 0 };
-		renderpass_info.renderArea.extent = m_swapchain_extent;
-		renderpass_info.clearValueCount = 1;
-		vk::ClearValue clear_col = { { 0.f, 0.f, 0.f, 1.f } };
-		renderpass_info.pClearValues = &clear_col;
+		// Transition image layout from presentSrc to colour
+		vk::ImageMemoryBarrier image_mem_barrier{};
+		image_mem_barrier.oldLayout = vk::ImageLayout::eUndefined;
+		image_mem_barrier.newLayout = vk::ImageLayout::eColorAttachmentOptimal;
+		image_mem_barrier.dstAccessMask = vk::AccessFlagBits::eColorAttachmentWrite;
+		image_mem_barrier.image = m_swapchain_images[image_index];
+		image_mem_barrier.subresourceRange.aspectMask = vk::ImageAspectFlagBits::eColor;
+		image_mem_barrier.subresourceRange.baseMipLevel = 0;
+		image_mem_barrier.subresourceRange.levelCount = 1;
+		image_mem_barrier.subresourceRange.baseArrayLayer = 0;
+		image_mem_barrier.subresourceRange.layerCount = 1;
 
-		cmd_buffer.beginRenderPass(
-			renderpass_info, 
-			vk::SubpassContents::eInline // renderpass commands embedded in primary command buffer, no secondary command buffers will be executed
+		cmd_buffer.pipelineBarrier(
+			vk::PipelineStageFlagBits::eTopOfPipe,
+			vk::PipelineStageFlagBits::eColorAttachmentOutput,
+			vk::DependencyFlags{ 0 }, {}, {}, image_mem_barrier
+		);
+
+		vk::RenderingAttachmentInfo colour_attachment_info{};
+		colour_attachment_info.loadOp = vk::AttachmentLoadOp::eClear; // Clear initially
+		colour_attachment_info.storeOp = vk::AttachmentStoreOp::eStore;
+		colour_attachment_info.imageView = *m_swapchain_image_views[image_index];
+		colour_attachment_info.imageLayout = vk::ImageLayout::eColorAttachmentOptimal;
+
+		vk::RenderingInfo render_info{};
+		render_info.layerCount = 1;
+		render_info.colorAttachmentCount = 1;
+		render_info.pColorAttachments = &colour_attachment_info;
+		render_info.renderArea.extent = m_swapchain_extent;
+		render_info.renderArea.offset = vk::Offset2D{ 0, 0 };
+
+
+		cmd_buffer.beginRenderingKHR(
+			render_info
 		);
 
 		cmd_buffer.bindPipeline(vk::PipelineBindPoint::eGraphics, *m_graphics_pipeline);
@@ -745,13 +718,34 @@ public:
 		cmd_buffer.setScissor(0, 1, &scissor);
 
 		std::vector<vk::Buffer> vert_buffers = { *m_vertex_buffer };
+		std::vector<vk::Buffer> index_buffers = { *m_index_buffer };
 		std::vector<vk::DeviceSize> offsets = { 0 };
 		cmd_buffer.bindVertexBuffers(0, 1, vert_buffers.data(), offsets.data());
+		cmd_buffer.bindIndexBuffer(*m_index_buffer, 0, vk::IndexType::eUint16);
 
 
-		cmd_buffer.draw(3, 1, 0, 0);
+		cmd_buffer.drawIndexed((uint32_t)m_indices.size(), 1, 0, 0, 0);
 
-		cmd_buffer.endRenderPass();
+		cmd_buffer.endRenderingKHR();
+
+		// Transition image layout from colour to presentSrc
+		vk::ImageMemoryBarrier image_mem_barrier_2{};
+		image_mem_barrier_2.srcAccessMask = vk::AccessFlagBits::eColorAttachmentWrite;
+		image_mem_barrier_2.oldLayout = vk::ImageLayout::eColorAttachmentOptimal;
+		image_mem_barrier_2.newLayout = vk::ImageLayout::ePresentSrcKHR;
+		image_mem_barrier_2.image = m_swapchain_images[image_index];
+		image_mem_barrier_2.subresourceRange.aspectMask = vk::ImageAspectFlagBits::eColor;
+		image_mem_barrier_2.subresourceRange.baseMipLevel = 0;
+		image_mem_barrier_2.subresourceRange.levelCount = 1;
+		image_mem_barrier_2.subresourceRange.baseArrayLayer = 0;
+		image_mem_barrier_2.subresourceRange.layerCount = 1;
+
+		cmd_buffer.pipelineBarrier(
+			vk::PipelineStageFlagBits::eColorAttachmentOutput,
+			vk::PipelineStageFlagBits::eBottomOfPipe,
+			vk::DependencyFlags{ 0 }, {}, {}, image_mem_barrier_2
+		);
+
 
 		SNK_CHECK_VK_RESULT(
 			cmd_buffer.end(),
@@ -849,7 +843,7 @@ public:
 		present_info.pSwapchains = swapchains;
 		present_info.pImageIndices = &image_index;
 		
-		// Queue more work that waits on the render_finished semaphore
+		// Queue presentation work that waits on the render_finished semaphore
 		auto present_result = m_presentation_queue.presentKHR(present_info);
 		if (present_result == vk::Result::eErrorOutOfDateKHR || m_framebuffer_resized || present_result == vk::Result::eSuboptimalKHR) {
 			m_framebuffer_resized = false;
@@ -870,19 +864,18 @@ public:
 
 		m_swapchain.reset();
 		m_swapchain_images.clear();
-		m_swapchain_framebuffers.clear();
 		m_swapchain_image_views.clear();
 
 		CreateSwapChain();
 		CreateImageViews();
-		CreateFramebuffers();
 	}
 
 	void CreateVertexBuffer() {
 		std::vector<Vertex> vertices = {
-			{{0.0f, -0.5f}, {1.0f, 0.0f, 0.0f}},
-			{{0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}},
-			{{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}}
+		{{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}},
+		{{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}},
+		{{0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}},
+		{{-0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}}
 		};
 
 		vk::UniqueBuffer staging_buffer;
@@ -906,6 +899,30 @@ public:
 			vk::MemoryPropertyFlagBits::eDeviceLocal, m_vertex_buffer, m_vertex_buffer_memory);
 
 		CopyBuffer(*staging_buffer, *m_vertex_buffer, size);
+	}
+
+	void CreateIndexBuffer() {
+		vk::UniqueBuffer staging_buffer;
+		vk::UniqueDeviceMemory staging_buffer_mem;
+
+		size_t size = m_indices.size() * sizeof(Vertex);
+
+		// Create staging buffer to load data in from CPU, then transfer to a more optimized buffer only available on the GPU.
+		CreateBuffer(size, vk::BufferUsageFlagBits::eTransferSrc,
+			vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostVisible, staging_buffer, staging_buffer_mem);
+
+		void* data = nullptr;
+		SNK_CHECK_VK_RESULT(
+			m_device->mapMemory(*staging_buffer_mem, 0, size, {}, &data),
+			"Vertex buffer memory mapping"
+		);
+		memcpy(data, m_indices.data(), size);
+		m_device->unmapMemory(*staging_buffer_mem);
+
+		CreateBuffer(size, vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eIndexBuffer,
+			vk::MemoryPropertyFlagBits::eDeviceLocal, m_index_buffer, m_index_buffer_memory);
+
+		CopyBuffer(*staging_buffer, *m_index_buffer, size);
 	}
 
 	void CopyBuffer(vk::Buffer& src, vk::Buffer dst, vk::DeviceSize size) {
@@ -1000,6 +1017,23 @@ public:
 		return 0;
 	}
 
+	void CreateDescriptorSetLayout() {
+		vk::DescriptorSetLayoutBinding ubo_layout_binding{};
+		ubo_layout_binding.binding = 0;
+		ubo_layout_binding.descriptorType = vk::DescriptorType::eUniformBuffer;
+		ubo_layout_binding.descriptorCount = 1;
+		ubo_layout_binding.stageFlags = vk::ShaderStageFlagBits::eVertex; // Descriptor only referenced in vertex stage
+
+		vk::DescriptorSetLayoutCreateInfo layout_info{};
+		layout_info.bindingCount = 1;
+		layout_info.pBindings = &ubo_layout_binding;
+
+		auto [res, val] = m_device->createDescriptorSetLayoutUnique(layout_info);
+		SNK_CHECK_VK_RESULT(res, "Create descriptor set layout");
+	
+		m_descriptor_set_layout = std::move(val);
+	}
+
 	~VulkanApp() {
 		// Wait for any fences before destroying them
 		for (auto& fence : m_in_flight_fences) {
@@ -1010,10 +1044,18 @@ public:
 		}
 	}
 
+	const std::vector<uint16_t> m_indices = {
+		0, 1, 2, 2, 3, 0
+	};
+
 	GLFWwindow* p_window = nullptr;
+
 
 	vk::UniqueBuffer m_vertex_buffer;
 	vk::UniqueDeviceMemory m_vertex_buffer_memory;
+
+	vk::UniqueBuffer m_index_buffer;
+	vk::UniqueDeviceMemory m_index_buffer_memory;
 
 	vk::UniqueInstance m_instance;
 	vk::UniqueDebugUtilsMessengerEXT m_messenger;
@@ -1030,11 +1072,10 @@ public:
 	vk::Format m_swapchain_format;
 	vk::Extent2D m_swapchain_extent;
 
+	vk::UniqueDescriptorSetLayout m_descriptor_set_layout;
 	vk::UniquePipelineLayout m_pipeline_layout;
-	vk::UniqueRenderPass m_renderpass;
-	vk::UniquePipeline m_graphics_pipeline;
 
-	std::vector<vk::UniqueFramebuffer> m_swapchain_framebuffers;
+	vk::UniquePipeline m_graphics_pipeline;
 
 	vk::UniqueCommandPool m_cmd_pool;
 	std::vector<vk::UniqueCommandBuffer> m_cmd_buffers;
@@ -1047,8 +1088,11 @@ public:
 
 	uint32_t m_current_frame = 0;
 
-	static constexpr std::array<const char*, 1> m_required_device_extensions = {
-		VK_KHR_SWAPCHAIN_EXTENSION_NAME
+	static constexpr std::array<const char*, 4> m_required_device_extensions = {
+		VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+		VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME,
+		VK_KHR_DEPTH_STENCIL_RESOLVE_EXTENSION_NAME,
+		VK_KHR_CREATE_RENDERPASS_2_EXTENSION_NAME,
 	};
 
 };
