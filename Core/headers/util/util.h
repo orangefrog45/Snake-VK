@@ -23,3 +23,34 @@
 #endif
 
 #define SNK_ASSERT(x, ...) if (!(x)) {SNK_BREAK("Assertion failed: '{0}'", __VA_ARGS__);}
+
+namespace SNAKE {
+	namespace util {
+		template<typename Container, typename... Args>
+			requires((std::is_convertible_v<Args, typename Container::value_type>, ...))
+		void PushBackMultiple(Container& container, Args&&... args) {
+			(container.push_back(std::forward<Args>(args)), ...);
+		};
+		
+		template<typename ArrayType, typename ...Args>
+		constexpr std::array<ArrayType, sizeof...(Args)> array(Args&&... args) {
+			return { { std::forward<Args>(args)... } };
+		}
+
+
+
+		/* Type ID Stuff */
+		inline uint16_t type_id_seq = 0;
+		template< typename T > inline const uint16_t type_id = type_id_seq++;
+
+		template<typename T>
+		uint16_t GetTypeID() {
+			return type_id<T>;
+		}
+		/*----------------*/
+
+
+
+	}
+
+}

@@ -4,7 +4,17 @@ project(ORNG_VK_CORE)
 
 add_executable(ORNG_VK_CORE
 src/main.cpp
- "headers/util.h" "headers/Logger.h" "src/util/util.cpp" "src/util/Logger.cpp" "src/pch/pch.cpp" "headers/pch/pch.h" "headers/FileUtil.h" "src/util/FileUtil.cpp")
+"headers/util/util.h"
+"headers/util/Logger.h"
+"src/util/util.cpp"
+"src/util/Logger.cpp"
+"src/pch/pch.cpp"
+"headers/pch/pch.h"
+
+
+"headers/core/Window.h"
+"headers/events/EventManager.h"
+ "src/events/EventManager.cpp" "headers/util/UUID.h" "headers/util/FileUtil.h" "src/util/UUID.cpp" "src/core/Window.cpp" "headers/events/EventsCommon.h")
 
 target_link_directories(ORNG_VK_CORE PUBLIC $ENV{VULKAN_SDK}/Lib)
 

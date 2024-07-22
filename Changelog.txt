@@ -1,3 +1,9 @@
+22/7/24:
+-Descriptor set with matrix UBO
+-3D renderering
+-Event/listener system
+-Window class
+
 21/7/24:
 -Switched to dynamic rendering, removed renderpass and framebuffer objects
 -Usage of index buffers
