@@ -18,29 +18,27 @@ void Texture2D::LoadFromFile(const std::string& filepath, vk::CommandPool pool) 
 
 	SNK_ASSERT(pixels, "Image file loaded");
 
-	vk::UniqueBuffer staging_buffer;
-	vk::UniqueDeviceMemory staging_buffer_mem;
-
-	CreateBuffer(image_size, vk::BufferUsageFlagBits::eTransferSrc,
-		vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent, staging_buffer, staging_buffer_mem);
+	S_VkBuffer staging_buffer{};
+	staging_buffer.CreateBuffer(image_size, vk::BufferUsageFlagBits::eTransferSrc, VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT);
 
 	void* p_data = nullptr;
+	vk::DeviceMemory staging_mem = staging_buffer.alloc_info.deviceMemory;
+
 	SNK_CHECK_VK_RESULT(
-		VulkanContext::GetLogicalDevice().device->mapMemory(*staging_buffer_mem, 0, image_size, {}, &p_data)
+		VulkanContext::GetLogicalDevice().device->mapMemory(staging_mem, 0, image_size, {}, &p_data)
 	);
 	memcpy(p_data, pixels, (size_t)image_size);
-	VulkanContext::GetLogicalDevice().device->unmapMemory(*staging_buffer_mem);
+	VulkanContext::GetLogicalDevice().device->unmapMemory(staging_mem);
 
 	stbi_image_free(pixels);
 
 	vk::Format fmt = vk::Format::eR8G8B8A8Srgb;
 
 	CreateImage(width, height, fmt, vk::ImageTiling::eOptimal,
-		vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled, vk::MemoryPropertyFlagBits::eDeviceLocal,
-		m_tex_image, m_tex_mem);
+		vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled);
 
 	TransitionImageLayout(m_tex_image, fmt, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal, pool);
-	CopyBufferToImage(*staging_buffer, *m_tex_image, width, height, pool);
+	CopyBufferToImage(staging_buffer.buffer, *m_tex_image, width, height, pool);
 	TransitionImageLayout(m_tex_image, fmt, vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal, pool);
 
 	CreateImageView();
@@ -70,8 +68,7 @@ void Texture2D::CreateSampler() {
 	m_sampler = std::move(sampler);
 }
 
-void Texture2D::CreateImage(uint32_t width, uint32_t height, vk::Format format, vk::ImageTiling tiling, vk::ImageUsageFlags usage,
-	vk::MemoryPropertyFlags properties, vk::UniqueImage& image, vk::UniqueDeviceMemory& memory) {
+void Texture2D::CreateImage(uint32_t width, uint32_t height, vk::Format format, vk::ImageTiling tiling, vk::ImageUsageFlags usage, VmaAllocationCreateFlags flags) {
 	vk::ImageCreateInfo image_info{};
 	image_info.imageType = vk::ImageType::e2D;
 	image_info.extent.width = width;
@@ -86,24 +83,15 @@ void Texture2D::CreateImage(uint32_t width, uint32_t height, vk::Format format, 
 	image_info.sharingMode = vk::SharingMode::eExclusive; // Image only used by one queue family
 	image_info.samples = vk::SampleCountFlagBits::e1; // Multisampling config, ignore
 
-	auto& device = VulkanContext::GetLogicalDevice().device;
+	auto im_info = static_cast<VkImageCreateInfo>(image_info);
 
-	auto [res, u_image] = device->createImageUnique(image_info);
-	SNK_CHECK_VK_RESULT(res);
-	m_tex_image = std::move(u_image);
+	VmaAllocationCreateInfo alloc_info{};
+	alloc_info.usage = VMA_MEMORY_USAGE_AUTO;
+	alloc_info.flags = flags;
 
-	vk::MemoryRequirements mem_requirements = device->getImageMemoryRequirements(*image);
-
-	vk::MemoryAllocateInfo alloc_info{};
-	alloc_info.allocationSize = mem_requirements.size;
-	alloc_info.memoryTypeIndex = FindMemoryType(mem_requirements.memoryTypeBits, properties);
-
-	auto [alloc_res, mem] = device->allocateMemoryUnique(alloc_info);
-	SNK_CHECK_VK_RESULT(alloc_res);
-	memory = std::move(mem);
-
-	SNK_CHECK_VK_RESULT(device->bindImageMemory(*image, *memory, 0));
+	SNK_CHECK_VK_RESULT(vmaCreateImage(VulkanContext::GetAllocator(), &im_info, &alloc_info, reinterpret_cast<VkImage*>(&*m_tex_image), &m_allocation, nullptr));
 }
+
 
 void Texture2D::TransitionImageLayout(vk::UniqueImage& image, [[maybe_unused]] vk::Format format, vk::ImageLayout old_layout, vk::ImageLayout new_layout, vk::CommandPool pool) {
 	auto cmd_buf = BeginSingleTimeCommands(pool);

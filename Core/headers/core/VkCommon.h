@@ -1,6 +1,7 @@
 #pragma once
-#include <core/VkIncl.h>
-
+#include "core/VkIncl.h"
+#include "core/VkContext.h"
+#include <vk_mem_alloc.h>
 #include <optional>
 
 namespace SNAKE {
@@ -19,13 +20,34 @@ namespace SNAKE {
 		std::vector<vk::PresentModeKHR> present_modes;
 	};
 
+	struct S_VkBuffer {
+		S_VkBuffer() = default;
+		S_VkBuffer(const S_VkBuffer& other) = delete;
+		S_VkBuffer& operator=(const S_VkBuffer& other) = delete;
+
+		S_VkBuffer& operator=(S_VkBuffer&& other) noexcept {
+			this->allocation = std::move(other.allocation);
+			this->buffer = std::move(other.buffer);
+
+			return *this;
+		}
+
+		~S_VkBuffer() {
+			vmaDestroyBuffer(VulkanContext::GetAllocator(), buffer, allocation);
+		}
+
+		void CreateBuffer(vk::DeviceSize size, vk::BufferUsageFlags usage, VmaAllocationCreateFlags flags = 0);
+
+		VmaAllocation allocation;
+		VmaAllocationInfo alloc_info;
+		vk::Buffer buffer;
+	};
+
 	SwapChainSupportDetails QuerySwapChainSupport(vk::PhysicalDevice device, vk::SurfaceKHR surface);
 
 	QueueFamilyIndices FindQueueFamilies(vk::PhysicalDevice device, vk::SurfaceKHR surface);
 
 	bool CheckDeviceExtensionSupport(vk::PhysicalDevice device, const std::vector<const char*>& required_extensions);
-
-	void CreateBuffer(vk::DeviceSize size, vk::BufferUsageFlags usage, vk::MemoryPropertyFlags properties, vk::UniqueBuffer& buffer, vk::UniqueDeviceMemory& buffer_memory);
 
 	uint32_t FindMemoryType(uint32_t type_filter, vk::MemoryPropertyFlags properties);
 

@@ -10,3 +10,6 @@
 [submodule "Core/extern/stb"]
 	path = Core/extern/stb
 	url = https://github.com/nothings/stb
+[submodule "Core/extern/vma"]
+	path = Core/extern/vma
+	url = https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator

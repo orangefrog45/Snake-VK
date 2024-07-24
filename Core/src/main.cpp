@@ -4,6 +4,7 @@
 #include "util/util.h"
 #include "core/Window.h"
 #include "core/VkContext.h"
+#include "core/VkCommon.h"
 #include "core/VkIncl.h"
 #include "textures/Textures.h"
 
@@ -141,6 +142,7 @@ namespace SNAKE {
 			window.CreateSurface();
 			VulkanContext::PickPhysicalDevice(*window.m_vk_context.surface, m_required_device_extensions);
 			VulkanContext::CreateLogicalDevice(*window.m_vk_context.surface, m_required_device_extensions);
+			VulkanContext::InitVMA();
 			window.CreateSwapchain();
 
 			// Create common descriptor set layout, includes bindings for UBO object used in CreateGraphicsPipeline and CreateDescriptorSets
@@ -401,11 +403,11 @@ namespace SNAKE {
 			scissor.extent = window.m_vk_context.swapchain_extent;
 			cmd_buffer.setScissor(0, 1, &scissor);
 
-			std::vector<vk::Buffer> vert_buffers = { *m_vertex_buffer };
-			std::vector<vk::Buffer> index_buffers = { *m_index_buffer };
+			std::vector<vk::Buffer> vert_buffers = { m_vertex_buffer.buffer };
+			std::vector<vk::Buffer> index_buffers = { m_index_buffer.buffer };
 			std::vector<vk::DeviceSize> offsets = { 0 };
 			cmd_buffer.bindVertexBuffers(0, 1, vert_buffers.data(), offsets.data());
-			cmd_buffer.bindIndexBuffer(*m_index_buffer, 0, vk::IndexType::eUint16);
+			cmd_buffer.bindIndexBuffer(m_index_buffer.buffer, 0, vk::IndexType::eUint16);
 
 			cmd_buffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *m_pipeline_layout, 0, *m_descriptor_sets[m_current_frame], {});
 			cmd_buffer.drawIndexed((uint32_t)m_indices.size(), 1, 0, 0, 0);
@@ -547,49 +549,37 @@ namespace SNAKE {
 				{{-0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}, {1.0f, 1.0f}}
 			};
 
-			vk::UniqueBuffer staging_buffer;
-			vk::UniqueDeviceMemory staging_buffer_mem;
 
 			size_t size = vertices.size() * sizeof(Vertex);
 
-			// Create staging buffer to load data in from CPU, then transfer to a more optimized buffer only available on the GPU.
-			CreateBuffer(size, vk::BufferUsageFlagBits::eTransferSrc,
-				vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostVisible, staging_buffer, staging_buffer_mem);
+			S_VkBuffer staging_buffer;
+			staging_buffer.CreateBuffer(size, vk::BufferUsageFlagBits::eTransferSrc, VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT);
 
 			void* data = nullptr;
-			SNK_CHECK_VK_RESULT(
-				VulkanContext::GetLogicalDevice().device->mapMemory(*staging_buffer_mem, 0, size, {}, &data)
-			);
+			SNK_CHECK_VK_RESULT(vmaMapMemory(VulkanContext::GetAllocator(), staging_buffer.allocation, &data));
 			memcpy(data, vertices.data(), size);
-			VulkanContext::GetLogicalDevice().device->unmapMemory(*staging_buffer_mem);
+			vmaUnmapMemory(VulkanContext::GetAllocator(), staging_buffer.allocation);
 
-			CreateBuffer(size, vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eVertexBuffer,
-				vk::MemoryPropertyFlagBits::eDeviceLocal, m_vertex_buffer, m_vertex_buffer_memory);
+			m_vertex_buffer.CreateBuffer(size, vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eVertexBuffer);
 
-			CopyBuffer(*staging_buffer, *m_vertex_buffer, size);
+			CopyBuffer(staging_buffer.buffer, m_vertex_buffer.buffer, size);
 		}
 
 		void CreateIndexBuffer() {
-			vk::UniqueBuffer staging_buffer;
-			vk::UniqueDeviceMemory staging_buffer_mem;
-
 			size_t size = m_indices.size() * sizeof(Vertex);
 
-			// Create staging buffer to load data in from CPU, then transfer to a more optimized buffer only available on the GPU.
-			CreateBuffer(size, vk::BufferUsageFlagBits::eTransferSrc,
-				vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostVisible, staging_buffer, staging_buffer_mem);
+			S_VkBuffer staging_buffer;
+			staging_buffer.CreateBuffer(size, vk::BufferUsageFlagBits::eTransferSrc, VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT);
 
 			void* data = nullptr;
-			SNK_CHECK_VK_RESULT(
-				VulkanContext::GetLogicalDevice().device->mapMemory(*staging_buffer_mem, 0, size, {}, &data)
-			);
+
+			SNK_CHECK_VK_RESULT(vmaMapMemory(VulkanContext::GetAllocator(), staging_buffer.allocation, &data));
 			memcpy(data, m_indices.data(), size);
-			VulkanContext::GetLogicalDevice().device->unmapMemory(*staging_buffer_mem);
+			vmaUnmapMemory(VulkanContext::GetAllocator(), staging_buffer.allocation);
 
-			CreateBuffer(size, vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eIndexBuffer,
-				vk::MemoryPropertyFlagBits::eDeviceLocal, m_index_buffer, m_index_buffer_memory);
+			m_index_buffer.CreateBuffer(size, vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eIndexBuffer);
 
-			CopyBuffer(*staging_buffer, *m_index_buffer, size);
+			CopyBuffer(staging_buffer.buffer, m_index_buffer.buffer, size);
 		}
 
 		void CopyBuffer(vk::Buffer& src, vk::Buffer dst, vk::DeviceSize size) {
@@ -634,13 +624,9 @@ namespace SNAKE {
 			vk::DeviceSize buffer_size = sizeof(UBO);
 		
 			for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-				CreateBuffer(buffer_size, vk::BufferUsageFlagBits::eUniformBuffer,
-					vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostVisible, m_uniform_buffers[i], m_uniform_buffers_memory[i]);
-
+				m_uniform_buffers[i].CreateBuffer(buffer_size, vk::BufferUsageFlagBits::eUniformBuffer, VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT);
 				// Mapped ptr is valid for the rest of the application
-				SNK_CHECK_VK_RESULT(
-					VulkanContext::GetLogicalDevice().device->mapMemory(*m_uniform_buffers_memory[i], 0, buffer_size, vk::MemoryMapFlags{ 0 }, &m_uniform_buffers_mapped[i])
-				);
+				SNK_CHECK_VK_RESULT(vmaMapMemory(VulkanContext::GetAllocator(), m_uniform_buffers[i].allocation, &m_uniform_buffers_mapped[i]));
 			}
 		}
 
@@ -702,7 +688,7 @@ namespace SNAKE {
 				m_descriptor_sets[i] = std::move(sets[i]);
 
 				vk::DescriptorBufferInfo buffer_info{};
-				buffer_info.buffer = *m_uniform_buffers[i];
+				buffer_info.buffer = m_uniform_buffers[i].buffer;
 				buffer_info.offset = 0;
 				buffer_info.range = sizeof(UBO);
 
@@ -749,15 +735,12 @@ namespace SNAKE {
 
 		Texture2D m_tex;
 
-		std::array<vk::UniqueBuffer, MAX_FRAMES_IN_FLIGHT> m_uniform_buffers;
-		std::array<vk::UniqueDeviceMemory, MAX_FRAMES_IN_FLIGHT> m_uniform_buffers_memory;
+		std::array<S_VkBuffer, MAX_FRAMES_IN_FLIGHT> m_uniform_buffers;
 		std::array<void*, MAX_FRAMES_IN_FLIGHT> m_uniform_buffers_mapped;
 
-		vk::UniqueBuffer m_vertex_buffer;
-		vk::UniqueDeviceMemory m_vertex_buffer_memory;
+		S_VkBuffer m_vertex_buffer;
 
-		vk::UniqueBuffer m_index_buffer;
-		vk::UniqueDeviceMemory m_index_buffer_memory;
+		S_VkBuffer m_index_buffer;
 
 		vk::UniqueDebugUtilsMessengerEXT m_messenger;
 

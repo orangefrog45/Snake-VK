@@ -82,30 +82,18 @@ namespace SNAKE {
 		return 0;
 	}
 
-	void CreateBuffer(vk::DeviceSize size, vk::BufferUsageFlags usage, vk::MemoryPropertyFlags properties, vk::UniqueBuffer& buffer, vk::UniqueDeviceMemory& buffer_memory) {
+	void S_VkBuffer::CreateBuffer(vk::DeviceSize size, vk::BufferUsageFlags usage, VmaAllocationCreateFlags flags) {
 		vk::BufferCreateInfo buffer_info{};
 		buffer_info.size = size;
 		buffer_info.usage = usage;
-		buffer_info.sharingMode = vk::SharingMode::eExclusive;
+		
+		VmaAllocationCreateInfo alloc_create_info{};
+		alloc_create_info.usage = VMA_MEMORY_USAGE_AUTO;
+		alloc_create_info.flags = flags;
 
-		auto [result, new_buffer] = VulkanContext::GetLogicalDevice().device->createBufferUnique(buffer_info);
-		SNK_CHECK_VK_RESULT(result);
-		buffer = std::move(new_buffer);
-
-		vk::MemoryRequirements mem_requirements = VulkanContext::GetLogicalDevice().device->getBufferMemoryRequirements(*buffer);
-
-		vk::MemoryAllocateInfo alloc_info{};
-		alloc_info.allocationSize = mem_requirements.size;
-		alloc_info.memoryTypeIndex = FindMemoryType(mem_requirements.memoryTypeBits, properties);
-
-		auto [alloc_result, mem] = VulkanContext::GetLogicalDevice().device->allocateMemoryUnique(alloc_info);
-		SNK_CHECK_VK_RESULT(alloc_result);
-
-		buffer_memory = std::move(mem);
-
-		SNK_CHECK_VK_RESULT(
-			VulkanContext::GetLogicalDevice().device->bindBufferMemory(*buffer, *buffer_memory, 0)
-		);
+		auto buf_info = static_cast<VkBufferCreateInfo>(buffer_info);
+		SNK_CHECK_VK_RESULT(vmaCreateBuffer(VulkanContext::GetAllocator(), &buf_info,
+			&alloc_create_info, reinterpret_cast<VkBuffer*>(&buffer), &allocation, &alloc_info));
 	}
 
 	SwapChainSupportDetails QuerySwapChainSupport(vk::PhysicalDevice device, vk::SurfaceKHR surface) {

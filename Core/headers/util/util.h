@@ -16,7 +16,7 @@
 		{SNK_BREAK("Error in '{0}', code: '{1}', message: '{2}'", #res, (int)res, msg);}
 
 #define SNK_CHECK_VK_RESULT(res) \
-	if (res != vk::Result::eSuccess) \
+	if (static_cast<vk::Result>(res) != vk::Result::eSuccess) \
 		{SNK_BREAK("Error in '{0}', code: '{1}'", #res, (int)res);}
 
 #ifndef PRODUCTION_RELEASE

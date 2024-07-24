@@ -1,5 +1,6 @@
 #pragma once
 #include "util/util.h"
+#include "vk_mem_alloc.h"
 #include <core/VkIncl.h>
 
 
@@ -38,6 +39,14 @@ namespace SNAKE {
 			Get().ICreateLogicalDevice(surface, required_device_extensions);
 		}
 
+		static void InitVMA() {
+			Get().I_InitVMA();
+		}
+
+		static auto& GetAllocator() {
+			return Get().m_allocator;
+		}
+
 		static auto& GetInstance() {
 			return Get().m_instance;
 		}
@@ -54,6 +63,15 @@ namespace SNAKE {
 		VulkanContext(const VulkanContext& other) = delete;
 		VulkanContext()=default;
 
+		void I_InitVMA() {
+			VmaAllocatorCreateInfo alloc_info{};
+			alloc_info.device = *m_device.device;
+			alloc_info.physicalDevice = m_physical_device.device;
+			alloc_info.instance = *m_instance;
+
+			SNK_CHECK_VK_RESULT(vmaCreateAllocator(&alloc_info, &m_allocator));
+		}
+
 		void ICreateInstance(const char* app_name);
 
 		void IPickPhysicalDevice(vk::SurfaceKHR surface, const std::vector<const char*>& required_extensions_vec);
@@ -66,6 +84,8 @@ namespace SNAKE {
 
 		PhysicalDevice m_physical_device;
 		LogicalDevice m_device;
+
+		VmaAllocator m_allocator;
 
 		friend class VulkanApp;
 	};

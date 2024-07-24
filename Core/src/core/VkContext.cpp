@@ -125,4 +125,5 @@ void VulkanContext::ICreateInstance(const char* app_name) {
 
 	m_instance = vk::createInstanceUnique(create_info, nullptr, VULKAN_HPP_DEFAULT_DISPATCHER).value;
 	SNK_ASSERT(m_instance, "Vulkan instance created");
+
 }

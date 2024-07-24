@@ -1,4 +1,5 @@
 24/7/23:
+-Vulkan memory allocator integration, buffer abstraction
 -Texture2D class, texture loading from file and usage in shader
 
 23/7/24:
