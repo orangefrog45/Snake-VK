@@ -1,3 +1,9 @@
+24/7/23:
+-Texture2D class, texture loading from file and usage in shader
+
+23/7/24:
+-Some refactoring
+
 22/7/24:
 -Descriptor set with matrix UBO
 -3D renderering

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Logger.h"
+#include <tuple>
 
 #ifdef PRODUCTION_RELEASE
 #define SNK_BREAK(...) {SNK_CORE_CRITICAL(__VA_ARGS__); SNAKE::Logger::Flush(); exit(1);}
@@ -10,9 +11,13 @@
 #define SNK_DEBUG_BREAK(...) {SNK_CORE_ERROR(__VA_ARGS__); SNAKE::Logger::Flush(); __debugbreak();}
 #endif
 
-#define SNK_CHECK_VK_RESULT(res, msg) \
+#define SNK_CHECK_VK_RESULT_MSG(res, msg) \
 	if (res != vk::Result::eSuccess) \
-		{SNK_BREAK("Error in '{0}', code: '{1}'", msg, (int)res);}
+		{SNK_BREAK("Error in '{0}', code: '{1}', message: '{2}'", #res, (int)res, msg);}
+
+#define SNK_CHECK_VK_RESULT(res) \
+	if (res != vk::Result::eSuccess) \
+		{SNK_BREAK("Error in '{0}', code: '{1}'", #res, (int)res);}
 
 #ifndef PRODUCTION_RELEASE
 #define SNK_DBG_CHECK_VK_RESULT(res, msg) \
@@ -33,8 +38,8 @@ namespace SNAKE {
 		};
 		
 		template<typename ArrayType, typename ...Args>
-		constexpr std::array<ArrayType, sizeof...(Args)> array(Args&&... args) {
-			return { { std::forward<Args>(args)... } };
+		constexpr std::array<typename std::decay<ArrayType>::type, sizeof...(Args) + 1> array(ArrayType&& first, Args&&... args) {
+			return { { std::forward<ArrayType>(first),  std::forward<Args>(args)... } };
 		}
 
 

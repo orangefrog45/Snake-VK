@@ -3,7 +3,6 @@
 #include "util/util.h"
 
 namespace SNAKE {
-	// p_event argument is a downcasted ptr from actual Event type, dynamic_cast back in the callback if needed
 	using listener_callback = std::function<void(std::any _event)>;
 
 	class EventListener {
@@ -14,13 +13,15 @@ namespace SNAKE {
 		// _event arg will always be a pointer to the event being listened to
 		listener_callback callback = nullptr;
 	public:
-		// Copying only allowed by GlobalEventManager
+		// Copying only allowed by EventManagerG
 		EventListener(const EventListener& other) = default;
 
-		// Given by GlobalEventManager during RegisterListener, this erases the cloned listener stored in GlobalEventManager
+		// Given by EventManagerG during RegisterListener, this erases the cloned listener stored in EventManagerG
 		void (*DeathCallback)(const EventListener& listener) = nullptr;
 
+		// Given by EventManagerG
 		uint16_t m_listening_event_id;
+
 		SNAKE::UUID<uint64_t> m_id;
 
 		friend class EventManagerG;

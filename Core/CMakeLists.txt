@@ -1,8 +1,8 @@
 cmake_minimum_required(VERSION 3.8)
 
-project(ORNG_VK_CORE)
+project(SNAKE_VK_CORE)
 
-add_executable(ORNG_VK_CORE
+add_executable(SNAKE_VK_CORE
 src/main.cpp
 "headers/util/util.h"
 "headers/util/Logger.h"
@@ -14,9 +14,11 @@ src/main.cpp
 
 "headers/core/Window.h"
 "headers/events/EventManager.h"
- "src/events/EventManager.cpp" "headers/util/UUID.h" "headers/util/FileUtil.h" "src/util/UUID.cpp" "src/core/Window.cpp" "headers/events/EventsCommon.h")
+ "src/events/EventManager.cpp" "headers/util/UUID.h" "headers/util/FileUtil.h" "src/util/UUID.cpp" "src/core/Window.cpp" "headers/events/EventsCommon.h" "headers/core/VulkanApp.h" "headers/core/VkCommon.h" "src/core/VkCommon.cpp" "headers/core/VkContext.h" "src/core/VkContext.cpp" "headers/core/VkIncl.h" "src/misc/stb.cpp" "headers/textures/Textures.h" "src/textures/Textures.cpp")
 
-target_link_directories(ORNG_VK_CORE PUBLIC $ENV{VULKAN_SDK}/Lib)
+target_link_options(SNAKE_VK_CORE PRIVATE -INCREMENTAL -ZI)
+target_compile_options(SNAKE_VK_CORE PRIVATE -ZI)
+target_link_directories(SNAKE_VK_CORE PUBLIC $ENV{VULKAN_SDK}/Lib)
 
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
 set(VK_LIBRARIES
@@ -45,22 +47,23 @@ endif()
 find_package(Vulkan REQUIRED)
 find_library(SHADERC_LIB shaderc_combined $ENV{VULKAN_SDK}/Lib)
 
-target_link_libraries(ORNG_VK_CORE PUBLIC
+target_link_libraries(SNAKE_VK_CORE PUBLIC
 ${Vulkan_LIBRARIES}
 ${SHADERC_LIB}
 spdlog::spdlog
 glfw
 )
 
-target_include_directories(ORNG_VK_CORE PUBLIC
+target_include_directories(SNAKE_VK_CORE PUBLIC
 ${Vulkan_INCLUDE_DIRS}
 headers
 extern/spdlog/include
 extern/glfw/include
 extern/glm
+extern/stb
 )
 
-target_precompile_headers(ORNG_VK_CORE PUBLIC
+target_precompile_headers(SNAKE_VK_CORE PUBLIC
 headers/pch/pch.h
 )
 
