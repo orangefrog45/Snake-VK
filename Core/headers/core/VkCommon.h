@@ -38,6 +38,16 @@ namespace SNAKE {
 
 		void CreateBuffer(vk::DeviceSize size, vk::BufferUsageFlags usage, VmaAllocationCreateFlags flags = 0);
 
+		inline void* Map() { 
+			void* p_data = nullptr; 
+			SNK_CHECK_VK_RESULT(vmaMapMemory(VulkanContext::GetAllocator(), allocation, &p_data)); 
+			return p_data;
+		}
+
+		inline void Unmap() {
+			vmaUnmapMemory(VulkanContext::GetAllocator(), allocation);
+		}
+
 		VmaAllocation allocation;
 		VmaAllocationInfo alloc_info;
 		vk::Buffer buffer;

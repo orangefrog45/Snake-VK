@@ -16,7 +16,7 @@ namespace SNAKE {
 		}
 
 	private:
-		void TransitionImageLayout(vk::UniqueImage& image, [[maybe_unused]] vk::Format format, vk::ImageLayout old_layout, vk::ImageLayout new_layout, vk::CommandPool pool);
+		void TransitionImageLayout(vk::Image& image, [[maybe_unused]] vk::Format format, vk::ImageLayout old_layout, vk::ImageLayout new_layout, vk::CommandPool pool);
 
 		void CreateImage(uint32_t width, uint32_t height, vk::Format format, vk::ImageTiling tiling, vk::ImageUsageFlags usage, VmaAllocationCreateFlags flags=0);
 
@@ -25,7 +25,7 @@ namespace SNAKE {
 		void CreateSampler();
 
 		vk::UniqueSampler m_sampler;
-		vk::UniqueImage m_tex_image;
+		vk::Image m_tex_image;
 		VmaAllocation m_allocation;
 		vk::UniqueImageView m_tex_view;
 	};

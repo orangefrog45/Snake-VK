@@ -183,8 +183,6 @@ namespace SNAKE {
 			EventManagerG::RegisterListener<WindowEvent>(m_framebuffer_resize_listener);
 		}
 
-
-
 		void CreateDebugCallback() {
 			vk::DebugUtilsMessageSeverityFlagsEXT severity_flags = 
 				vk::DebugUtilsMessageSeverityFlagBitsEXT::eError |
@@ -549,16 +547,13 @@ namespace SNAKE {
 				{{-0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}, {1.0f, 1.0f}}
 			};
 
-
 			size_t size = vertices.size() * sizeof(Vertex);
 
 			S_VkBuffer staging_buffer;
 			staging_buffer.CreateBuffer(size, vk::BufferUsageFlagBits::eTransferSrc, VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT);
-
-			void* data = nullptr;
-			SNK_CHECK_VK_RESULT(vmaMapMemory(VulkanContext::GetAllocator(), staging_buffer.allocation, &data));
+			void* data = staging_buffer.Map();
 			memcpy(data, vertices.data(), size);
-			vmaUnmapMemory(VulkanContext::GetAllocator(), staging_buffer.allocation);
+			staging_buffer.Unmap();
 
 			m_vertex_buffer.CreateBuffer(size, vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eVertexBuffer);
 
@@ -571,11 +566,9 @@ namespace SNAKE {
 			S_VkBuffer staging_buffer;
 			staging_buffer.CreateBuffer(size, vk::BufferUsageFlagBits::eTransferSrc, VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT);
 
-			void* data = nullptr;
-
-			SNK_CHECK_VK_RESULT(vmaMapMemory(VulkanContext::GetAllocator(), staging_buffer.allocation, &data));
+			void* data = staging_buffer.Map();
 			memcpy(data, m_indices.data(), size);
-			vmaUnmapMemory(VulkanContext::GetAllocator(), staging_buffer.allocation);
+			staging_buffer.Unmap();
 
 			m_index_buffer.CreateBuffer(size, vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eIndexBuffer);
 
@@ -626,7 +619,7 @@ namespace SNAKE {
 			for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
 				m_uniform_buffers[i].CreateBuffer(buffer_size, vk::BufferUsageFlagBits::eUniformBuffer, VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT);
 				// Mapped ptr is valid for the rest of the application
-				SNK_CHECK_VK_RESULT(vmaMapMemory(VulkanContext::GetAllocator(), m_uniform_buffers[i].allocation, &m_uniform_buffers_mapped[i]));
+				m_uniform_buffers_mapped[i] = m_uniform_buffers[i].Map();
 			}
 		}
 
@@ -739,7 +732,6 @@ namespace SNAKE {
 		std::array<void*, MAX_FRAMES_IN_FLIGHT> m_uniform_buffers_mapped;
 
 		S_VkBuffer m_vertex_buffer;
-
 		S_VkBuffer m_index_buffer;
 
 		vk::UniqueDebugUtilsMessengerEXT m_messenger;

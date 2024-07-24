@@ -11,24 +11,16 @@ using namespace SNAKE;
 
 void Texture2D::LoadFromFile(const std::string& filepath, vk::CommandPool pool) {
 	int width, height, channels;
-
 	// Force 4 channels as most GPUs only support these as samplers
 	stbi_uc* pixels = stbi_load(filepath.c_str(), &width, &height, &channels, 4);
 	vk::DeviceSize image_size = width * height * 4;
-
 	SNK_ASSERT(pixels, "Image file loaded");
 
 	S_VkBuffer staging_buffer{};
 	staging_buffer.CreateBuffer(image_size, vk::BufferUsageFlagBits::eTransferSrc, VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT);
-
-	void* p_data = nullptr;
-	vk::DeviceMemory staging_mem = staging_buffer.alloc_info.deviceMemory;
-
-	SNK_CHECK_VK_RESULT(
-		VulkanContext::GetLogicalDevice().device->mapMemory(staging_mem, 0, image_size, {}, &p_data)
-	);
+	void* p_data = staging_buffer.Map();
 	memcpy(p_data, pixels, (size_t)image_size);
-	VulkanContext::GetLogicalDevice().device->unmapMemory(staging_mem);
+	staging_buffer.Unmap();
 
 	stbi_image_free(pixels);
 
@@ -38,7 +30,7 @@ void Texture2D::LoadFromFile(const std::string& filepath, vk::CommandPool pool) 
 		vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled);
 
 	TransitionImageLayout(m_tex_image, fmt, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal, pool);
-	CopyBufferToImage(staging_buffer.buffer, *m_tex_image, width, height, pool);
+	CopyBufferToImage(staging_buffer.buffer, m_tex_image, width, height, pool);
 	TransitionImageLayout(m_tex_image, fmt, vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal, pool);
 
 	CreateImageView();
@@ -89,11 +81,11 @@ void Texture2D::CreateImage(uint32_t width, uint32_t height, vk::Format format, 
 	alloc_info.usage = VMA_MEMORY_USAGE_AUTO;
 	alloc_info.flags = flags;
 
-	SNK_CHECK_VK_RESULT(vmaCreateImage(VulkanContext::GetAllocator(), &im_info, &alloc_info, reinterpret_cast<VkImage*>(&*m_tex_image), &m_allocation, nullptr));
+	SNK_CHECK_VK_RESULT(vmaCreateImage(VulkanContext::GetAllocator(), &im_info, &alloc_info, reinterpret_cast<VkImage*>(&m_tex_image), &m_allocation, nullptr));
 }
 
 
-void Texture2D::TransitionImageLayout(vk::UniqueImage& image, [[maybe_unused]] vk::Format format, vk::ImageLayout old_layout, vk::ImageLayout new_layout, vk::CommandPool pool) {
+void Texture2D::TransitionImageLayout(vk::Image& image, [[maybe_unused]] vk::Format format, vk::ImageLayout old_layout, vk::ImageLayout new_layout, vk::CommandPool pool) {
 	auto cmd_buf = BeginSingleTimeCommands(pool);
 
 	vk::PipelineStageFlags src_stage = vk::PipelineStageFlagBits::eNone;
@@ -125,7 +117,7 @@ void Texture2D::TransitionImageLayout(vk::UniqueImage& image, [[maybe_unused]] v
 	barrier.newLayout = new_layout;
 	barrier.srcQueueFamilyIndex = vk::QueueFamilyIgnored; // Not transfering queue family ownership so leave at ignore
 	barrier.dstQueueFamilyIndex = vk::QueueFamilyIgnored;
-	barrier.image = *image;
+	barrier.image = image;
 	barrier.subresourceRange.aspectMask = vk::ImageAspectFlagBits::eColor;
 	barrier.subresourceRange.baseMipLevel = 0;
 	barrier.subresourceRange.baseArrayLayer = 0;
@@ -139,7 +131,7 @@ void Texture2D::TransitionImageLayout(vk::UniqueImage& image, [[maybe_unused]] v
 
 void Texture2D::CreateImageView() {
 	vk::ImageViewCreateInfo info{};
-	info.image = *m_tex_image;
+	info.image = m_tex_image;
 	info.viewType = vk::ImageViewType::e2D;
 	info.format = vk::Format::eR8G8B8A8Srgb;
 	info.subresourceRange.aspectMask = vk::ImageAspectFlagBits::eColor;
