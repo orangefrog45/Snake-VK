@@ -9,7 +9,7 @@
 
 using namespace SNAKE;
 
-void Texture2D::LoadFromFile(const std::string& filepath, vk::CommandPool pool) {
+void Image2D::LoadFromFile(const std::string& filepath, vk::CommandPool pool) {
 	int width, height, channels;
 	// Force 4 channels as most GPUs only support these as samplers
 	stbi_uc* pixels = stbi_load(filepath.c_str(), &width, &height, &channels, 4);
@@ -29,15 +29,15 @@ void Texture2D::LoadFromFile(const std::string& filepath, vk::CommandPool pool) 
 	CreateImage(width, height, fmt, vk::ImageTiling::eOptimal,
 		vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled);
 
-	TransitionImageLayout(m_tex_image, fmt, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal, pool);
-	CopyBufferToImage(staging_buffer.buffer, m_tex_image, width, height, pool);
-	TransitionImageLayout(m_tex_image, fmt, vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal, pool);
+	TransitionImageLayout(m_image, vk::ImageAspectFlagBits::eColor, fmt, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal, pool);
+	CopyBufferToImage(staging_buffer.buffer, m_image, width, height, pool);
+	TransitionImageLayout(m_image, vk::ImageAspectFlagBits::eColor, fmt, vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal, pool);
 
-	CreateImageView();
+	CreateImageView(vk::ImageAspectFlagBits::eColor, vk::Format::eR8G8B8A8Srgb);
 	CreateSampler();
 }
 
-void Texture2D::CreateSampler() {
+void Image2D::CreateSampler() {
 	vk::SamplerCreateInfo sampler_info{};
 	sampler_info.magFilter = vk::Filter::eLinear;
 	sampler_info.minFilter = vk::Filter::eLinear;
@@ -60,7 +60,7 @@ void Texture2D::CreateSampler() {
 	m_sampler = std::move(sampler);
 }
 
-void Texture2D::CreateImage(uint32_t width, uint32_t height, vk::Format format, vk::ImageTiling tiling, vk::ImageUsageFlags usage, VmaAllocationCreateFlags flags) {
+void Image2D::CreateImage(uint32_t width, uint32_t height, vk::Format format, vk::ImageTiling tiling, vk::ImageUsageFlags usage, VmaAllocationCreateFlags flags) {
 	vk::ImageCreateInfo image_info{};
 	image_info.imageType = vk::ImageType::e2D;
 	image_info.extent.width = width;
@@ -81,17 +81,36 @@ void Texture2D::CreateImage(uint32_t width, uint32_t height, vk::Format format, 
 	alloc_info.usage = VMA_MEMORY_USAGE_AUTO;
 	alloc_info.flags = flags;
 
-	SNK_CHECK_VK_RESULT(vmaCreateImage(VulkanContext::GetAllocator(), &im_info, &alloc_info, reinterpret_cast<VkImage*>(&m_tex_image), &m_allocation, nullptr));
+	SNK_CHECK_VK_RESULT(vmaCreateImage(VulkanContext::GetAllocator(), &im_info, &alloc_info, reinterpret_cast<VkImage*>(&m_image), &m_allocation, nullptr));
+}
+
+void Image2D::DestroyImage() {
+	if (m_image)
+		vmaDestroyImage(VulkanContext::GetAllocator(), m_image, m_allocation);
+
+	if (m_sampler)
+		m_sampler.release();
+
+	if (m_view)
+		m_view.release();
 }
 
 
-void Texture2D::TransitionImageLayout(vk::Image& image, [[maybe_unused]] vk::Format format, vk::ImageLayout old_layout, vk::ImageLayout new_layout, vk::CommandPool pool) {
-	auto cmd_buf = BeginSingleTimeCommands(pool);
+void Image2D::TransitionImageLayout(const vk::Image& image, vk::ImageAspectFlags aspect_flags, [[maybe_unused]] vk::Format format, vk::ImageLayout old_layout, vk::ImageLayout new_layout, vk::CommandPool pool, vk::CommandBuffer buf) {
+	bool temporary_buf = !buf;
+	vk::UniqueCommandBuffer temp_handle;
+
+	if (temporary_buf) {
+		temp_handle = std::move(BeginSingleTimeCommands(pool));
+		buf = *temp_handle;
+	}
 
 	vk::PipelineStageFlags src_stage = vk::PipelineStageFlagBits::eNone;
 	vk::PipelineStageFlags dst_stage = vk::PipelineStageFlagBits::eNone;
 
 	vk::ImageMemoryBarrier barrier{};
+
+
 
 	if (old_layout == vk::ImageLayout::eUndefined && new_layout == vk::ImageLayout::eTransferDstOptimal) {
 		// Don't have to wait on anything for this transition
@@ -109,6 +128,27 @@ void Texture2D::TransitionImageLayout(vk::Image& image, [[maybe_unused]] vk::For
 		barrier.dstAccessMask = vk::AccessFlagBits::eShaderRead;
 		dst_stage = vk::PipelineStageFlagBits::eFragmentShader;
 	}
+	else if (old_layout == vk::ImageLayout::eUndefined && (new_layout == vk::ImageLayout::eDepthStencilAttachmentOptimal || new_layout == vk::ImageLayout::eDepthAttachmentOptimal)) {
+		barrier.srcAccessMask = vk::AccessFlagBits::eNone;
+		src_stage = vk::PipelineStageFlagBits::eTopOfPipe;
+
+		barrier.dstAccessMask = vk::AccessFlagBits::eDepthStencilAttachmentRead | vk::AccessFlagBits::eDepthStencilAttachmentWrite;
+		dst_stage = vk::PipelineStageFlagBits::eEarlyFragmentTests;
+	}
+	else if (old_layout == vk::ImageLayout::eUndefined && new_layout == vk::ImageLayout::eColorAttachmentOptimal) {
+		barrier.srcAccessMask = vk::AccessFlagBits::eNone;
+		src_stage = vk::PipelineStageFlagBits::eTopOfPipe;
+
+		barrier.dstAccessMask = vk::AccessFlagBits::eColorAttachmentWrite;
+		dst_stage = vk::PipelineStageFlagBits::eColorAttachmentOutput;
+	}
+	else if (old_layout == vk::ImageLayout::eColorAttachmentOptimal && new_layout == vk::ImageLayout::ePresentSrcKHR) {
+		barrier.srcAccessMask = vk::AccessFlagBits::eColorAttachmentWrite;
+		src_stage = vk::PipelineStageFlagBits::eColorAttachmentOutput;
+
+		barrier.dstAccessMask = vk::AccessFlagBits::eNone;
+		dst_stage = vk::PipelineStageFlagBits::eBottomOfPipe;
+	}
 	else {
 		SNK_BREAK("Unsupported layout transition");
 	}
@@ -118,23 +158,24 @@ void Texture2D::TransitionImageLayout(vk::Image& image, [[maybe_unused]] vk::For
 	barrier.srcQueueFamilyIndex = vk::QueueFamilyIgnored; // Not transfering queue family ownership so leave at ignore
 	barrier.dstQueueFamilyIndex = vk::QueueFamilyIgnored;
 	barrier.image = image;
-	barrier.subresourceRange.aspectMask = vk::ImageAspectFlagBits::eColor;
+	barrier.subresourceRange.aspectMask = aspect_flags;
 	barrier.subresourceRange.baseMipLevel = 0;
 	barrier.subresourceRange.baseArrayLayer = 0;
 	barrier.subresourceRange.levelCount = 1;
 	barrier.subresourceRange.layerCount = 1;
 
-	cmd_buf->pipelineBarrier(src_stage, dst_stage, {}, {}, {}, barrier);
+	buf.pipelineBarrier(src_stage, dst_stage, {}, {}, {}, barrier);
 
-	EndSingleTimeCommands(*cmd_buf);
+	if (temporary_buf)
+		EndSingleTimeCommands(buf);
 }
 
-void Texture2D::CreateImageView() {
+void Image2D::CreateImageView(vk::ImageAspectFlags aspect_flags, vk::Format format) {
 	vk::ImageViewCreateInfo info{};
-	info.image = m_tex_image;
+	info.image = m_image;
 	info.viewType = vk::ImageViewType::e2D;
-	info.format = vk::Format::eR8G8B8A8Srgb;
-	info.subresourceRange.aspectMask = vk::ImageAspectFlagBits::eColor;
+	info.format = format;
+	info.subresourceRange.aspectMask = aspect_flags;
 	info.subresourceRange.baseMipLevel = 0;
 	info.subresourceRange.baseArrayLayer = 0;
 	info.subresourceRange.levelCount = 1;
@@ -142,5 +183,5 @@ void Texture2D::CreateImageView() {
 
 	auto [res, view] = VulkanContext::GetLogicalDevice().device->createImageViewUnique(info);
 	SNK_CHECK_VK_RESULT(res);
-	m_tex_view = std::move(view);
+	m_view = std::move(view);
 }

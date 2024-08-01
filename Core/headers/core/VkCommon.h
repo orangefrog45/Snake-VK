@@ -38,6 +38,12 @@ namespace SNAKE {
 
 		void CreateBuffer(vk::DeviceSize size, vk::BufferUsageFlags usage, VmaAllocationCreateFlags flags = 0);
 
+		vk::DeviceAddress GetDeviceAddress() {
+			vk::BufferDeviceAddressInfo buffer_addr_info{};
+			buffer_addr_info.buffer = buffer;
+			return VulkanContext::GetLogicalDevice().device->getBufferAddress(buffer_addr_info);
+		}
+
 		inline void* Map() { 
 			void* p_data = nullptr; 
 			SNK_CHECK_VK_RESULT(vmaMapMemory(VulkanContext::GetAllocator(), allocation, &p_data)); 
@@ -66,5 +72,7 @@ namespace SNAKE {
 	vk::UniqueCommandBuffer BeginSingleTimeCommands(vk::CommandPool pool);
 
 	void EndSingleTimeCommands(vk::CommandBuffer& cmd_buf);
+
+	void CopyBuffer(vk::Buffer src, vk::Buffer dst, vk::DeviceSize size, vk::CommandPool pool);
 };
 

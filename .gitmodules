@@ -13,3 +13,6 @@
 [submodule "Core/extern/vma"]
 	path = Core/extern/vma
 	url = https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator
+[submodule "Core/extern/assimp"]
+	path = Core/extern/assimp
+	url = https://github.com/assimp/assimp

@@ -1,3 +1,7 @@
+1/8/23:
+-Mesh loading with assimp, added normal and texture coordinate vertex buffers
+-Switched from descriptor sets to descriptor buffers
+
 24/7/23:
 -Vulkan memory allocator integration, buffer abstraction
 -Texture2D class, texture loading from file and usage in shader

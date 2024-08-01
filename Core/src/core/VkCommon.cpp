@@ -177,4 +177,17 @@ namespace SNAKE {
 
 		return required_extensions.empty();
 	}
+
+	void CopyBuffer(vk::Buffer src, vk::Buffer dst, vk::DeviceSize size, vk::CommandPool pool) {
+		vk::UniqueCommandBuffer cmd_buf = BeginSingleTimeCommands(pool);
+
+		vk::BufferCopy copy_region{};
+		copy_region.srcOffset = 0;
+		copy_region.dstOffset = 0;
+		copy_region.size = size;
+
+		cmd_buf->copyBuffer(src, dst, copy_region);
+
+		EndSingleTimeCommands(*cmd_buf);
+	}
 }

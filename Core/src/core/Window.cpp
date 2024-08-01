@@ -184,6 +184,7 @@ void Window::RecreateSwapChain() {
 	m_vk_context.swapchain.reset();
 	m_vk_context.swapchain_images.clear();
 	m_vk_context.swapchain_image_views.clear();
+	
 
 	CreateSwapchain();
 }

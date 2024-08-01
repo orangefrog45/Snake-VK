@@ -55,6 +55,7 @@ void VulkanContext::ICreateLogicalDevice(vk::SurfaceKHR surface, const std::vect
 	vk::PhysicalDeviceFeatures device_features{};
 	device_features.samplerAnisotropy = true;
 
+
 	std::vector<vk::DeviceQueueCreateInfo> queue_create_infos;
 	std::set<uint32_t> unique_queue_families = { indices.graphics_family.value(), indices.present_family.value() };
 
@@ -70,8 +71,16 @@ void VulkanContext::ICreateLogicalDevice(vk::SurfaceKHR surface, const std::vect
 		queue_create_infos.push_back(queue_create_info);
 	}
 
+	vk::PhysicalDeviceDescriptorBufferFeaturesEXT descriptor_buffer_features{};
+	descriptor_buffer_features.descriptorBuffer = true;
+
+	vk::PhysicalDeviceBufferDeviceAddressFeatures buffer_device_address_features{};
+	buffer_device_address_features.bufferDeviceAddress = true;
+	buffer_device_address_features.pNext = &descriptor_buffer_features;
+
 	vk::PhysicalDeviceDynamicRenderingFeatures dynamic_rendering_features{};
 	dynamic_rendering_features.dynamicRendering = VK_TRUE;
+	dynamic_rendering_features.pNext = &buffer_device_address_features;
 
 	auto device_create_info = vk::DeviceCreateInfo{}
 		.setQueueCreateInfoCount((uint32_t)queue_create_infos.size())
@@ -113,7 +122,7 @@ void VulkanContext::ICreateInstance(const char* app_name) {
 		VK_MAKE_API_VERSION(0, 1, 0, 0),
 		"Snake",
 		VK_MAKE_API_VERSION(0, 1, 0, 0),
-		VK_API_VERSION_1_0
+		VK_API_VERSION_1_3
 	};
 
 	vk::InstanceCreateInfo create_info{

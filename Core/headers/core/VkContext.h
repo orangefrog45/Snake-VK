@@ -68,6 +68,7 @@ namespace SNAKE {
 			alloc_info.device = *m_device.device;
 			alloc_info.physicalDevice = m_physical_device.device;
 			alloc_info.instance = *m_instance;
+			alloc_info.flags = VmaAllocatorCreateFlagBits::VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT;
 			SNK_CHECK_VK_RESULT(vmaCreateAllocator(&alloc_info, &m_allocator));
 		}
 
