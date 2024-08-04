@@ -47,7 +47,7 @@ src/main.cpp
  "headers/textures/Textures.h" 
  "src/textures/Textures.cpp" 
  "src/misc/vma.cpp"
- "src/assets/MeshData.cpp" "headers/assets/MeshData.h" "headers/core/S_VkBuffer.h" "src/core/S_VkBuffer.cpp" "headers/core/DescriptorBuffer.h")
+ "src/assets/MeshData.cpp" "headers/assets/MeshData.h" "headers/core/S_VkBuffer.h" "src/core/S_VkBuffer.cpp" "headers/core/DescriptorBuffer.h" "headers/core/Pipelines.h" "headers/shaders/ShaderLibrary.h" "src/core/Pipelines.cpp")
 
 
 target_link_options(SNAKE_VK_CORE PRIVATE -INCREMENTAL -ZI)

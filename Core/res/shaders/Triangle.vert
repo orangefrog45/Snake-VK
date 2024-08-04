@@ -9,7 +9,6 @@ layout(location = 1) out vec2 vs_tex_coord;
 layout(location = 2) out vec3 vs_normal;
 
 layout(set = 0, binding = 0) uniform UniformBufferObject {
-    mat4 model;
     mat4 view;
     mat4 proj;
 } ubo;

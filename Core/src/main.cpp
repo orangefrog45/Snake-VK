@@ -7,9 +7,11 @@
 #include "core/VkCommon.h"
 #include "core/VkIncl.h"
 #include "core/S_VkBuffer.h"
+#include "core/DescriptorBuffer.h"
+#include "core/Pipelines.h"
 #include "textures/Textures.h"
 #include "assets/MeshData.h"
-#include "core/DescriptorBuffer.h"
+
 
 #include <stb_image.h>
 #define GLFW_INCLUDE_VULKAN
@@ -125,7 +127,6 @@ struct Vertex {
 };
 
 struct UBO {
-	alignas(16) glm::mat4 model;
 	alignas(16) glm::mat4 view;
 	alignas(16) glm::mat4 proj;
 };
@@ -158,15 +159,15 @@ namespace SNAKE {
 			CreateDepthResources();
 
 			m_texture_descriptor_buffer.Init();
+			m_material_descriptor_buffer.Init();
 			m_tex.LoadFromFile("res/textures/oranges_opt.jpg", *m_cmd_pool);
 			m_tex_2.LoadFromFile("res/textures/images.jpg", *m_cmd_pool);
 			m_texture_descriptor_buffer.RegisterTexture(m_tex);
 			m_texture_descriptor_buffer.RegisterTexture(m_tex_2);
-
-			m_material_descriptor_buffer.Init();
-			m_material_2.metallic = 0.f;
 			m_material_descriptor_buffer.RegisterMaterial(m_material);
 			m_material_descriptor_buffer.RegisterMaterial(m_material_2);
+			m_material_2.p_albedo_tex = &m_tex_2;
+			m_material_2.metallic = 1.f;
 
 			// Create persistently mapped uniform buffers and store the ptrs which can have data copied to them from the host
 			CreateUniformBuffers();
@@ -219,131 +220,30 @@ namespace SNAKE {
 
 	
 		void CreateGraphicsPipeline() {
-			constexpr char vert_fp[] = "res/shaders/vert.spv";
-			constexpr char frag_fp[] = "res/shaders/frag.spv";
-
-			auto vert_code = files::ReadFileBinary(vert_fp);
-			auto frag_code = files::ReadFileBinary(frag_fp);
-
-			SNK_ASSERT(!vert_code.empty(), "Vertex shader code loaded");
-			SNK_ASSERT(!frag_code.empty(), "Fragment shader code loaded");
-
-			auto vert_module = CreateShaderModule(vert_code, vert_fp);
-			auto frag_module = CreateShaderModule(frag_code, frag_fp);
-
-			vk::PipelineShaderStageCreateInfo vert_info{ vk::PipelineShaderStageCreateFlags{0}, vk::ShaderStageFlagBits::eVertex, vert_module.get(), "main"};
-			vk::PipelineShaderStageCreateInfo frag_info{ vk::PipelineShaderStageCreateFlags{0}, vk::ShaderStageFlagBits::eFragment, frag_module.get(), "main"};
-			vk::PipelineShaderStageCreateInfo shader_stages[] = {vert_info, frag_info};
-
 			auto binding_desc = Vertex::GetBindingDescription();
 			auto attribute_desc = Vertex::GetAttributeDescriptions();
 
-			// Stores vertex layout data
-			vk::PipelineVertexInputStateCreateInfo vert_input_info{ vk::PipelineVertexInputStateCreateFlags{0}, nullptr, {} };
-			vert_input_info.vertexBindingDescriptionCount = binding_desc.size();
-			vert_input_info.vertexAttributeDescriptionCount = (uint32_t)attribute_desc.size();
-			vert_input_info.pVertexBindingDescriptions = binding_desc.data();
-			vert_input_info.pVertexAttributeDescriptions = attribute_desc.data();
+			PipelineLayoutBuilder layout_builder{};
+			layout_builder.AddPushConstant(0, sizeof(glm::mat4), vk::ShaderStageFlagBits::eVertex)
+				.SetDescriptorSetLayouts({ m_descriptor_buffers[0].descriptor_spec.GetLayout(),
+				m_texture_descriptor_buffer.descriptor_buffers[0].descriptor_spec.GetLayout(),
+				m_material_descriptor_buffer.descriptor_buffers[0].descriptor_spec.GetLayout() })
+				.Build();
 
-			// Stores how vertex data is interpreted by input assembler
-			vk::PipelineInputAssemblyStateCreateInfo input_assembly_create_info{ 
-				vk::PipelineInputAssemblyStateCreateFlags{0}, vk::PrimitiveTopology::eTriangleList, VK_FALSE };
+			m_pipeline_layout.Init(layout_builder);
 
-			std::vector<vk::DynamicState> dynamic_states = {
-				vk::DynamicState::eViewport,
-				vk::DynamicState::eScissor
-			};
-
-			vk::PipelineDynamicStateCreateInfo dynamic_state_create_info{ vk::PipelineDynamicStateCreateFlags{0}, dynamic_states };
-
-			vk::PipelineViewportStateCreateInfo viewport_create_info{}; // Don't set pviewport or pscissor to keep this dynamic
-			viewport_create_info.viewportCount = 1;
-			viewport_create_info.scissorCount = 1;
-
-			vk::PipelineRasterizationStateCreateInfo rasterizer_create_info{};
-			rasterizer_create_info.depthClampEnable = VK_FALSE; // if fragments beyond near and far plane are clamped to them instead of discarding
-			rasterizer_create_info.rasterizerDiscardEnable = VK_FALSE; // if geometry should never pass through rasterizer stage
-			rasterizer_create_info.polygonMode = vk::PolygonMode::eFill;
-			rasterizer_create_info.lineWidth = 1.f;
-			rasterizer_create_info.cullMode = vk::CullModeFlagBits::eNone;
-			rasterizer_create_info.frontFace = vk::FrontFace::eCounterClockwise;
-			rasterizer_create_info.depthBiasEnable = VK_FALSE;
-
-			vk::PipelineMultisampleStateCreateInfo multisampling{};
-			multisampling.sampleShadingEnable = VK_FALSE;
-			multisampling.rasterizationSamples = vk::SampleCountFlagBits::e1;
-			multisampling.minSampleShading = 1.f;
-
-			vk::PipelineColorBlendAttachmentState colour_blend_attachment{};
-			// Enable alpha blending
-			colour_blend_attachment.colorWriteMask = vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG | vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA;
-			colour_blend_attachment.blendEnable = VK_TRUE;
-			colour_blend_attachment.srcColorBlendFactor = vk::BlendFactor::eSrcAlpha;
-			colour_blend_attachment.dstColorBlendFactor = vk::BlendFactor::eOneMinusSrcAlpha;
-			colour_blend_attachment.colorBlendOp = vk::BlendOp::eAdd;
-			colour_blend_attachment.srcAlphaBlendFactor = vk::BlendFactor::eOne;
-			colour_blend_attachment.dstAlphaBlendFactor = vk::BlendFactor::eZero;
-			colour_blend_attachment.alphaBlendOp = vk::BlendOp::eAdd;
-
-			vk::PipelineColorBlendStateCreateInfo colour_blend_state;
-			colour_blend_state.logicOpEnable = VK_FALSE;
-			colour_blend_state.attachmentCount = 1;
-			colour_blend_state.pAttachments = &colour_blend_attachment;
+			GraphicsPipelineBuilder graphics_builder{};
+			graphics_builder.AddShader(vk::ShaderStageFlagBits::eVertex, "res/shaders/vert.spv")
+				.AddShader(vk::ShaderStageFlagBits::eFragment, "res/shaders/frag.spv")
+				.AddVertexBinding(attribute_desc[0], binding_desc[0])
+				.AddVertexBinding(attribute_desc[1], binding_desc[1])
+				.AddVertexBinding(attribute_desc[2], binding_desc[2])
+				.AddColourAttachment(window.m_vk_context.swapchain_format)
+				.AddDepthAttachment(FindDepthFormat())
+				.SetPipelineLayout(m_pipeline_layout.GetPipelineLayout())
+				.Build();
 			
-			vk::PushConstantRange pcr{};
-			pcr.offset = 0;
-			pcr.size = sizeof(glm::mat4);
-			pcr.stageFlags = vk::ShaderStageFlagBits::eVertex;
-
-			// Use to attach descriptor sets
-			std::array<vk::DescriptorSetLayout, 3> layouts = { m_descriptor_buffers[0].descriptor_spec.GetLayout(),
-				m_texture_descriptor_buffer.descriptor_buffers[0].descriptor_spec.GetLayout(), 
-				m_material_descriptor_buffer.descriptor_buffers[0].descriptor_spec.GetLayout()};
-
-			vk::PipelineLayoutCreateInfo pipeline_layout_info{};
-			pipeline_layout_info.setLayoutCount = layouts.size();
-			pipeline_layout_info.pSetLayouts = layouts.data();
-			pipeline_layout_info.pushConstantRangeCount = 1;
-			pipeline_layout_info.pPushConstantRanges = &pcr;
-			m_pipeline_layout = VulkanContext::GetLogicalDevice().device->createPipelineLayoutUnique(pipeline_layout_info).value;
-
-			SNK_ASSERT(m_pipeline_layout, "Graphics pipeline layout created");
-
-			std::vector<vk::Format> formats = { window.m_vk_context.swapchain_format };
-			vk::PipelineRenderingCreateInfo render_info{};
-			render_info.colorAttachmentCount = 1;
-			render_info.pColorAttachmentFormats = formats.data();
-			render_info.depthAttachmentFormat = FindDepthFormat();
-
-			vk::PipelineDepthStencilStateCreateInfo depth_stencil_info{};
-			depth_stencil_info.depthTestEnable = true;
-			depth_stencil_info.depthWriteEnable = true;
-			depth_stencil_info.depthCompareOp = vk::CompareOp::eLessOrEqual;
-			depth_stencil_info.depthBoundsTestEnable = false; // Only needed if keeping fragments that fall into a certain depth range
-			depth_stencil_info.stencilTestEnable = false;
-
-			vk::GraphicsPipelineCreateInfo pipeline_info{};
-			pipeline_info.stageCount = 2;
-			pipeline_info.pStages = shader_stages;
-			pipeline_info.pVertexInputState = &vert_input_info;
-			pipeline_info.pInputAssemblyState = &input_assembly_create_info;
-			pipeline_info.pViewportState = &viewport_create_info;
-			pipeline_info.pRasterizationState = &rasterizer_create_info;
-			pipeline_info.pMultisampleState = &multisampling;
-			pipeline_info.pDepthStencilState = &depth_stencil_info;
-			pipeline_info.pColorBlendState = &colour_blend_state;
-			pipeline_info.pDynamicState = &dynamic_state_create_info;
-			pipeline_info.layout = *m_pipeline_layout;
-			pipeline_info.renderPass = nullptr;
-			pipeline_info.subpass = 0; // index of subpass where this pipeline is used
-			pipeline_info.pNext = &render_info;
-			pipeline_info.flags = vk::PipelineCreateFlagBits::eDescriptorBufferEXT;
-
-			auto [result, pipeline] = VulkanContext::GetLogicalDevice().device->createGraphicsPipelineUnique(VK_NULL_HANDLE, pipeline_info).asTuple();
-			m_graphics_pipeline = std::move(pipeline);
-
-			SNK_CHECK_VK_RESULT(result);
-			SNK_ASSERT(m_graphics_pipeline, "Graphics pipeline successfully created");
+			m_graphics_pipeline.Init(graphics_builder);
 		}
 
 
@@ -407,7 +307,7 @@ namespace SNAKE {
 			);
 
 			// Binds shaders and sets all state like rasterizer, blend, multisampling etc
-			cmd_buffer.bindPipeline(vk::PipelineBindPoint::eGraphics, *m_graphics_pipeline);
+			cmd_buffer.bindPipeline(vk::PipelineBindPoint::eGraphics, m_graphics_pipeline.GetPipeline());
 
 			vk::Viewport viewport{};
 			viewport.x = 0.0f;
@@ -448,13 +348,13 @@ namespace SNAKE {
 			std::array<uint32_t, 3> buffer_indices = { 0, 1, 2 };
 			std::array<vk::DeviceSize, 3> buffer_offsets = { 0, 0, 0 };
 
-			cmd_buffer.setDescriptorBufferOffsetsEXT(vk::PipelineBindPoint::eGraphics, *m_pipeline_layout, 0, buffer_indices, buffer_offsets);
+			cmd_buffer.setDescriptorBufferOffsetsEXT(vk::PipelineBindPoint::eGraphics, m_pipeline_layout.GetPipelineLayout(), 0, buffer_indices, buffer_offsets);
 			for (uint32_t i = 0; i < m_obj_positions.size(); i++) {
 				glm::mat4 transform = glm::identity<glm::mat4>();
 				transform[3][0] = m_obj_positions[i].x;
 				transform[3][1] = m_obj_positions[i].y;
 				transform[3][2] = m_obj_positions[i].z;
-				cmd_buffer.pushConstants(*m_pipeline_layout, vk::ShaderStageFlagBits::eVertex, 0, sizeof(glm::mat4), &transform[0][0]);
+				cmd_buffer.pushConstants(m_pipeline_layout.GetPipelineLayout(), vk::ShaderStageFlagBits::eVertex, 0, sizeof(glm::mat4), &transform[0][0]);
 				cmd_buffer.drawIndexed((uint32_t)m_mesh.index_buf.alloc_info.size / sizeof(uint32_t), 1, 0, 0, 0);
 			}
 
@@ -582,7 +482,6 @@ namespace SNAKE {
 			
 			for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
 				m_descriptor_buffers[i].descriptor_spec.AddDescriptor(0, vk::DescriptorType::eUniformBuffer, vk::ShaderStageFlagBits::eVertex);
-				//m_descriptor_buffers[i].descriptor_spec.AddDescriptor(1, vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eFragment);
 				m_descriptor_buffers[i].descriptor_spec.GenDescriptorLayout();
 				m_descriptor_buffers[i].CreateBuffer(1);
 				
@@ -614,13 +513,7 @@ namespace SNAKE {
 		}
 
 		void UpdateUniformBuffer(uint32_t current_frame) {
-			static auto start_time = std::chrono::high_resolution_clock::now();
-
-			auto current_time = std::chrono::high_resolution_clock::now();
-			float time = std::chrono::duration<float, std::chrono::seconds::period>(current_time - start_time).count();
-
 			UBO ubo{};
-			ubo.model = glm::rotate(glm::mat4(1.f), time * glm::radians(90.f), glm::vec3(0.f, 0.f, 1.f));
 			ubo.view = glm::lookAt(glm::vec3(2.f), glm::vec3(0.f), glm::vec3(0.f, 1.f, 0.f));
 			ubo.proj = glm::perspective(glm::radians(45.f), window.m_vk_context.swapchain_extent.width / (float)window.m_vk_context.swapchain_extent.height, 0.01f, 10.f);
 
@@ -710,9 +603,8 @@ namespace SNAKE {
 
 		vk::UniqueDebugUtilsMessengerEXT m_messenger;
 
-		vk::UniquePipelineLayout m_pipeline_layout;
-
-		vk::UniquePipeline m_graphics_pipeline;
+		GraphicsPipeline m_graphics_pipeline;
+		PipelineLayout m_pipeline_layout;
 
 		vk::UniqueCommandPool m_cmd_pool;
 		std::vector<vk::UniqueCommandBuffer> m_cmd_buffers;

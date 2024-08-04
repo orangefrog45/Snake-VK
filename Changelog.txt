@@ -1,6 +1,7 @@
 4/8/23:
 -Material UBO accessible in shaders which contains all materials in the engine, handles asset registering/updates
 -Texture array accessible in shaders which contains all textures in the engine, handles asset registering/updates
+-Graphics pipeline and pipeline layout abstractions
 
 
 1/8/23:

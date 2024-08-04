@@ -2,6 +2,7 @@
 #include "util/FileUtil.h"
 #include "util/util.h"
 #include <fstream>
+#include <filesystem>
 
 namespace SNAKE {
 	std::vector<char> files::ReadFileBinary(const std::string& filepath) {
@@ -20,5 +21,14 @@ namespace SNAKE {
 
 		file.close();
 		return buffer;
+	}
+
+	bool files::FileExists(const std::string& filepath) {
+		try {
+			return std::filesystem::exists(filepath);
+		}
+		catch (std::exception e) {
+			return false;
+		}
 	}
 }

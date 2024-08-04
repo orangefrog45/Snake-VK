@@ -27,7 +27,8 @@
 #define SNK_DBG_CHECK_VK_RESULT(res, msg) ;
 #endif
 
-#define SNK_ASSERT(x, ...) if (!(x)) {SNK_BREAK("Assertion failed: '{0}'", __VA_ARGS__);}
+#define SNK_ASSERT(x) if (!(x)) {SNK_BREAK("Assertion failed");}
+#define SNK_ASSERT_ARG(x, ...) if (!(x)) {SNK_BREAK("Assertion failed: '{0}'", __VA_ARGS__);}
 
 namespace SNAKE {
 	namespace util {

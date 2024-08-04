@@ -28,5 +28,5 @@ layout(set = 2, binding = 0) uniform MaterialUBO {
 } material_ubo;
 
 void main() {
-    out_colour = vec4(material_ubo.materials[1].roughness, material_ubo.materials[1].metallic, material_ubo.materials[1].ao, 1);
+    out_colour = vec4(texture(textures[material_ubo.materials[1].albedo_tex_idx], vs_tex_coord).rgb, 1);
 }

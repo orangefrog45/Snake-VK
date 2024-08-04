@@ -158,11 +158,7 @@ namespace SNAKE {
 		float roughness = 0.5f;
 		float metallic = 0.f;
 		float ao = 0.2f;
-
-		// Size is doubled due to alignment requiring it, otherwise buffer sizes don't match on allocation
-		// Will probably use up the space for something in the future anyway
 	private:
-
 		inline static constexpr uint16_t INVALID_GLOBAL_INDEX = std::numeric_limits<uint16_t>::max();
 
 		uint16_t m_global_buffer_index = INVALID_GLOBAL_INDEX;
@@ -214,7 +210,6 @@ namespace SNAKE {
 
 			m_frame_start_listener.callback = [this](Event const* p_event) {
 				auto* p_casted = dynamic_cast<FrameStartEvent const*>(p_event);
-				RegisterMaterialsIntern(p_casted->frame_flight_index);
 				UpdateMaterialUBO(p_casted->frame_flight_index);
 				};
 
@@ -227,8 +222,11 @@ namespace SNAKE {
 				m_materials_to_register[i].push_back(&material);
 				m_materials_to_update[i].push_back(&material);
 			}
+			material.m_global_buffer_index = m_current_index++;
 		}
 
+		// Size is doubled due to alignment requiring it, otherwise buffer sizes don't match on allocation
+		// Will probably use up the space for something in the future anyway
 		inline static constexpr uint32_t material_size = sizeof(uint32_t) * 8 * 2;
 
 		std::array<DescriptorBuffer, MAX_FRAMES_IN_FLIGHT> descriptor_buffers{};
@@ -259,19 +257,11 @@ namespace SNAKE {
 			m_materials_to_update[frame_in_flight_idx].clear();
 		}
 
-		void RegisterMaterialsIntern(FrameInFlightIndex frame_in_flight_idx) {
-			for (auto* p_mat : m_materials_to_register[frame_in_flight_idx]) {
-				p_mat->m_global_buffer_index = current_indices[frame_in_flight_idx];
-				current_indices[frame_in_flight_idx]++;
-			}
-
-			m_materials_to_register[frame_in_flight_idx].clear();
-		}
 
 		EventListener m_material_update_event_listener;
 		EventListener m_frame_start_listener;
 		// Current index to write to 
-		std::array<uint16_t, MAX_FRAMES_IN_FLIGHT> current_indices = { 0 };
+		uint16_t m_current_index = 0;
 
 		std::array<S_VkBuffer, MAX_FRAMES_IN_FLIGHT> m_material_ubos;
 
@@ -304,18 +294,15 @@ namespace SNAKE {
 			for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
 				m_textures_to_register[i].push_back(&tex);
 			}
+			tex.m_global_index = m_current_index++;
 		}
-
 
 		std::array<DescriptorBuffer, MAX_FRAMES_IN_FLIGHT> descriptor_buffers{};
 
-		// Current index to write to 
-		std::array<uint16_t, MAX_FRAMES_IN_FLIGHT> current_indices = { 0 };
 	private:
 		void RegisterTexturesInternal(FrameInFlightIndex frame_in_flight_idx) {
 			for (auto* p_tex : m_textures_to_register[frame_in_flight_idx]) {
 				auto& buffer_properties = VulkanContext::GetPhysicalDevice().buffer_properties;
-				p_tex->m_global_index = current_indices[frame_in_flight_idx];
 
 				auto& spec = p_tex->GetSpec();
 				vk::DescriptorImageInfo image_descriptor{};
@@ -329,14 +316,15 @@ namespace SNAKE {
 				image_desc_info.data.pCombinedImageSampler = &image_descriptor;
 				VulkanContext::GetLogicalDevice().device->getDescriptorEXT(image_desc_info,
 					buffer_properties.combinedImageSamplerDescriptorSize,
-					reinterpret_cast<std::byte*>(descriptor_buffers[frame_in_flight_idx].descriptor_buffer.Map()) + current_indices[frame_in_flight_idx] *
+					reinterpret_cast<std::byte*>(descriptor_buffers[frame_in_flight_idx].descriptor_buffer.Map()) + p_tex->GetGlobalIndex() *
 					buffer_properties.combinedImageSamplerDescriptorSize + descriptor_buffers[frame_in_flight_idx].descriptor_spec.GetBindingOffset(0));
 
-				current_indices[frame_in_flight_idx]++;
 			}
 
 			m_textures_to_register[frame_in_flight_idx].clear();
 		}
+
+		uint16_t m_current_index = 0;
 
 		EventListener m_frame_start_listener;
 
