@@ -15,6 +15,7 @@ namespace SNAKE {
 	struct PhysicalDevice {
 		vk::PhysicalDevice device;
 		vk::PhysicalDeviceProperties properties;
+		vk::PhysicalDeviceDescriptorBufferPropertiesEXT buffer_properties;
 	};
 
 	class VulkanContext {

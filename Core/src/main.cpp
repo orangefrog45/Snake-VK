@@ -6,8 +6,10 @@
 #include "core/VkContext.h"
 #include "core/VkCommon.h"
 #include "core/VkIncl.h"
+#include "core/S_VkBuffer.h"
 #include "textures/Textures.h"
 #include "assets/MeshData.h"
+#include "core/DescriptorBuffer.h"
 
 #include <stb_image.h>
 #define GLFW_INCLUDE_VULKAN
@@ -20,8 +22,6 @@
 VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE
 
 using namespace SNAKE;
-
-constexpr uint32_t MAX_FRAMES_IN_FLIGHT = 2;
 
 
 static VKAPI_ATTR vk::Bool32 VKAPI_CALL DebugCallback(
@@ -80,11 +80,6 @@ struct SwapChainSupportDetails {
 };
 
 struct Vertex {
-	Vertex(glm::vec3 _pos, glm::vec3 _col, glm::vec2 _tex_coord) : pos(_pos), colour(_col), tex_coord(_tex_coord) {};
-	glm::vec3 pos;
-	glm::vec3 colour;
-	glm::vec2 tex_coord;
-
 	// Struct which describes how to move through the data provided
 	[[nodiscard]] constexpr inline static std::array<vk::VertexInputBindingDescription, 3> GetBindingDescription() {
 		std::array<vk::VertexInputBindingDescription, 3> descs{};
@@ -111,7 +106,7 @@ struct Vertex {
 		descs[0].binding = 0;
 		descs[0].location = 0;
 		descs[0].format = vk::Format::eR32G32B32Sfloat;
-		descs[0].offset = offsetof(Vertex, pos);
+		descs[0].offset = 0;
 
 		// Normals
 		descs[1].binding = 1;
@@ -162,30 +157,26 @@ namespace SNAKE {
 
 			CreateDepthResources();
 
+			m_texture_descriptor_buffer.Init();
+			m_tex.LoadFromFile("res/textures/oranges_opt.jpg", *m_cmd_pool);
+			m_tex_2.LoadFromFile("res/textures/images.jpg", *m_cmd_pool);
+			m_texture_descriptor_buffer.RegisterTexture(m_tex);
+			m_texture_descriptor_buffer.RegisterTexture(m_tex_2);
+
+			m_material_descriptor_buffer.Init();
+			m_material_2.metallic = 0.f;
+			m_material_descriptor_buffer.RegisterMaterial(m_material);
+			m_material_descriptor_buffer.RegisterMaterial(m_material_2);
+
 			// Create persistently mapped uniform buffers and store the ptrs which can have data copied to them from the host
 			CreateUniformBuffers();
 
-			// Create common descriptor set layout, includes bindings for UBO object used in CreateGraphicsPipeline and CreateDescriptorSets
-			CreateDescriptorSetLayout();
+			CreateDescriptorBuffers();
 
 			// Create a pipeline with shaders, descriptor sets (in pipeline layout), rasterizer/blend/dynamic state
 			CreateGraphicsPipeline();
 
-
-			m_tex.LoadFromFile("res/textures/oranges_opt.jpg", *m_cmd_pool);
-
-			// Create vertex buffer, uses staging buffer to transfer contents into more efficient gpu memory
 			m_mesh.ImportFile("res/meshes/sphere.glb", *m_cmd_pool);
-			//CreateVertexBuffer();
-			//CreateIndexBuffer();
-
-		
-
-			// Descriptor pool object can allocate descriptor sets
-			//CreateDescriptorPool();
-
-			// Allocate descriptor sets and connect the uniform buffers to them
-			//CreateDescriptorSets();
 
 			// Allocate the command buffers used for rendering
 			CreateCommandBuffers();
@@ -305,9 +296,13 @@ namespace SNAKE {
 			pcr.stageFlags = vk::ShaderStageFlagBits::eVertex;
 
 			// Use to attach descriptor sets
+			std::array<vk::DescriptorSetLayout, 3> layouts = { m_descriptor_buffers[0].descriptor_spec.GetLayout(),
+				m_texture_descriptor_buffer.descriptor_buffers[0].descriptor_spec.GetLayout(), 
+				m_material_descriptor_buffer.descriptor_buffers[0].descriptor_spec.GetLayout()};
+
 			vk::PipelineLayoutCreateInfo pipeline_layout_info{};
-			pipeline_layout_info.setLayoutCount = 1;
-			pipeline_layout_info.pSetLayouts = &*m_descriptor_set_layout;
+			pipeline_layout_info.setLayoutCount = layouts.size();
+			pipeline_layout_info.pSetLayouts = layouts.data();
 			pipeline_layout_info.pushConstantRangeCount = 1;
 			pipeline_layout_info.pPushConstantRanges = &pcr;
 			m_pipeline_layout = VulkanContext::GetLogicalDevice().device->createPipelineLayoutUnique(pipeline_layout_info).value;
@@ -383,7 +378,7 @@ namespace SNAKE {
 			);
 
 			Image2D::TransitionImageLayout(window.m_vk_context.swapchain_images[image_index],
-				vk::ImageAspectFlagBits::eColor, window.m_vk_context.swapchain_format, vk::ImageLayout::eUndefined,
+				vk::ImageAspectFlagBits::eColor, vk::ImageLayout::eUndefined,
 				vk::ImageLayout::eColorAttachmentOptimal, *m_cmd_pool, cmd_buffer);
 
 			vk::RenderingAttachmentInfo colour_attachment_info{};
@@ -434,14 +429,26 @@ namespace SNAKE {
 			cmd_buffer.bindIndexBuffer(m_mesh.index_buf.buffer, 0, vk::IndexType::eUint32);
 
 			vk::DescriptorBufferBindingInfoEXT descriptor_buffer_binding_info{};
-			descriptor_buffer_binding_info.address = m_descriptor_buffers[m_current_frame].GetDeviceAddress();
-			descriptor_buffer_binding_info.usage = vk::BufferUsageFlagBits::eResourceDescriptorBufferEXT;
-			cmd_buffer.bindDescriptorBuffersEXT(descriptor_buffer_binding_info);
+			descriptor_buffer_binding_info.address = m_descriptor_buffers[m_current_frame].descriptor_buffer.GetDeviceAddress();
+			descriptor_buffer_binding_info.usage = vk::BufferUsageFlagBits::eResourceDescriptorBufferEXT ;
 
-			uint32_t buffer_index_ubo = 0;
-			uint32_t buffer_offset = 0;
+			vk::DescriptorBufferBindingInfoEXT tex_descriptor_buffer_binding_info{};
+			tex_descriptor_buffer_binding_info.address = m_texture_descriptor_buffer.descriptor_buffers[m_current_frame].descriptor_buffer.GetDeviceAddress();
+			tex_descriptor_buffer_binding_info.usage = vk::BufferUsageFlagBits::eSamplerDescriptorBufferEXT;
 
-			cmd_buffer.setDescriptorBufferOffsetsEXT(vk::PipelineBindPoint::eGraphics, *m_pipeline_layout, 0, buffer_index_ubo, buffer_offset);
+			vk::DescriptorBufferBindingInfoEXT mat_descriptor_buf_binding_info{};
+			mat_descriptor_buf_binding_info.address = m_material_descriptor_buffer.descriptor_buffers[m_current_frame].descriptor_buffer.GetDeviceAddress();
+			mat_descriptor_buf_binding_info.usage = vk::BufferUsageFlagBits::eResourceDescriptorBufferEXT;
+
+			std::array<vk::DescriptorBufferBindingInfoEXT, 3> binding_infos = { descriptor_buffer_binding_info, 
+				tex_descriptor_buffer_binding_info, mat_descriptor_buf_binding_info };
+
+			cmd_buffer.bindDescriptorBuffersEXT(binding_infos);
+
+			std::array<uint32_t, 3> buffer_indices = { 0, 1, 2 };
+			std::array<vk::DeviceSize, 3> buffer_offsets = { 0, 0, 0 };
+
+			cmd_buffer.setDescriptorBufferOffsetsEXT(vk::PipelineBindPoint::eGraphics, *m_pipeline_layout, 0, buffer_indices, buffer_offsets);
 			for (uint32_t i = 0; i < m_obj_positions.size(); i++) {
 				glm::mat4 transform = glm::identity<glm::mat4>();
 				transform[3][0] = m_obj_positions[i].x;
@@ -454,7 +461,7 @@ namespace SNAKE {
 			cmd_buffer.endRenderingKHR();
 
 			Image2D::TransitionImageLayout(window.m_vk_context.swapchain_images[image_index],
-				vk::ImageAspectFlagBits::eColor, window.m_vk_context.swapchain_format, vk::ImageLayout::eColorAttachmentOptimal,
+				vk::ImageAspectFlagBits::eColor, vk::ImageLayout::eColorAttachmentOptimal,
 				vk::ImageLayout::ePresentSrcKHR, *m_cmd_pool, cmd_buffer);
 
 
@@ -503,6 +510,8 @@ namespace SNAKE {
 			SNK_CHECK_VK_RESULT(
 				VulkanContext::GetLogicalDevice().device->waitForFences(1, &*m_in_flight_fences[m_current_frame], VK_TRUE, UINT64_MAX)
 			);
+
+			EventManagerG::DispatchEvent(FrameStartEvent{ m_current_frame });
 
 			uint32_t image_index;
 			auto image_result = VulkanContext::GetLogicalDevice().device->acquireNextImageKHR(*window.m_vk_context.swapchain, UINT64_MAX, *m_image_avail_semaphores[m_current_frame], VK_NULL_HANDLE, &image_index);
@@ -568,76 +577,30 @@ namespace SNAKE {
 			m_current_frame = (m_current_frame + 1) % MAX_FRAMES_IN_FLIGHT;
 		}
 
-		inline vk::DeviceSize aligned_size(vk::DeviceSize value, vk::DeviceSize alignment)
-		{
-			return (value + alignment - 1) & ~(alignment - 1);
-		}
-
-		void CreateDescriptorSetLayout() {
+		void CreateDescriptorBuffers() {
 			auto& device = VulkanContext::GetLogicalDevice().device;
-
-			// Binding for the UBO inside the descriptor set, positioned at index 0 (binding = 0), as written in vertex shader
-			vk::DescriptorSetLayoutBinding ubo_layout_binding{};
-			ubo_layout_binding.binding = 0;
-			ubo_layout_binding.descriptorType = vk::DescriptorType::eUniformBuffer;
-			ubo_layout_binding.descriptorCount = 1;
-			ubo_layout_binding.stageFlags = vk::ShaderStageFlagBits::eVertex; // Descriptor only referenced in vertex stage
-
-			vk::DescriptorSetLayoutBinding sampler_layout_binding{};
-			sampler_layout_binding.binding = 1;
-			sampler_layout_binding.descriptorType = vk::DescriptorType::eCombinedImageSampler;
-			sampler_layout_binding.descriptorCount = 1;
-			sampler_layout_binding.stageFlags = vk::ShaderStageFlagBits::eFragment; // Descriptor only referenced in fragment stage
 			
-			auto bindings = util::array(ubo_layout_binding);
-			vk::DescriptorSetLayoutCreateInfo layout_info{};
-			layout_info.bindingCount = (uint32_t)bindings.size();
-			layout_info.pBindings = bindings.data();
-			layout_info.flags = vk::DescriptorSetLayoutCreateFlagBits::eDescriptorBufferEXT;
-
-			auto [res, val] = VulkanContext::GetLogicalDevice().device->createDescriptorSetLayoutUnique(layout_info);
-			SNK_CHECK_VK_RESULT(res);
-
-			m_descriptor_set_layout = std::move(val);
-
-			vk::PhysicalDeviceDescriptorBufferPropertiesEXT descriptor_buffer_properties{};
-			vk::PhysicalDeviceProperties2 device_properties{};
-			device_properties.pNext = &descriptor_buffer_properties;
-			VulkanContext::GetPhysicalDevice().device.getProperties2(&device_properties);
-
-			vk::DeviceSize size = device->getDescriptorSetLayoutSizeEXT(*m_descriptor_set_layout);
-			vk::DeviceSize aligned_s = aligned_size(size, descriptor_buffer_properties.descriptorBufferOffsetAlignment);
-
-			auto offset_0 = device->getDescriptorSetLayoutBindingOffsetEXT(*m_descriptor_set_layout, 0);
-			//auto offset_1 = device->getDescriptorSetLayoutBindingOffsetEXT(*m_descriptor_set_layout, 1);
-
 			for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-				m_descriptor_buffers[i].CreateBuffer(aligned_s,
-					vk::BufferUsageFlagBits::eResourceDescriptorBufferEXT | 
-					vk::BufferUsageFlagBits::eShaderDeviceAddress,
-					VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT);
+				m_descriptor_buffers[i].descriptor_spec.AddDescriptor(0, vk::DescriptorType::eUniformBuffer, vk::ShaderStageFlagBits::eVertex);
+				//m_descriptor_buffers[i].descriptor_spec.AddDescriptor(1, vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eFragment);
+				m_descriptor_buffers[i].descriptor_spec.GenDescriptorLayout();
+				m_descriptor_buffers[i].CreateBuffer(1);
 				
+				// Get address + size of uniform buffer
 				vk::DescriptorAddressInfoEXT addr_info{};
 				addr_info.address = m_uniform_buffers[i].GetDeviceAddress();
 				addr_info.range = m_uniform_buffers[i].alloc_info.size;
-				addr_info.format = vk::Format::eUndefined;
 
+				auto& descriptor_buffer_properties = VulkanContext::GetPhysicalDevice().buffer_properties;
+
+				// Use above address + size data to connect the descriptor at the offset provided to this specific UBO
 				vk::DescriptorGetInfoEXT buffer_descriptor_info{};
 				buffer_descriptor_info.type = vk::DescriptorType::eUniformBuffer;
 				buffer_descriptor_info.data.pUniformBuffer = &addr_info;
-				device->getDescriptorEXT(buffer_descriptor_info, descriptor_buffer_properties.uniformBufferDescriptorSize, m_descriptor_buffers[i].Map());
+				device->getDescriptorEXT(buffer_descriptor_info, descriptor_buffer_properties.uniformBufferDescriptorSize, 
+					reinterpret_cast<std::byte*>(m_descriptor_buffers[i].descriptor_buffer.Map()) + m_descriptor_buffers[i].descriptor_spec.GetBindingOffset(0));
 
-				//vk::DescriptorAddressInfoEXT ubo_descriptor_addr_info{};
-				//ubo_descriptor_addr_info.address = m_uniform_buffers[i].GetDeviceAddress();
-				//ubo_descriptor_addr_info.range = m_uniform_buffers[i].alloc_info.size;
-
-				//buffer_descriptor_info.data.pUniformBuffer = &ubo_descriptor_addr_info;
-
-				//device->getDescriptorEXT(&buffer_descriptor_info, descriptor_buffer_properties.uniformBufferDescriptorSize, 
-				//	reinterpret_cast<std::byte*>(m_uniform_buffers_mapped[i]) + offset_0);
 			}
-
-		
 		}
 
 		void CreateUniformBuffers() {
@@ -665,75 +628,6 @@ namespace SNAKE {
 			ubo.proj[1][1] *= -1;
 
 			memcpy(m_uniform_buffers_mapped[current_frame], &ubo, sizeof(UBO));
-		}
-
-		void CreateDescriptorPool() {
-			std::array<vk::DescriptorPoolSize, 2> sizes;
-
-			sizes[0].type = vk::DescriptorType::eUniformBuffer;
-			sizes[0].descriptorCount = MAX_FRAMES_IN_FLIGHT;
-			sizes[1].type = vk::DescriptorType::eCombinedImageSampler;
-			sizes[1].descriptorCount = MAX_FRAMES_IN_FLIGHT;
-
-			vk::DescriptorPoolCreateInfo pool_info{};
-			pool_info.poolSizeCount = 2;
-			pool_info.pPoolSizes = sizes.data();
-			pool_info.maxSets = MAX_FRAMES_IN_FLIGHT;
-
-			auto [res, pool] = VulkanContext::GetLogicalDevice().device->createDescriptorPoolUnique(pool_info);
-			SNK_CHECK_VK_RESULT(res);
-
-			m_descriptor_pool = std::move(pool);
-		}
-
-		void CreateDescriptorSets() {
-			// Allocate descriptor sets from pool
-			//auto layouts = std::vector<vk::DescriptorSetLayout>(MAX_FRAMES_IN_FLIGHT, *m_descriptor_set_layout);
-			//vk::DescriptorSetAllocateInfo alloc_info{};
-			//alloc_info.descriptorPool = *m_descriptor_pool;
-			//alloc_info.descriptorSetCount = MAX_FRAMES_IN_FLIGHT;
-			//alloc_info.pSetLayouts = layouts.data();
-
-			//vk::DescriptorImageInfo image_info{};
-			//image_info.imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
-			//image_info.imageView = m_tex.GetImageView();
-			//image_info.sampler = m_tex.GetSampler();
-
-			//m_descriptor_sets.resize(MAX_FRAMES_IN_FLIGHT);
-			////auto [res, sets] = VulkanContext::GetLogicalDevice().device->allocateDescriptorSetsUnique(alloc_info);
-			////SNK_CHECK_VK_RESULT(res);
-		
-
-			//// Connect buffers to descriptor sets
-			//for (size_t i = 0; i < sets.size(); i++) {
-			//	m_descriptor_sets[i] = std::move(sets[i]);
-
-			//	vk::DescriptorBufferInfo buffer_info{};
-			//	buffer_info.buffer = m_uniform_buffers[i].buffer;
-			//	buffer_info.offset = 0;
-			//	buffer_info.range = sizeof(UBO);
-
-			//	vk::WriteDescriptorSet ubo_descriptor_write{};
-			//	ubo_descriptor_write.dstSet = *m_descriptor_sets[i];
-			//	ubo_descriptor_write.dstBinding = 0;
-			//	ubo_descriptor_write.dstArrayElement = 0;
-			//	ubo_descriptor_write.descriptorType = vk::DescriptorType::eUniformBuffer;
-			//	ubo_descriptor_write.pBufferInfo = &buffer_info; // Leave pImageInfo and pTexelBufferView fields empty as this descriptor refers to just buffer data
-			//	ubo_descriptor_write.descriptorCount = 1;
-
-			//	vk::WriteDescriptorSet image_descriptor_write{};
-			//	image_descriptor_write.dstSet = *m_descriptor_sets[i];
-			//	image_descriptor_write.dstBinding = 1;
-			//	image_descriptor_write.dstArrayElement = 0;
-			//	image_descriptor_write.descriptorType = vk::DescriptorType::eCombinedImageSampler;
-			//	image_descriptor_write.descriptorCount = 1;
-			//	image_descriptor_write.pImageInfo = &image_info;
-			//	
-			//	auto descriptor_writes = util::array(ubo_descriptor_write, image_descriptor_write);
-
-			//	VulkanContext::GetLogicalDevice().device->updateDescriptorSets(descriptor_writes, {});
-			//}
-
 		}
 
 
@@ -764,14 +658,20 @@ namespace SNAKE {
 		void CreateDepthResources() {
 			auto depth_format = FindDepthFormat();
 
-			m_depth_image.CreateImage(window.m_width, window.m_height, depth_format,
-				vk::ImageTiling::eOptimal, vk::ImageUsageFlagBits::eDepthStencilAttachment);
+			Image2DSpec depth_spec{};
+			depth_spec.format = depth_format;
+			depth_spec.width = window.m_width;
+			depth_spec.height = window.m_height;
+			depth_spec.tiling = vk::ImageTiling::eOptimal;
+			depth_spec.usage = vk::ImageUsageFlagBits::eDepthStencilAttachment;
 
-			m_depth_image.CreateImageView(vk::ImageAspectFlagBits::eDepth, depth_format);
+			m_depth_image.SetSpec(depth_spec);
+			m_depth_image.CreateImage();
+			m_depth_image.CreateImageView(vk::ImageAspectFlagBits::eDepth);
 
 			m_depth_image.TransitionImageLayout(m_depth_image.GetImage(), 
 				vk::ImageAspectFlagBits::eDepth | (HasStencilComponent(depth_format) ? vk::ImageAspectFlagBits::eStencil : vk::ImageAspectFlagBits::eNone ), 
-				FindDepthFormat(), vk::ImageLayout::eUndefined,
+				vk::ImageLayout::eUndefined,
 				(HasStencilComponent(depth_format) ? vk::ImageLayout::eDepthAttachmentOptimal: vk::ImageLayout::eDepthAttachmentOptimal), *m_cmd_pool);
 		}
 
@@ -788,15 +688,21 @@ namespace SNAKE {
 		SNAKE::Window window;
 	
 	private:
+		GlobalTextureDescriptorBuffer m_texture_descriptor_buffer;
+
+		Material m_material;
+		Material m_material_2;
+		GlobalMaterialDescriptorBuffer m_material_descriptor_buffer;
 
 		std::vector<glm::vec3> m_obj_positions = { {0, 0, 0}, {1, -1, -1 } };
 
-		std::array<S_VkBuffer, MAX_FRAMES_IN_FLIGHT> m_descriptor_buffers;
+		std::array<DescriptorBuffer, MAX_FRAMES_IN_FLIGHT> m_descriptor_buffers;
 
 		EventListener m_framebuffer_resize_listener;
 
 		MeshData m_mesh;
-		Image2D m_tex;
+		Texture2D m_tex;
+		Texture2D m_tex_2;
 		Image2D m_depth_image;
 
 		std::array<S_VkBuffer, MAX_FRAMES_IN_FLIGHT> m_uniform_buffers;
@@ -804,24 +710,19 @@ namespace SNAKE {
 
 		vk::UniqueDebugUtilsMessengerEXT m_messenger;
 
-		vk::UniqueDescriptorSetLayout m_descriptor_set_layout;
-		vk::UniqueDescriptorPool m_descriptor_pool;
-		std::vector<vk::UniqueDescriptorSet> m_descriptor_sets;
-
 		vk::UniquePipelineLayout m_pipeline_layout;
 
 		vk::UniquePipeline m_graphics_pipeline;
 
 		vk::UniqueCommandPool m_cmd_pool;
 		std::vector<vk::UniqueCommandBuffer> m_cmd_buffers;
-
 		std::vector<vk::UniqueSemaphore> m_image_avail_semaphores;
 		std::vector<vk::UniqueSemaphore> m_render_finished_semaphores;
 		std::vector<vk::UniqueFence> m_in_flight_fences;
 
 		bool m_framebuffer_resized = false;
 
-		uint32_t m_current_frame = 0;
+		FrameInFlightIndex m_current_frame = 0;
 
 		std::vector<const char*> m_required_device_extensions = {
 			VK_KHR_SWAPCHAIN_EXTENSION_NAME,
@@ -831,7 +732,8 @@ namespace SNAKE {
 			VK_KHR_SEPARATE_DEPTH_STENCIL_LAYOUTS_EXTENSION_NAME,
 			VK_EXT_DESCRIPTOR_BUFFER_EXTENSION_NAME,
 			VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME,
-			VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME
+			VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME,
+			
 
 		};
 

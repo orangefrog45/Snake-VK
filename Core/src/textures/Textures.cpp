@@ -1,6 +1,7 @@
 #include "core/VkCommon.h"
 #include "core/VkContext.h"
 #include "textures/Textures.h"
+#include "core/S_VkBuffer.h"
 #include "util/Logger.h"
 #include "util/util.h"
 
@@ -24,17 +25,24 @@ void Image2D::LoadFromFile(const std::string& filepath, vk::CommandPool pool) {
 
 	stbi_image_free(pixels);
 
-	vk::Format fmt = vk::Format::eR8G8B8A8Srgb;
+	m_spec.format = vk::Format::eR8G8B8A8Srgb;
+	m_spec.usage = vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled;
+	m_spec.width = width;
+	m_spec.height = height;
+	m_spec.tiling = vk::ImageTiling::eOptimal;
 
-	CreateImage(width, height, fmt, vk::ImageTiling::eOptimal,
-		vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled);
+	CreateImage();
 
-	TransitionImageLayout(m_image, vk::ImageAspectFlagBits::eColor, fmt, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal, pool);
+	TransitionImageLayout(m_image, vk::ImageAspectFlagBits::eColor, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal, pool);
 	CopyBufferToImage(staging_buffer.buffer, m_image, width, height, pool);
-	TransitionImageLayout(m_image, vk::ImageAspectFlagBits::eColor, fmt, vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal, pool);
+	TransitionImageLayout(m_image, vk::ImageAspectFlagBits::eColor, vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal, pool);
 
-	CreateImageView(vk::ImageAspectFlagBits::eColor, vk::Format::eR8G8B8A8Srgb);
+	CreateImageView(vk::ImageAspectFlagBits::eColor);
 	CreateSampler();
+}
+
+Image2D::Image2D(const Image2DSpec& spec) {
+	SetSpec(spec);
 }
 
 void Image2D::CreateSampler() {
@@ -60,18 +68,18 @@ void Image2D::CreateSampler() {
 	m_sampler = std::move(sampler);
 }
 
-void Image2D::CreateImage(uint32_t width, uint32_t height, vk::Format format, vk::ImageTiling tiling, vk::ImageUsageFlags usage, VmaAllocationCreateFlags flags) {
+void Image2D::CreateImage(VmaAllocationCreateFlags flags) {
 	vk::ImageCreateInfo image_info{};
 	image_info.imageType = vk::ImageType::e2D;
-	image_info.extent.width = width;
-	image_info.extent.height = height;
+	image_info.extent.width = m_spec.width;
+	image_info.extent.height = m_spec.height;
 	image_info.extent.depth = 1;
 	image_info.mipLevels = 1;
 	image_info.arrayLayers = 1;
-	image_info.format = format;
-	image_info.tiling = tiling;
+	image_info.format = m_spec.format;
+	image_info.tiling = m_spec.tiling;
 	image_info.initialLayout = vk::ImageLayout::eUndefined;
-	image_info.usage = usage;
+	image_info.usage = m_spec.usage;
 	image_info.sharingMode = vk::SharingMode::eExclusive; // Image only used by one queue family
 	image_info.samples = vk::SampleCountFlagBits::e1; // Multisampling config, ignore
 
@@ -96,7 +104,7 @@ void Image2D::DestroyImage() {
 }
 
 
-void Image2D::TransitionImageLayout(const vk::Image& image, vk::ImageAspectFlags aspect_flags, [[maybe_unused]] vk::Format format, vk::ImageLayout old_layout, vk::ImageLayout new_layout, vk::CommandPool pool, vk::CommandBuffer buf) {
+void Image2D::TransitionImageLayout(const vk::Image& image, vk::ImageAspectFlags aspect_flags, vk::ImageLayout old_layout, vk::ImageLayout new_layout, vk::CommandPool pool, vk::CommandBuffer buf) {
 	bool temporary_buf = !buf;
 	vk::UniqueCommandBuffer temp_handle;
 
@@ -109,7 +117,6 @@ void Image2D::TransitionImageLayout(const vk::Image& image, vk::ImageAspectFlags
 	vk::PipelineStageFlags dst_stage = vk::PipelineStageFlagBits::eNone;
 
 	vk::ImageMemoryBarrier barrier{};
-
 
 
 	if (old_layout == vk::ImageLayout::eUndefined && new_layout == vk::ImageLayout::eTransferDstOptimal) {
@@ -170,11 +177,11 @@ void Image2D::TransitionImageLayout(const vk::Image& image, vk::ImageAspectFlags
 		EndSingleTimeCommands(buf);
 }
 
-void Image2D::CreateImageView(vk::ImageAspectFlags aspect_flags, vk::Format format) {
+void Image2D::CreateImageView(vk::ImageAspectFlags aspect_flags) {
 	vk::ImageViewCreateInfo info{};
 	info.image = m_image;
 	info.viewType = vk::ImageViewType::e2D;
-	info.format = format;
+	info.format = m_spec.format;
 	info.subresourceRange.aspectMask = aspect_flags;
 	info.subresourceRange.baseMipLevel = 0;
 	info.subresourceRange.baseArrayLayer = 0;

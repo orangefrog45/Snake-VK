@@ -19,7 +19,11 @@ namespace SNAKE {
 		auto* p_win_obj = reinterpret_cast<Window*>(glfwGetWindowUserPointer(p_window));
 		//p_app->m_framebuffer_resized = true;
 
-		WindowEvent _event{ .prev_width = p_win_obj->m_width, .prev_height = p_win_obj->m_height, .new_width = (uint32_t)width, .new_height = (uint32_t)height};
+		WindowEvent _event;
+		_event.prev_width = p_win_obj->m_width;
+		_event.prev_height = p_win_obj->m_height;
+		_event.new_width = (uint32_t)width;
+		_event.new_height = (uint32_t)height;
 		p_win_obj->m_width = width;
 		p_win_obj->m_height = height;
 

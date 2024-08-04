@@ -27,6 +27,10 @@ void VulkanContext::IPickPhysicalDevice(vk::SurfaceKHR surface, const std::vecto
 		}
 	}
 
+	vk::PhysicalDeviceProperties2 device_properties{};
+	device_properties.pNext = &m_physical_device.buffer_properties;
+	m_physical_device.device.getProperties2(&device_properties);
+
 	SNK_ASSERT(m_physical_device.device, "Physical device created");
 }
 

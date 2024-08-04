@@ -1,3 +1,8 @@
+4/8/23:
+-Material UBO accessible in shaders which contains all materials in the engine, handles asset registering/updates
+-Texture array accessible in shaders which contains all textures in the engine, handles asset registering/updates
+
+
 1/8/23:
 -Mesh loading with assimp, added normal and texture coordinate vertex buffers
 -Switched from descriptor sets to descriptor buffers

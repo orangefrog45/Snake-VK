@@ -1,7 +1,12 @@
+#pragma once
 #include "EventManager.h"
 
 namespace SNAKE {
-	struct WindowEvent {
+	struct Event {
+		virtual ~Event() = default;
+	};
+
+	struct WindowEvent : public Event {
 		enum class Type {
 			RESIZE
 		} type;
@@ -11,5 +16,10 @@ namespace SNAKE {
 
 		uint32_t new_width = 0;
 		uint32_t new_height = 0;
+	};
+
+	struct FrameStartEvent : public Event {
+		FrameStartEvent(uint8_t idx) : frame_flight_index(idx) { };
+		uint8_t frame_flight_index;
 	};
 }

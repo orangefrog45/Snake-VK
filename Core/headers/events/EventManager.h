@@ -3,23 +3,22 @@
 #include "util/util.h"
 
 namespace SNAKE {
-	using listener_callback = std::function<void(std::any _event)>;
+	using listener_callback = std::function<void(struct Event const* _event)>;
 
 	class EventListener {
 	public:
 		EventListener() = default;
 		~EventListener() { if (DeathCallback) DeathCallback(*this); }
+		EventListener(const EventListener& other) : m_listening_event_id(other.m_listening_event_id), callback(other.callback) {};
 
-		// _event arg will always be a pointer to the event being listened to
+		// _event arg will always be a downcasted pointer to the event being listened to
 		listener_callback callback = nullptr;
-	public:
-		// Copying only allowed by EventManagerG
-		EventListener(const EventListener& other) = default;
+	private:
 
 		// Given by EventManagerG during RegisterListener, this erases the cloned listener stored in EventManagerG
 		void (*DeathCallback)(const EventListener& listener) = nullptr;
 
-		// Given by EventManagerG
+		// Given by EventManagerG, unique type-id for event
 		uint16_t m_listening_event_id;
 
 		SNAKE::UUID<uint64_t> m_id;

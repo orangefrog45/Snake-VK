@@ -5,6 +5,9 @@
 #include <optional>
 
 namespace SNAKE {
+	using FrameInFlightIndex = uint8_t;
+	constexpr FrameInFlightIndex MAX_FRAMES_IN_FLIGHT = 2;
+
 	struct QueueFamilyIndices {
 		std::optional<uint32_t> graphics_family;
 		std::optional<uint32_t> present_family;
@@ -18,45 +21,6 @@ namespace SNAKE {
 		vk::SurfaceCapabilitiesKHR capabilities;
 		std::vector<vk::SurfaceFormatKHR> formats;
 		std::vector<vk::PresentModeKHR> present_modes;
-	};
-
-	struct S_VkBuffer {
-		S_VkBuffer() = default;
-		S_VkBuffer(const S_VkBuffer& other) = delete;
-		S_VkBuffer& operator=(const S_VkBuffer& other) = delete;
-
-		S_VkBuffer& operator=(S_VkBuffer&& other) noexcept {
-			this->allocation = std::move(other.allocation);
-			this->buffer = std::move(other.buffer);
-
-			return *this;
-		}
-
-		~S_VkBuffer() {
-			vmaDestroyBuffer(VulkanContext::GetAllocator(), buffer, allocation);
-		}
-
-		void CreateBuffer(vk::DeviceSize size, vk::BufferUsageFlags usage, VmaAllocationCreateFlags flags = 0);
-
-		vk::DeviceAddress GetDeviceAddress() {
-			vk::BufferDeviceAddressInfo buffer_addr_info{};
-			buffer_addr_info.buffer = buffer;
-			return VulkanContext::GetLogicalDevice().device->getBufferAddress(buffer_addr_info);
-		}
-
-		inline void* Map() { 
-			void* p_data = nullptr; 
-			SNK_CHECK_VK_RESULT(vmaMapMemory(VulkanContext::GetAllocator(), allocation, &p_data)); 
-			return p_data;
-		}
-
-		inline void Unmap() {
-			vmaUnmapMemory(VulkanContext::GetAllocator(), allocation);
-		}
-
-		VmaAllocation allocation;
-		VmaAllocationInfo alloc_info;
-		vk::Buffer buffer;
 	};
 
 	SwapChainSupportDetails QuerySwapChainSupport(vk::PhysicalDevice device, vk::SurfaceKHR surface);
@@ -74,5 +38,10 @@ namespace SNAKE {
 	void EndSingleTimeCommands(vk::CommandBuffer& cmd_buf);
 
 	void CopyBuffer(vk::Buffer src, vk::Buffer dst, vk::DeviceSize size, vk::CommandPool pool);
+
+	inline vk::DeviceSize aligned_size(vk::DeviceSize value, vk::DeviceSize alignment)
+	{
+		return (value + alignment - 1) & ~(alignment - 1);
+	}
 };
 
