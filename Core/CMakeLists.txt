@@ -57,7 +57,13 @@ src/main.cpp
  "src/core/Pipelines.cpp" 
  "headers/core/VkCommands.h"
  "headers/assets/Asset.h"
- "headers/assets/AssetManager.h" "src/assets/AssetManager.cpp" "headers/assets/TextureAssets.h")
+ "headers/assets/AssetManager.h" 
+ "src/assets/AssetManager.cpp" 
+ "headers/assets/TextureAssets.h" 
+ "headers/scene/Scene.h" 
+ "headers/scene/Entity.h" 
+ "headers/components/Component.h"
+ "headers/components/TransformComponent.h" "src/components/TransformComponent.cpp" "src/util/ExtraMath.cpp" "headers/util/ExtraMath.h")
 
 
 target_link_options(SNAKE_VK_CORE PRIVATE -INCREMENTAL -ZI)
@@ -85,6 +91,7 @@ extern/glm
 extern/stb
 extern/vma/include
 extern/assimp/include
+extern/entt/src/
 )
 
 

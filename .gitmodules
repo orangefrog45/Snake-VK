@@ -16,3 +16,6 @@
 [submodule "Core/extern/assimp"]
 	path = Core/extern/assimp
 	url = https://github.com/assimp/assimp
+[submodule "Core/extern/entt"]
+	path = Core/extern/entt
+	url = https://github.com/skypjack/entt

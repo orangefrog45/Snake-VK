@@ -1,6 +1,7 @@
 6/8/23:
 -Basic shadow mapping
 -Asset management system, asset refs, texture/mesh/material assets
+-Scene and entity class, transform components, start of ECS
 
 4/8/23:
 -Material UBO accessible in shaders which contains all materials in the engine, handles asset registering/updates

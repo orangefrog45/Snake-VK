@@ -6,29 +6,6 @@
 #include "assets/Asset.h"
 
 namespace SNAKE {
-	struct Descriptor {
-		// Buffer or image
-		void* p_resource = nullptr; 
-
-		vk::DescriptorType type;
-
-		// Binding index in shader, e.g (set = x, binding = binding_point)
-		uint32_t binding_point; 
-
-		// The set containing this descriptor
-		struct DescriptorBufferSet* p_owner = nullptr;
-	};
-
-	struct DescriptorBufferSet {
-		// Descriptors contained in the set
-		std::vector<Descriptor> descriptors;
-
-		// Index of this descriptor set from inside the descriptor buffer (p_owner)
-		uint32_t set_index;
-
-		// The buffer containing this set
-		struct DescriptorBuffer* p_owner = nullptr;
-	};
 
 	class DescriptorSetSpec {
 	public:

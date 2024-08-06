@@ -14,6 +14,7 @@
 #include "assets/MeshData.h"
 #include "assets/AssetManager.h"
 #include "assets/TextureAssets.h"
+#include "scene/Scene.h"
 
 #include <stb_image.h>
 #define GLFW_INCLUDE_VULKAN
@@ -161,6 +162,11 @@ namespace SNAKE {
 
 			CreateDepthResources();
 
+			scene.CreateEntity();
+			auto* p_ent = scene.CreateEntity();
+			p_ent->GetComponent<TransformComponent>()->SetPosition({ 4, 0, 0 });
+			p_ent->GetComponent<TransformComponent>()->SetScale(1, 2, 2);
+
 			m_tex = AssetManager::CreateAsset<Texture2DAsset>();
 			m_material = AssetManager::CreateAsset<MaterialAsset>();
 			m_material_2 = AssetManager::CreateAsset<MaterialAsset>();
@@ -175,15 +181,12 @@ namespace SNAKE {
 			m_material_2->p_albedo_tex = &*m_tex->p_tex;
 			m_material_2->metallic = 1.f;
 
-			// Create persistently mapped uniform buffers and store the ptrs which can have data copied to them from the host
 			CreateUniformBuffers();
-
 
 			CreateDescriptorBuffers();
 
 			SetupShadowMapping();
 
-			// Create a pipeline with shaders, descriptor sets (in pipeline layout), rasterizer/blend/dynamic state
 			CreateGraphicsPipeline();
 
 			m_mesh = AssetManager::CreateAsset<StaticMeshAsset>();
@@ -358,14 +361,12 @@ namespace SNAKE {
 			std::array<vk::DeviceSize, 4> buffer_offsets = { 0, 0, 0, 0 };
 
 			cmd_buffer.setDescriptorBufferOffsetsEXT(vk::PipelineBindPoint::eGraphics, m_pipeline_layout.GetPipelineLayout(), 0, buffer_indices, buffer_offsets);
-			for (uint32_t i = 0; i < m_obj_positions.size(); i++) {
-				glm::mat4 transform = glm::identity<glm::mat4>();
-				transform[3][0] = m_obj_positions[i].x;
-				transform[3][1] = m_obj_positions[i].y;
-				transform[3][2] = m_obj_positions[i].z;
-				cmd_buffer.pushConstants(m_pipeline_layout.GetPipelineLayout(), vk::ShaderStageFlagBits::eVertex, 0, sizeof(glm::mat4), &transform[0][0]);
+			for (auto [entity, transform] : scene.GetRegistry().view<TransformComponent>().each()) {
+				cmd_buffer.pushConstants(m_pipeline_layout.GetPipelineLayout(), vk::ShaderStageFlagBits::eVertex, 0, sizeof(glm::mat4), &transform.GetMatrix()[0][0]);
 				cmd_buffer.drawIndexed((uint32_t)m_mesh->data->index_buf.alloc_info.size / sizeof(uint32_t), 1, 0, 0, 0);
 			}
+		
+
 
 			cmd_buffer.endRenderingKHR();
 
@@ -734,12 +735,8 @@ namespace SNAKE {
 
 			cmd.setDescriptorBufferOffsetsEXT(vk::PipelineBindPoint::eGraphics, m_shadow_pipeline_layout.GetPipelineLayout(), 0, buffer_indices, buffer_offsets);
 
-			for (uint32_t i = 0; i < m_obj_positions.size(); i++) {
-				glm::mat4 transform = glm::identity<glm::mat4>();
-				transform[3][0] = m_obj_positions[i].x;
-				transform[3][1] = m_obj_positions[i].y;
-				transform[3][2] = m_obj_positions[i].z;
-				cmd.pushConstants(m_shadow_pipeline_layout.GetPipelineLayout(), vk::ShaderStageFlagBits::eVertex, 0, sizeof(glm::mat4), &transform[0][0]);
+			for (auto [entity, transform] : scene.GetRegistry().view<TransformComponent>().each()) {
+				cmd.pushConstants(m_pipeline_layout.GetPipelineLayout(), vk::ShaderStageFlagBits::eVertex, 0, sizeof(glm::mat4), &transform.GetMatrix()[0][0]);
 				cmd.drawIndexed((uint32_t)m_mesh->data->index_buf.alloc_info.size / sizeof(uint32_t), 1, 0, 0, 0);
 			}
 
@@ -756,6 +753,8 @@ namespace SNAKE {
 		SNAKE::Window window;
 	
 	private:
+		Scene scene;
+
 		GlobalTextureDescriptorBuffer m_texture_descriptor_buffer;
 		GlobalMaterialDescriptorBuffer m_material_descriptor_buffer;
 
@@ -763,8 +762,6 @@ namespace SNAKE {
 		AssetRef<MaterialAsset> m_material_2{ nullptr };
 		AssetRef<StaticMeshAsset> m_mesh{ nullptr };
 		AssetRef<Texture2DAsset> m_tex{ nullptr };
-
-		std::vector<glm::vec3> m_obj_positions = { {0, 0, 0}, {2, 0, 0 } };
 
 		EventListener m_framebuffer_resize_listener;
 	
