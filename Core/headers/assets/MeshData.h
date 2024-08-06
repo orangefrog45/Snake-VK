@@ -4,18 +4,13 @@
 #include <assimp/postprocess.h>
 #include "util/Logger.h"
 #include "core/VkCommon.h"
+#include "Asset.h"
 
 namespace SNAKE {
-	struct SubmeshData {
-		SubmeshData() = default;
 
-		unsigned int num_indices = 0;
-		unsigned int base_vertex = 0;
-		unsigned int base_index = 0;
-		unsigned int material_index = 0;
-	};
 
-	struct MeshData {
+
+	struct StaticMeshData {
 		bool ImportFile(const std::string& filepath, vk::CommandPool cmd_pool) {
 			Assimp::Importer importer;
 
@@ -25,8 +20,6 @@ namespace SNAKE {
 				SNK_CORE_ERROR("Failed to import mesh from filepath '{}' : '{}'", filepath, importer.GetErrorString());
 				return false;
 			}
-
-			m_submeshes.resize(p_scene->mNumMeshes);
 
 			unsigned num_vertices = 0;
 			unsigned num_indices = 0;
@@ -115,13 +108,17 @@ namespace SNAKE {
 			return true;
 		}
 
-		std::vector<SubmeshData> m_submeshes;
-
 		S_VkBuffer position_buf;
 		S_VkBuffer normal_buf;
 		S_VkBuffer index_buf;
 		S_VkBuffer tex_coord_buf;
+	};
 
-
+	class StaticMeshAsset : public Asset {
+	public:
+		std::shared_ptr<StaticMeshData> data;
+	private:
+		StaticMeshAsset(uint64_t uuid) : Asset(uuid) {};
+		friend class AssetManager;
 	};
 }

@@ -7,6 +7,7 @@ layout(location = 2) in vec2 in_tex_coord;
 layout(location = 0) out vec3 vs_col;
 layout(location = 1) out vec2 vs_tex_coord;
 layout(location = 2) out vec3 vs_normal;
+layout(location = 3) out vec3 vs_world_pos;
 
 layout(set = 0, binding = 0) uniform UniformBufferObject {
     mat4 view;
@@ -19,7 +20,11 @@ layout(push_constant) uniform pc {
 
 
 void main() {
-    gl_Position = ubo.proj * ubo.view * push.transform * vec4(in_position, 1.0);
+    vec3 world_pos = vec4(push.transform * vec4(in_position, 1.0)).xyz;
+
+    vs_world_pos = world_pos;
+
+    gl_Position = ubo.proj * ubo.view * vec4(world_pos, 1.0);
     vs_tex_coord = in_tex_coord;
     vs_normal = in_normal;
     vs_col = vec3(1);

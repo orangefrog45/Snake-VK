@@ -1,3 +1,7 @@
+6/8/23:
+-Basic shadow mapping
+-Asset management system, asset refs, texture/mesh/material assets
+
 4/8/23:
 -Material UBO accessible in shaders which contains all materials in the engine, handles asset registering/updates
 -Texture array accessible in shaders which contains all textures in the engine, handles asset registering/updates

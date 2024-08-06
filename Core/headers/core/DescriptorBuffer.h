@@ -3,6 +3,7 @@
 #include "textures/Textures.h"
 #include "events/EventManager.h"
 #include "events/EventsCommon.h"
+#include "assets/Asset.h"
 
 namespace SNAKE {
 	struct Descriptor {
@@ -133,11 +134,11 @@ namespace SNAKE {
 	};
 
 
-	class Material {
+	class MaterialAsset : public Asset {
 	public:
 		struct MaterialUpdateEvent : public Event {
-			MaterialUpdateEvent(Material* _mat) : p_material(_mat) { };
-			Material* p_material = nullptr;
+			MaterialUpdateEvent(MaterialAsset* _mat) : p_material(_mat) { };
+			MaterialAsset* p_material = nullptr;
 		};
 
 		uint16_t GetGlobalBufferIndex() {
@@ -159,10 +160,14 @@ namespace SNAKE {
 		float metallic = 0.f;
 		float ao = 0.2f;
 	private:
+		MaterialAsset(uint64_t uuid = 0) : Asset(uuid) {};
+
 		inline static constexpr uint16_t INVALID_GLOBAL_INDEX = std::numeric_limits<uint16_t>::max();
 
 		uint16_t m_global_buffer_index = INVALID_GLOBAL_INDEX;
+
 		friend class GlobalMaterialDescriptorBuffer;
+		friend class AssetManager;
 	};
 
 
@@ -201,7 +206,7 @@ namespace SNAKE {
 			}
 
 			m_material_update_event_listener.callback = [this](Event const* p_event) {
-				auto const* p_casted = dynamic_cast<Material::MaterialUpdateEvent const*>(p_event);
+				auto const* p_casted = dynamic_cast<MaterialAsset::MaterialUpdateEvent const*>(p_event);
 				
 				for (uint8_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
 					m_materials_to_update[i].push_back(p_casted->p_material);
@@ -213,16 +218,16 @@ namespace SNAKE {
 				UpdateMaterialUBO(p_casted->frame_flight_index);
 				};
 
-			EventManagerG::RegisterListener<Material::MaterialUpdateEvent>(m_material_update_event_listener);
+			EventManagerG::RegisterListener<MaterialAsset::MaterialUpdateEvent>(m_material_update_event_listener);
 			EventManagerG::RegisterListener<FrameStartEvent>(m_frame_start_listener);
 		}
 
-		void RegisterMaterial(Material& material) {
+		void RegisterMaterial(AssetRef<MaterialAsset> material) {
 			for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-				m_materials_to_register[i].push_back(&material);
-				m_materials_to_update[i].push_back(&material);
+				m_materials_to_register[i].push_back(material);
+				m_materials_to_update[i].push_back(material);
 			}
-			material.m_global_buffer_index = m_current_index++;
+			material->m_global_buffer_index = m_current_index++;
 		}
 
 		// Size is doubled due to alignment requiring it, otherwise buffer sizes don't match on allocation
@@ -237,21 +242,21 @@ namespace SNAKE {
 		void UpdateMaterialUBO(FrameInFlightIndex frame_in_flight_idx) {
 			std::byte* p_data = reinterpret_cast<std::byte*>(m_material_ubos[frame_in_flight_idx].Map());
 
-			for (auto* p_mat : m_materials_to_update[frame_in_flight_idx]) {
-				SNK_ASSERT(p_mat->GetGlobalBufferIndex() != Material::INVALID_GLOBAL_INDEX, "");
+			for (auto& mat_ref : m_materials_to_update[frame_in_flight_idx]) {
+				SNK_ASSERT(mat_ref->GetGlobalBufferIndex() != MaterialAsset::INVALID_GLOBAL_INDEX, "");
 
 				std::array<uint32_t, 5> texture_indices = { Texture2D::INVALID_GLOBAL_INDEX };
 
-				if (p_mat->p_albedo_tex) texture_indices[0] = p_mat->p_albedo_tex->GetGlobalIndex();
-				if (p_mat->p_normal_tex) texture_indices[1] = p_mat->p_normal_tex->GetGlobalIndex();
-				if (p_mat->p_roughness_tex) texture_indices[2] = p_mat->p_roughness_tex->GetGlobalIndex();
-				if (p_mat->p_metallic_tex) texture_indices[3] = p_mat->p_metallic_tex->GetGlobalIndex();
-				if (p_mat->p_ao_tex) texture_indices[4] = p_mat->p_ao_tex->GetGlobalIndex();
+				if (mat_ref->p_albedo_tex) texture_indices[0] = mat_ref->p_albedo_tex->GetGlobalIndex();
+				if (mat_ref->p_normal_tex) texture_indices[1] = mat_ref->p_normal_tex->GetGlobalIndex();
+				if (mat_ref->p_roughness_tex) texture_indices[2] = mat_ref->p_roughness_tex->GetGlobalIndex();
+				if (mat_ref->p_metallic_tex) texture_indices[3] = mat_ref->p_metallic_tex->GetGlobalIndex();
+				if (mat_ref->p_ao_tex) texture_indices[4] = mat_ref->p_ao_tex->GetGlobalIndex();
 
-				std::array<float, 3> params = { p_mat->roughness, p_mat->metallic, p_mat->ao };
+				std::array<float, 3> params = { mat_ref->roughness, mat_ref->metallic, mat_ref->ao };
 
-				memcpy(p_data + p_mat->GetGlobalBufferIndex() * material_size, texture_indices.data(), texture_indices.size() * sizeof(uint32_t));
-				memcpy(p_data + p_mat->GetGlobalBufferIndex() * material_size + texture_indices.size() * sizeof(uint32_t), params.data(), params.size() * sizeof(float));
+				memcpy(p_data + mat_ref->GetGlobalBufferIndex() * material_size, texture_indices.data(), texture_indices.size() * sizeof(uint32_t));
+				memcpy(p_data + mat_ref->GetGlobalBufferIndex() * material_size + texture_indices.size() * sizeof(uint32_t), params.data(), params.size() * sizeof(float));
 			}
 
 			m_materials_to_update[frame_in_flight_idx].clear();
@@ -265,9 +270,9 @@ namespace SNAKE {
 
 		std::array<S_VkBuffer, MAX_FRAMES_IN_FLIGHT> m_material_ubos;
 
-		std::unordered_map<FrameInFlightIndex, std::vector<Material*>> m_materials_to_register;
+		std::unordered_map<FrameInFlightIndex, std::vector<AssetRef<MaterialAsset>>> m_materials_to_register;
 
-		std::unordered_map<FrameInFlightIndex, std::vector<Material*>> m_materials_to_update;
+		std::unordered_map<FrameInFlightIndex, std::vector<AssetRef<MaterialAsset>>> m_materials_to_update;
 	};
 
 	class GlobalTextureDescriptorBuffer {
@@ -306,7 +311,7 @@ namespace SNAKE {
 
 				auto& spec = p_tex->GetSpec();
 				vk::DescriptorImageInfo image_descriptor{};
-				image_descriptor.imageLayout = spec.current_layout;
+				image_descriptor.imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
 				image_descriptor.imageView = p_tex->GetImageView();
 				image_descriptor.sampler = p_tex->GetSampler();
 

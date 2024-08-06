@@ -4,7 +4,8 @@
 #include "core/VkIncl.h"
 
 namespace SNAKE {
-	struct S_VkBuffer {
+	class S_VkBuffer {
+	public:
 		S_VkBuffer() = default;
 		S_VkBuffer(const S_VkBuffer& other) = delete;
 		S_VkBuffer& operator=(const S_VkBuffer& other) = delete;
@@ -18,6 +19,8 @@ namespace SNAKE {
 		}
 
 		void CreateBuffer(vk::DeviceSize size, vk::BufferUsageFlags usage, VmaAllocationCreateFlags flags = 0);
+
+		std::pair<vk::DescriptorGetInfoEXT, std::shared_ptr<vk::DescriptorAddressInfoEXT>> CreateDescriptorGetInfo();
 
 		vk::DeviceAddress GetDeviceAddress() {
 			vk::BufferDeviceAddressInfo buffer_addr_info{};
@@ -41,6 +44,8 @@ namespace SNAKE {
 		VmaAllocationInfo alloc_info;
 		vk::Buffer buffer;
 
+	private:
+		vk::BufferUsageFlags m_usage;
 		// Mapped ptr, nullptr if not mapped
 		void* p_data = nullptr;
 	};

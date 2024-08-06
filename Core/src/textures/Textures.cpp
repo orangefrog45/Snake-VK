@@ -27,8 +27,8 @@ void Image2D::LoadFromFile(const std::string& filepath, vk::CommandPool pool) {
 
 	m_spec.format = vk::Format::eR8G8B8A8Srgb;
 	m_spec.usage = vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled;
-	m_spec.width = width;
-	m_spec.height = height;
+	m_spec.size.x = width;
+	m_spec.size.y = height;
 	m_spec.tiling = vk::ImageTiling::eOptimal;
 
 	CreateImage();
@@ -68,11 +68,12 @@ void Image2D::CreateSampler() {
 	m_sampler = std::move(sampler);
 }
 
+
 void Image2D::CreateImage(VmaAllocationCreateFlags flags) {
 	vk::ImageCreateInfo image_info{};
 	image_info.imageType = vk::ImageType::e2D;
-	image_info.extent.width = m_spec.width;
-	image_info.extent.height = m_spec.height;
+	image_info.extent.width = m_spec.size.x;
+	image_info.extent.height = m_spec.size.y;
 	image_info.extent.depth = 1;
 	image_info.mipLevels = 1;
 	image_info.arrayLayers = 1;
@@ -103,8 +104,22 @@ void Image2D::DestroyImage() {
 		m_view.release();
 }
 
+std::pair<vk::DescriptorGetInfoEXT, std::shared_ptr<vk::DescriptorImageInfo>> Image2D::CreateDescriptorGetInfo(vk::ImageLayout layout) const {
+	auto image_info = std::make_shared<vk::DescriptorImageInfo>();
+	image_info->setImageLayout(layout)
+		.setImageView(GetImageView())
+		.setSampler(GetSampler());
 
-void Image2D::TransitionImageLayout(const vk::Image& image, vk::ImageAspectFlags aspect_flags, vk::ImageLayout old_layout, vk::ImageLayout new_layout, vk::CommandPool pool, vk::CommandBuffer buf) {
+	vk::DescriptorGetInfoEXT image_descriptor_info{};
+	image_descriptor_info.setType(vk::DescriptorType::eCombinedImageSampler)
+		.setData(&*image_info);
+
+	return std::make_pair(image_descriptor_info, image_info);
+}
+
+void Image2D::TransitionImageLayout(const vk::Image& image, vk::ImageAspectFlags aspect_flags, vk::ImageLayout old_layout, vk::ImageLayout new_layout, vk::CommandPool pool,
+	vk::AccessFlags src_access, vk::AccessFlags dst_access, vk::PipelineStageFlags src_stage, vk::PipelineStageFlags dst_stage,
+	vk::CommandBuffer buf) {
 	bool temporary_buf = !buf;
 	vk::UniqueCommandBuffer temp_handle;
 
@@ -113,53 +128,7 @@ void Image2D::TransitionImageLayout(const vk::Image& image, vk::ImageAspectFlags
 		buf = *temp_handle;
 	}
 
-	vk::PipelineStageFlags src_stage = vk::PipelineStageFlagBits::eNone;
-	vk::PipelineStageFlags dst_stage = vk::PipelineStageFlagBits::eNone;
-
 	vk::ImageMemoryBarrier barrier{};
-
-
-	if (old_layout == vk::ImageLayout::eUndefined && new_layout == vk::ImageLayout::eTransferDstOptimal) {
-		// Don't have to wait on anything for this transition
-		barrier.srcAccessMask = vk::AccessFlagBits::eNone;
-		src_stage = vk::PipelineStageFlagBits::eTopOfPipe;
-
-		barrier.dstAccessMask = vk::AccessFlagBits::eTransferWrite;
-		dst_stage = vk::PipelineStageFlagBits::eTransfer;
-	}
-	else if (old_layout == vk::ImageLayout::eTransferDstOptimal && new_layout == vk::ImageLayout::eShaderReadOnlyOptimal) {
-		// Wait for transfer to occur before transition
-		barrier.srcAccessMask = vk::AccessFlagBits::eTransferWrite;
-		src_stage = vk::PipelineStageFlagBits::eTransfer;
-
-		barrier.dstAccessMask = vk::AccessFlagBits::eShaderRead;
-		dst_stage = vk::PipelineStageFlagBits::eFragmentShader;
-	}
-	else if (old_layout == vk::ImageLayout::eUndefined && (new_layout == vk::ImageLayout::eDepthStencilAttachmentOptimal || new_layout == vk::ImageLayout::eDepthAttachmentOptimal)) {
-		barrier.srcAccessMask = vk::AccessFlagBits::eNone;
-		src_stage = vk::PipelineStageFlagBits::eTopOfPipe;
-
-		barrier.dstAccessMask = vk::AccessFlagBits::eDepthStencilAttachmentRead | vk::AccessFlagBits::eDepthStencilAttachmentWrite;
-		dst_stage = vk::PipelineStageFlagBits::eEarlyFragmentTests;
-	}
-	else if (old_layout == vk::ImageLayout::eUndefined && new_layout == vk::ImageLayout::eColorAttachmentOptimal) {
-		barrier.srcAccessMask = vk::AccessFlagBits::eNone;
-		src_stage = vk::PipelineStageFlagBits::eTopOfPipe;
-
-		barrier.dstAccessMask = vk::AccessFlagBits::eColorAttachmentWrite;
-		dst_stage = vk::PipelineStageFlagBits::eColorAttachmentOutput;
-	}
-	else if (old_layout == vk::ImageLayout::eColorAttachmentOptimal && new_layout == vk::ImageLayout::ePresentSrcKHR) {
-		barrier.srcAccessMask = vk::AccessFlagBits::eColorAttachmentWrite;
-		src_stage = vk::PipelineStageFlagBits::eColorAttachmentOutput;
-
-		barrier.dstAccessMask = vk::AccessFlagBits::eNone;
-		dst_stage = vk::PipelineStageFlagBits::eBottomOfPipe;
-	}
-	else {
-		SNK_BREAK("Unsupported layout transition");
-	}
-
 	barrier.oldLayout = old_layout;
 	barrier.newLayout = new_layout;
 	barrier.srcQueueFamilyIndex = vk::QueueFamilyIgnored; // Not transfering queue family ownership so leave at ignore
@@ -175,6 +144,57 @@ void Image2D::TransitionImageLayout(const vk::Image& image, vk::ImageAspectFlags
 
 	if (temporary_buf)
 		EndSingleTimeCommands(buf);
+}
+
+void Image2D::TransitionImageLayout(const vk::Image& image, vk::ImageAspectFlags aspect_flags, vk::ImageLayout old_layout, vk::ImageLayout new_layout, vk::CommandPool pool, vk::CommandBuffer buf) {
+	vk::PipelineStageFlags src_stage = vk::PipelineStageFlagBits::eNone;
+	vk::PipelineStageFlags dst_stage = vk::PipelineStageFlagBits::eNone;
+	vk::AccessFlags src_access;
+	vk::AccessFlags dst_access;
+
+	if (old_layout == vk::ImageLayout::eUndefined && new_layout == vk::ImageLayout::eTransferDstOptimal) {
+		// Don't have to wait on anything for this transition
+		src_access = vk::AccessFlagBits::eNone;
+		src_stage = vk::PipelineStageFlagBits::eTopOfPipe;
+
+		dst_access = vk::AccessFlagBits::eTransferWrite;
+		dst_stage = vk::PipelineStageFlagBits::eTransfer;
+	}
+	else if (old_layout == vk::ImageLayout::eTransferDstOptimal && new_layout == vk::ImageLayout::eShaderReadOnlyOptimal) {
+		// Wait for transfer to occur before transition
+		src_access = vk::AccessFlagBits::eTransferWrite;
+		src_stage = vk::PipelineStageFlagBits::eTransfer;
+
+		dst_access = vk::AccessFlagBits::eShaderRead;
+		dst_stage = vk::PipelineStageFlagBits::eFragmentShader;
+	}
+	else if ((new_layout == vk::ImageLayout::eDepthStencilAttachmentOptimal || new_layout == vk::ImageLayout::eDepthAttachmentOptimal)) {
+		src_access = vk::AccessFlagBits::eNone;
+		src_stage = vk::PipelineStageFlagBits::eTopOfPipe;
+
+		dst_access = vk::AccessFlagBits::eDepthStencilAttachmentRead | vk::AccessFlagBits::eDepthStencilAttachmentWrite;
+		dst_stage = vk::PipelineStageFlagBits::eEarlyFragmentTests;
+	}
+	else if (old_layout == vk::ImageLayout::eUndefined && new_layout == vk::ImageLayout::eColorAttachmentOptimal) {
+		src_access = vk::AccessFlagBits::eNone;
+		src_stage = vk::PipelineStageFlagBits::eTopOfPipe;
+
+		dst_access = vk::AccessFlagBits::eColorAttachmentWrite;
+		dst_stage = vk::PipelineStageFlagBits::eColorAttachmentOutput;
+	}
+	else if (old_layout == vk::ImageLayout::eColorAttachmentOptimal && new_layout == vk::ImageLayout::ePresentSrcKHR) {
+		src_access = vk::AccessFlagBits::eColorAttachmentWrite;
+		src_stage = vk::PipelineStageFlagBits::eColorAttachmentOutput;
+
+		dst_access = vk::AccessFlagBits::eNone;
+		dst_stage = vk::PipelineStageFlagBits::eBottomOfPipe;
+	}
+	else {
+		SNK_BREAK("Unsupported layout transition");
+	}
+
+	TransitionImageLayout(image, aspect_flags, old_layout, new_layout, pool, src_access, dst_access, src_stage, dst_stage, buf);
+	
 }
 
 void Image2D::CreateImageView(vk::ImageAspectFlags aspect_flags) {

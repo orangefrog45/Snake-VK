@@ -23,6 +23,12 @@ namespace SNAKE {
 		std::vector<vk::PresentModeKHR> present_modes;
 	};
 
+	template<typename T>
+	struct VkDescriptorGetInfoPackage {
+		T info;
+		vk::DescriptorGetInfoEXT descriptor_info;
+	};
+
 	SwapChainSupportDetails QuerySwapChainSupport(vk::PhysicalDevice device, vk::SurfaceKHR surface);
 
 	QueueFamilyIndices FindQueueFamilies(vk::PhysicalDevice device, vk::SurfaceKHR surface);

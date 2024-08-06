@@ -81,7 +81,7 @@ namespace SNAKE {
 		vert_input_info.pVertexAttributeDescriptions = vertex_attribute_descriptions.data();
 		vert_input_info.pVertexBindingDescriptions = vertex_binding_descriptions.data();
 
-		pipeline_info.stageCount = 2;
+		pipeline_info.stageCount = shaders.size();
 		pipeline_info.pStages = shaders.data();
 		pipeline_info.pVertexInputState = &vert_input_info;
 		pipeline_info.pInputAssemblyState = &input_assembly_info;

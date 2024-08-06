@@ -5,11 +5,9 @@
 namespace SNAKE {
 	struct Image2DSpec {
 		vk::Format format = vk::Format::eUndefined;
-		vk::ImageLayout current_layout = vk::ImageLayout::eUndefined;
 		vk::ImageUsageFlags usage;
 		vk::ImageTiling tiling;
-		uint32_t width = 0;
-		uint32_t height = 0;
+		glm::uvec2 size;
 	};
 
 	class Image2D {
@@ -46,17 +44,23 @@ namespace SNAKE {
 
 		void CreateSampler();
 
+		std::pair<vk::DescriptorGetInfoEXT, std::shared_ptr<vk::DescriptorImageInfo>> CreateDescriptorGetInfo(vk::ImageLayout layout) const;
+
 		static void TransitionImageLayout(const vk::Image& image, vk::ImageAspectFlags aspect_flags, vk::ImageLayout old_layout, vk::ImageLayout new_layout, vk::CommandPool pool, vk::CommandBuffer buf = {});
-		
-		vk::ImageView GetImageView() {
+
+		static void TransitionImageLayout(const vk::Image& image, vk::ImageAspectFlags aspect_flags, vk::ImageLayout old_layout, vk::ImageLayout new_layout, vk::CommandPool pool, 
+			vk::AccessFlags src_access, vk::AccessFlags dst_access, vk::PipelineStageFlags src_stage, vk::PipelineStageFlags dst_stage,  
+			vk::CommandBuffer buf = {});
+
+		vk::ImageView GetImageView() const {
 			return *m_view;
 		}
 
-		vk::Sampler GetSampler() {
+		vk::Sampler GetSampler() const {
 			return *m_sampler;
 		}
 
-		vk::Image GetImage() {
+		vk::Image GetImage() const noexcept {
 			return m_image;
 		}
 
