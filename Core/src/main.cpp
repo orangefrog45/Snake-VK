@@ -140,6 +140,7 @@ struct UBO {
 };
 
 #include "assets/Asset.h"
+#include "scene/LightBufferSystem.h"
 
 struct RenderableComponent : Component {
 	RenderableComponent(Entity* p_entity) : Component(p_entity) {};
@@ -149,8 +150,6 @@ namespace SNAKE {
 	class VulkanApp {
 	public:
 		void Init(const char* app_name) {
-	
-
 			Window::InitGLFW();
 			window.Init(app_name, 1920, 1080, true);
 	
@@ -174,6 +173,7 @@ namespace SNAKE {
 
 			CreateDepthResources();
 
+			scene.AddSystem<LightBufferSystem>();
 			scene.CreateEntity()->AddComponent<RenderableComponent>();
 			auto* p_ent = scene.CreateEntity();
 			p_ent->AddComponent<RenderableComponent>();
@@ -354,7 +354,7 @@ namespace SNAKE {
 			cmd_buffer.bindIndexBuffer(m_mesh->data->index_buf.buffer, 0, vk::IndexType::eUint32);
 
 			std::array<vk::DescriptorBufferBindingInfoEXT, 4> binding_infos = { m_matrix_descriptor_buffers[m_current_frame].GetBindingInfo(),
-				AssetManager::GetGlobalTexMatBufBindingInfo(m_current_frame), m_light_descriptor_buffers[m_current_frame].GetBindingInfo(), 
+				AssetManager::GetGlobalTexMatBufBindingInfo(m_current_frame), scene.GetSystem<LightBufferSystem>()->light_descriptor_buffers[m_current_frame].GetBindingInfo(), 
 				 m_main_pass_descriptor_buffers[m_current_frame].GetBindingInfo()};
 
 			cmd_buffer.bindDescriptorBuffersEXT(binding_infos);
@@ -511,21 +511,15 @@ namespace SNAKE {
 				matrix_descriptor_set_spec->AddDescriptor(0, vk::DescriptorType::eUniformBuffer, vk::ShaderStageFlagBits::eAllGraphics)
 					.GenDescriptorLayout();
 
-				auto light_descriptor_set_spec = std::make_shared<DescriptorSetSpec>();
-				light_descriptor_set_spec->AddDescriptor(0, vk::DescriptorType::eUniformBuffer, vk::ShaderStageFlagBits::eAllGraphics)
-					.GenDescriptorLayout();
-
 				auto main_pass_descriptor_set_spec = std::make_shared<DescriptorSetSpec>();
 				main_pass_descriptor_set_spec->AddDescriptor(0, vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eAllGraphics)
 					.GenDescriptorLayout();
 
 				m_matrix_descriptor_buffers[i].SetDescriptorSpec(matrix_descriptor_set_spec);
-				m_light_descriptor_buffers[i].SetDescriptorSpec(light_descriptor_set_spec);
 				m_main_pass_descriptor_buffers[i].SetDescriptorSpec(main_pass_descriptor_set_spec);
 				
 				m_main_pass_descriptor_buffers[i].CreateBuffer(1);
 				m_matrix_descriptor_buffers[i].CreateBuffer(1);
-				m_light_descriptor_buffers[i].CreateBuffer(1);
 
 				auto mat_info = m_matrix_ubos[i].CreateDescriptorGetInfo();
 				m_matrix_descriptor_buffers[i].LinkResource(mat_info.first, 0, 0);
@@ -533,28 +527,18 @@ namespace SNAKE {
 				auto shadow_map_info = m_shadow_depth_image.CreateDescriptorGetInfo(vk::ImageLayout::eShaderReadOnlyOptimal);
 				m_main_pass_descriptor_buffers[i].LinkResource(shadow_map_info.first, 0, 0);
 
-				auto light_info = m_light_ubos[i].CreateDescriptorGetInfo();
-				m_light_descriptor_buffers[i].LinkResource(light_info.first, 0, 0);
 			}
 		}
 
 
 		void CreateUniformBuffers() {
 			vk::DeviceSize matrix_buffer_size = sizeof(UBO);
-			// Adding 8 floats for alignment
-			 constexpr uint32_t LIGHT_UBO_SIZE = sizeof(float) * 24 + sizeof(float) * 8;
 
 			for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
 				m_matrix_ubos[i].CreateBuffer(matrix_buffer_size, vk::BufferUsageFlagBits::eUniformBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress, VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT);
-				m_light_ubos[i].CreateBuffer(LIGHT_UBO_SIZE, vk::BufferUsageFlagBits::eUniformBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress, VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT);
 			}
 		}
 
-		struct LightUBO {
-			alignas(16) glm::vec4 colour;
-			alignas(16) glm::vec4 dir;
-			alignas(16) glm::mat4 light_transform;
-		};
 
 		void UpdateUniformBuffer(uint32_t current_frame) {
 			auto* p_transform = p_cam_ent->GetComponent<TransformComponent>();
@@ -570,15 +554,6 @@ namespace SNAKE {
 
 			memcpy(m_matrix_ubos[current_frame].Map(), &ubo, sizeof(UBO));
 
-			LightUBO light_ubo;
-			light_ubo.colour = glm::vec4(1, 0, 0, 1);
-			light_ubo.dir = glm::vec4(1, 0, 0, 1);
-			
-			auto ortho = glm::ortho(-10.f, 10.f, -10.f, 10.f, 0.1f, 10.f);
-			auto view = glm::lookAt(glm::vec3{ -5, 0, 0 }, glm::vec3{ 0, 0, 0 }, glm::vec3{ 0, 1, 0 });
-			light_ubo.light_transform = ortho * view;
-
-			memcpy(m_light_ubos[m_current_frame].Map(), &light_ubo, sizeof(light_ubo));
 		}
 
 
@@ -730,7 +705,7 @@ namespace SNAKE {
 			cmd.bindIndexBuffer(m_mesh->data->index_buf.buffer, 0, vk::IndexType::eUint32);
 
 			vk::DescriptorBufferBindingInfoEXT light_buffer_binding_info{};
-			light_buffer_binding_info.address = m_light_descriptor_buffers[m_current_frame].descriptor_buffer.GetDeviceAddress();
+			light_buffer_binding_info.address = scene.GetSystem<LightBufferSystem>()->light_descriptor_buffers[m_current_frame].descriptor_buffer.GetDeviceAddress();
 			light_buffer_binding_info.usage = vk::BufferUsageFlagBits::eResourceDescriptorBufferEXT;
 
 			cmd.bindDescriptorBuffersEXT(light_buffer_binding_info);
@@ -778,18 +753,12 @@ namespace SNAKE {
 
 		GraphicsPipeline m_graphics_pipeline;
 
-		std::array<S_VkBuffer, MAX_FRAMES_IN_FLIGHT> m_light_ubos;
-
 		GraphicsPipeline m_shadow_pipeline;
 
 		Image2D m_shadow_depth_image;
 		std::array<CommandBuffer, MAX_FRAMES_IN_FLIGHT> m_shadow_cmd_buffers;
 
-		// TODO: Move to a scene lighting system/manager
-		std::array<DescriptorBuffer, MAX_FRAMES_IN_FLIGHT> m_light_descriptor_buffers;
-
 		std::array<DescriptorBuffer, MAX_FRAMES_IN_FLIGHT> m_main_pass_descriptor_buffers;
-
 
 		vk::UniqueCommandPool m_cmd_pool;
 		std::array<CommandBuffer, MAX_FRAMES_IN_FLIGHT> m_cmd_buffers;

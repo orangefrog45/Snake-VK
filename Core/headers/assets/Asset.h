@@ -45,7 +45,9 @@ namespace SNAKE {
 		};
 
 		void SetAsset(AssetT* _asset) {
-			if (p_asset) p_asset->ref_count--;
+			if (p_asset) 
+				p_asset->ref_count--;
+
 			p_asset = _asset;
 			_asset->ref_count++;
 		}

@@ -3,6 +3,8 @@
 -Descriptor buffer/set spec utilities to make them a bit more robust and reduce code
 -Moved texture/material descriptor buffer systems into asset manager
 -Window input manager
+-Created LightBufferSystem to manage descriptor buffers and SSBOs for directional light (and future light sources)
+-Basic scene system manager
 
 6/8/23:
 -Basic shadow mapping

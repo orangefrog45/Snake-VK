@@ -1,5 +1,8 @@
+#pragma once
 #include "Entity.h"
 #include "components/TransformComponent.h"
+#include "System.h"
+#include "components/Lights.h"
 
 namespace SNAKE {
 	class Scene {
@@ -19,6 +22,36 @@ namespace SNAKE {
 			return p_ent;
 		}
 
+		template<std::derived_from<System> T>
+		T* GetSystem() {
+			if (!m_systems.contains(util::type_id<T>)) {
+				SNK_CORE_ERROR("Scene::GetSystem failed, no valid system found");
+				return nullptr;
+			}
+
+			return dynamic_cast<T*>(m_systems[util::type_id<T>]);
+		}
+
+		template<std::derived_from<System> T, typename... Args>
+		T* AddSystem(Args&&... args) {
+			if (m_systems.contains(util::type_id<T>)) {
+				SNK_CORE_ERROR("Failed to add system to scene, duplicate detected");
+				return GetSystem<T>();
+			}
+				
+			auto* p_sys = new T(std::forward<Args>(args)...);
+			p_sys->p_scene = this;
+			p_sys->OnSystemAdd();
+			m_systems[util::type_id<T>] = p_sys;
+			return p_sys;
+		}
+
+		void Update() {
+			for (auto [id, p_system] : m_systems) {
+				p_system->OnUpdate();
+			}
+		}
+
 		void Clear() {
 			while (!m_entities.empty()) {
 				DeleteEntity(m_entities[0]);
@@ -35,9 +68,12 @@ namespace SNAKE {
 		}
 
 
+		DirectionalLight directional_light;
 	private:
 		entt::registry m_registry;
 
 		std::vector<Entity*> m_entities;
+
+		std::unordered_map<util::TypeID, System*> m_systems;
 	};
 }

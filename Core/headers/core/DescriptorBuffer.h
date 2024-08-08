@@ -106,7 +106,7 @@ namespace SNAKE {
 			SNK_ASSERT(mp_descriptor_spec->m_layout_bindings.size() != 0);
 
 			for (const auto& binding : mp_descriptor_spec->m_layout_bindings) {
-				if (binding.descriptorType == vk::DescriptorType::eUniformBuffer)
+				if (binding.descriptorType == vk::DescriptorType::eUniformBuffer || binding.descriptorType == vk::DescriptorType::eStorageBuffer)
 					m_usage_flags |= vk::BufferUsageFlagBits::eResourceDescriptorBufferEXT;
 				else if (binding.descriptorType == vk::DescriptorType::eCombinedImageSampler)
 					m_usage_flags |= vk::BufferUsageFlagBits::eSamplerDescriptorBufferEXT;
@@ -123,12 +123,21 @@ namespace SNAKE {
 
 			size_t size = 0;
 			auto descriptor_type = mp_descriptor_spec->GetDescriptorTypeAtBinding(binding_idx);
-			if (descriptor_type == vk::DescriptorType::eUniformBuffer)
+
+			switch (descriptor_type) {
+			case vk::DescriptorType::eUniformBuffer:
 				size = descriptor_buffer_properties.uniformBufferDescriptorSize;
-			else if (descriptor_type == vk::DescriptorType::eCombinedImageSampler)
+				break;
+			case vk::DescriptorType::eCombinedImageSampler:
 				size = descriptor_buffer_properties.combinedImageSamplerDescriptorSize;
-			else
+				break;
+			case vk::DescriptorType::eStorageBuffer:
+				size = descriptor_buffer_properties.storageBufferDescriptorSize;
+				break;
+			default:
 				SNK_BREAK("LinkResource failed, unsupported descriptor type used");
+				break;
+			}
 
 			VulkanContext::GetLogicalDevice().device->getDescriptorEXT(resource_info, size,
 				reinterpret_cast<std::byte*>(descriptor_buffer.Map()) + mp_descriptor_spec->GetBindingOffset(binding_idx) + mp_descriptor_spec->m_aligned_size * set_buffer_idx);

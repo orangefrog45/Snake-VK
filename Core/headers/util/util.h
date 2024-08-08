@@ -46,11 +46,12 @@ namespace SNAKE {
 
 
 		/* Type ID Stuff */
-		inline uint16_t type_id_seq = 0;
-		template< typename T > inline const uint16_t type_id = type_id_seq++;
+		using TypeID = uint16_t;
+		inline TypeID type_id_seq = 0;
+		template< typename T > inline const TypeID type_id = type_id_seq++;
 
 		template<typename T>
-		uint16_t GetTypeID() {
+		TypeID GetTypeID() {
 			return type_id<T>;
 		}
 		/*----------------*/

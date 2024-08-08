@@ -4,6 +4,6 @@ struct DirectionalLight {
     mat4 light_transform;
 };
 
-layout(set = 2, binding = 0) uniform LightData {
+layout(set = 2, binding = 0) buffer LightData {
     DirectionalLight light;
 } ubo_light_data;

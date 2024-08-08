@@ -64,7 +64,7 @@ src/main.cpp
  "headers/scene/Scene.h" 
  "headers/scene/Entity.h" 
  "headers/components/Component.h"
- "headers/components/TransformComponent.h" "src/components/TransformComponent.cpp" "src/util/ExtraMath.cpp" "headers/util/ExtraMath.h" "headers/core/Input.h" "src/core/Input.cpp")
+ "headers/components/TransformComponent.h" "src/components/TransformComponent.cpp" "src/util/ExtraMath.cpp" "headers/util/ExtraMath.h" "headers/core/Input.h" "src/core/Input.cpp"  "headers/scene/System.h" "headers/scene/LightBufferSystem.h" "headers/components/Lights.h"  "src/scene/LightBufferSystem.cpp")
 
 
 target_link_options(SNAKE_VK_CORE PRIVATE -INCREMENTAL -ZI)

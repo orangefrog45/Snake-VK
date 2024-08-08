@@ -47,6 +47,18 @@ namespace SNAKE {
 					descriptors[set]->AddDescriptor(binding, vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eAllGraphics, descriptor_count);
 			}
 
+			for (const Resource& resource : res.storage_buffers) {
+				unsigned set = comp.get_decoration(resource.id, spv::DecorationDescriptorSet);
+				unsigned binding = comp.get_decoration(resource.id, spv::DecorationBinding);
+				auto type = comp.get_type(resource.type_id);
+
+				if (!descriptors.contains(set))
+					descriptors[set] = std::make_shared<DescriptorSetSpec>();
+
+				if (!descriptors[set]->IsBindingPointOccupied(binding))
+					descriptors[set]->AddDescriptor(binding, vk::DescriptorType::eStorageBuffer, vk::ShaderStageFlagBits::eAllGraphics);
+			}
+
 			for (const Resource& resource : res.push_constant_buffers) {
 				auto type = comp.get_type(resource.type_id);
 				size_t size = comp.get_declared_struct_size(type);
