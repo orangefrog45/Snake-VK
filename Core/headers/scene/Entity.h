@@ -29,7 +29,6 @@ namespace SNAKE {
 			mp_registry->erase<T>(m_entt_handle);
 		}
 
-
 	private:
 		Scene* mp_scene = nullptr;
 		entt::registry* mp_registry = nullptr;

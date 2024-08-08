@@ -1,6 +1,7 @@
 #pragma once
 #include "VkCommon.h"
-#include <core/VkIncl.h>
+#include "core/VkIncl.h"
+#include "core/Input.h"
 
 
 
@@ -18,6 +19,8 @@ namespace SNAKE {
 		void CreateSwapchain();
 		void RecreateSwapChain();
 		void CreateSurface();
+
+		Input input;
 	private:
 		void CreateImageViews();
 
@@ -29,6 +32,7 @@ namespace SNAKE {
 		unsigned m_height = 0;
 
 		GLFWwindow* p_window = nullptr;
+
 
 		struct WindowContextVK {
 			vk::UniqueSwapchainKHR swapchain;

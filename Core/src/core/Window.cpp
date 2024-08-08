@@ -13,6 +13,14 @@ namespace SNAKE {
 		if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) {
 			glfwSetWindowShouldClose(p_window, GLFW_TRUE);
 		}
+
+		auto* p_win_obj = reinterpret_cast<Window*>(glfwGetWindowUserPointer(p_window));
+		p_win_obj->input.KeyCallback(key, scancode, action, mods);
+	}
+
+	void GLFW_MouseCallback(GLFWwindow* window, int button, int action, int mods) {
+		auto* p_win_obj = reinterpret_cast<Window*>(glfwGetWindowUserPointer(window));
+		p_win_obj->input.MouseCallback(button, action, mods);
 	}
 
 	void FramebufferResizeCallback(GLFWwindow* p_window, [[maybe_unused]] int width, [[maybe_unused]] int height) {
@@ -53,8 +61,9 @@ void Window::Init(const std::string& window_name, uint32_t width, uint32_t heigh
 
 	m_width = width;
 	m_height = height;
-
 	glfwSetKeyCallback(p_window, GLFW_KeyCallback);
+	glfwSetMouseButtonCallback(p_window, GLFW_MouseCallback);
+
 	glfwSetFramebufferSizeCallback(p_window, FramebufferResizeCallback);
 }
 

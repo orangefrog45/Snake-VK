@@ -141,10 +141,16 @@ struct UBO {
 
 #include "assets/Asset.h"
 
+struct RenderableComponent : Component {
+	RenderableComponent(Entity* p_entity) : Component(p_entity) {};
+};
+
 namespace SNAKE {
 	class VulkanApp {
 	public:
 		void Init(const char* app_name) {
+	
+
 			Window::InitGLFW();
 			window.Init(app_name, 1920, 1080, true);
 	
@@ -168,10 +174,15 @@ namespace SNAKE {
 
 			CreateDepthResources();
 
-			scene.CreateEntity();
+			scene.CreateEntity()->AddComponent<RenderableComponent>();
 			auto* p_ent = scene.CreateEntity();
+			p_ent->AddComponent<RenderableComponent>();
 			p_ent->GetComponent<TransformComponent>()->SetPosition({ 4, 0, 0 });
 			p_ent->GetComponent<TransformComponent>()->SetScale(1, 2, 2);
+
+			p_cam_ent = scene.CreateEntity();
+			auto* p_transform = p_cam_ent->GetComponent<TransformComponent>();
+			p_transform->SetPosition(0, 0, 8);
 
 			AssetManager::Init();
 
@@ -352,7 +363,7 @@ namespace SNAKE {
 			std::array<vk::DeviceSize, 4> buffer_offsets = { 0, 0, 0, 0 };
 
 			cmd_buffer.setDescriptorBufferOffsetsEXT(vk::PipelineBindPoint::eGraphics, m_graphics_pipeline.pipeline_layout.GetPipelineLayout(), 0, buffer_indices, buffer_offsets);
-			for (auto [entity, transform] : scene.GetRegistry().view<TransformComponent>().each()) {
+			for (auto [entity, renderable, transform] : scene.GetRegistry().view<RenderableComponent, TransformComponent>().each()) {
 				cmd_buffer.pushConstants(m_graphics_pipeline.pipeline_layout.GetPipelineLayout(), vk::ShaderStageFlagBits::eAllGraphics, 0, sizeof(glm::mat4), &transform.GetMatrix()[0][0]);
 				cmd_buffer.drawIndexed((uint32_t)m_mesh->data->index_buf.alloc_info.size / sizeof(uint32_t), 1, 0, 0, 0);
 			}
@@ -386,6 +397,23 @@ namespace SNAKE {
 
 		void RenderLoop() {
 			while (!glfwWindowShouldClose(window.p_window)) {
+				window.input.OnUpdate(window.p_window);
+				glm::vec3 move{ 0,0,0 };
+				auto* p_transform = p_cam_ent->GetComponent<TransformComponent>();
+
+				if (window.input.IsMouseDown(1)) {
+					auto delta = window.input.GetMouseDelta();
+					glm::vec3 forward_rotate_y = glm::angleAxis(-0.01f * delta.x, glm::vec3{ 0, 1, 0 }) * p_transform->forward;
+					glm::vec3 forward_rotate_x = glm::angleAxis(-0.01f * delta.y, p_transform->right) * forward_rotate_y;
+					p_transform->LookAt(p_transform->GetPosition() + forward_rotate_x);
+				}
+
+
+				if (window.input.IsKeyDown('w'))
+					move += p_transform->forward;
+
+				p_transform->SetPosition(p_transform->GetPosition() + move);
+
 				DrawFrame();
 				glfwPollEvents();
 			}
@@ -509,14 +537,15 @@ namespace SNAKE {
 				m_light_descriptor_buffers[i].LinkResource(light_info.first, 0, 0);
 			}
 		}
-		// Adding 8 floats for alignment
-		inline static constexpr uint32_t LIGHT_UBO_SIZE = sizeof(float) * 24 + sizeof(float) * 8;
+
 
 		void CreateUniformBuffers() {
-			vk::DeviceSize buffer_size = sizeof(UBO);
-		
+			vk::DeviceSize matrix_buffer_size = sizeof(UBO);
+			// Adding 8 floats for alignment
+			 constexpr uint32_t LIGHT_UBO_SIZE = sizeof(float) * 24 + sizeof(float) * 8;
+
 			for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-				m_matrix_ubos[i].CreateBuffer(buffer_size, vk::BufferUsageFlagBits::eUniformBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress, VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT);
+				m_matrix_ubos[i].CreateBuffer(matrix_buffer_size, vk::BufferUsageFlagBits::eUniformBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress, VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT);
 				m_light_ubos[i].CreateBuffer(LIGHT_UBO_SIZE, vk::BufferUsageFlagBits::eUniformBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress, VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT);
 			}
 		}
@@ -528,9 +557,13 @@ namespace SNAKE {
 		};
 
 		void UpdateUniformBuffer(uint32_t current_frame) {
+			auto* p_transform = p_cam_ent->GetComponent<TransformComponent>();
+
 			UBO ubo{};
-			ubo.view = glm::lookAt(glm::vec3(0.f, 0.f, 8.f), glm::vec3(0.f), glm::vec3(0.f, 1.f, 0.f));
-			ubo.proj = glm::perspective(glm::radians(45.f), window.m_vk_context.swapchain_extent.width / (float)window.m_vk_context.swapchain_extent.height, 0.01f, 10.f);
+			auto p = p_transform->GetPosition();
+
+			ubo.view = glm::lookAt(p_transform->GetPosition(), p_transform->GetPosition() + p_transform->forward, glm::vec3(0.f, 1.f, 0.f));
+			ubo.proj = glm::perspective(glm::radians(45.f), window.m_vk_context.swapchain_extent.width / (float)window.m_vk_context.swapchain_extent.height, 0.01f, 10000.f);
 
 			// Y coordinate of clip coordinates inverted as glm designed to work with opengl, flip here
 			ubo.proj[1][1] *= -1;
@@ -574,17 +607,6 @@ namespace SNAKE {
 		}
 
 		void CreateDepthResources() {
-			Image2DSpec spec;
-			spec.size = { 4096, 4096 };
-			spec.format = vk::Format::eD16Unorm;
-			spec.tiling = vk::ImageTiling::eOptimal;
-			spec.usage = vk::ImageUsageFlagBits::eDepthStencilAttachment | vk::ImageUsageFlagBits::eSampled;
-
-			m_shadow_depth_image.SetSpec(spec);
-			m_shadow_depth_image.CreateImage();
-			m_shadow_depth_image.CreateImageView(vk::ImageAspectFlagBits::eDepth);
-			m_shadow_depth_image.CreateSampler();
-
 			auto depth_format = FindDepthFormat();
 
 			Image2DSpec depth_spec{};
@@ -613,6 +635,16 @@ namespace SNAKE {
 		}
 
 		void SetupShadowMapping() {
+			Image2DSpec shadow_spec;
+			shadow_spec.size = { 4096, 4096 };
+			shadow_spec.format = vk::Format::eD16Unorm;
+			shadow_spec.tiling = vk::ImageTiling::eOptimal;
+			shadow_spec.usage = vk::ImageUsageFlagBits::eDepthStencilAttachment | vk::ImageUsageFlagBits::eSampled;
+
+			m_shadow_depth_image.SetSpec(shadow_spec);
+			m_shadow_depth_image.CreateImage();
+			m_shadow_depth_image.CreateImageView(vk::ImageAspectFlagBits::eDepth);
+			m_shadow_depth_image.CreateSampler();
 
 			Image2D::TransitionImageLayout(m_shadow_depth_image.GetImage(),
 				vk::ImageAspectFlagBits::eDepth, vk::ImageLayout::eUndefined,
@@ -707,7 +739,7 @@ namespace SNAKE {
 
 			cmd.setDescriptorBufferOffsetsEXT(vk::PipelineBindPoint::eGraphics, m_shadow_pipeline.pipeline_layout.GetPipelineLayout(), (uint32_t)DescriptorSetIndices::LIGHTS, buffer_indices, buffer_offsets);
 
-			for (auto [entity, transform] : scene.GetRegistry().view<TransformComponent>().each()) {
+			for (auto [entity, renderable, transform] : scene.GetRegistry().view<RenderableComponent, TransformComponent>().each()) {
 				cmd.pushConstants(m_shadow_pipeline.pipeline_layout.GetPipelineLayout(), vk::ShaderStageFlagBits::eAllGraphics, 0, sizeof(glm::mat4), &transform.GetMatrix()[0][0]);
 				cmd.drawIndexed((uint32_t)m_mesh->data->index_buf.alloc_info.size / sizeof(uint32_t), 1, 0, 0, 0);
 			}
@@ -726,6 +758,7 @@ namespace SNAKE {
 	
 	private:
 		Scene scene;
+		Entity* p_cam_ent = nullptr;
 
 		AssetRef<MaterialAsset> m_material{nullptr};
 		AssetRef<MaterialAsset> m_material_2{ nullptr };

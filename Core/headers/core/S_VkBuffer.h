@@ -15,6 +15,8 @@ namespace SNAKE {
 			buffer(std::move(other.buffer)) {};
 
 		~S_VkBuffer() {
+			if (p_data) Unmap();
+
 			vmaDestroyBuffer(VulkanContext::GetAllocator(), buffer, allocation);
 		}
 
