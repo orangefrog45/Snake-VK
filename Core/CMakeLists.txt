@@ -20,6 +20,7 @@ set(ASSIMP_INJECT_DEBUG_POSTFIX ON CACHE BOOL "" FORCE)
 set(ASSIMP_INSTALL OFF CACHE BOOL "" FORCE)
 add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/extern/assimp)
 
+add_subdirectory(extern/spirv-cross)
 
 add_executable(SNAKE_VK_CORE
 src/main.cpp
@@ -73,6 +74,8 @@ target_precompile_headers(SNAKE_VK_CORE PUBLIC
 headers/pch/pch.h
 )
 
+find_package(spirv_cross_cpp)
+
 target_link_libraries(SNAKE_VK_CORE PUBLIC
 ${Vulkan_LIBRARIES}
 ${SHADERC_LIB}
@@ -80,6 +83,7 @@ GPUOpen::VulkanMemoryAllocator
 spdlog::spdlog
 glfw
 assimp
+spirv-cross-cpp
 )
 
 target_include_directories(SNAKE_VK_CORE PUBLIC
@@ -92,6 +96,7 @@ extern/stb
 extern/vma/include
 extern/assimp/include
 extern/entt/src/
+extern/spirv-cross
 )
 
 

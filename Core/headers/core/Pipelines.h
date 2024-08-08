@@ -2,30 +2,29 @@
 #include "VkIncl.h"
 #include "util/util.h"
 #include "VkContext.h"
+#include "core/DescriptorBuffer.h"
 
 namespace SNAKE {
 	struct PipelineLayoutBuilder {
-		void Build() {
-			pipeline_layout_info.setLayoutCount = descriptor_set_layouts.size();
-			pipeline_layout_info.pSetLayouts = descriptor_set_layouts.data();
-			pipeline_layout_info.pushConstantRangeCount = push_constants.size();
-			pipeline_layout_info.pPushConstantRanges = push_constants.data();
-		}
+		void Build();
 
-		PipelineLayoutBuilder& SetDescriptorSetLayouts(const std::vector<vk::DescriptorSetLayout>& layouts) {
-			descriptor_set_layouts = layouts;
-			return *this;
-		}
+		//PipelineLayoutBuilder& AddDescriptorSetLayout(uint32_t set_idx, const vk::DescriptorSetLayout& layout) {
+		//	descriptor_set_layouts[set_idx] = layout;
+		//	return *this;
+		//}
 
 		PipelineLayoutBuilder& AddPushConstant(uint32_t offset, uint32_t size, vk::ShaderStageFlagBits stage_flags) {
 			push_constants.push_back(vk::PushConstantRange{ stage_flags, offset, size });
 			return *this;
 		}
 
-		vk::PipelineLayoutCreateInfo pipeline_layout_info;
+		// For filling in empty descriptor sets
+		inline static DescriptorSetSpec null_spec;
 
+		vk::PipelineLayoutCreateInfo pipeline_layout_info;
 		std::vector<vk::PushConstantRange> push_constants;
-		std::vector<vk::DescriptorSetLayout> descriptor_set_layouts;
+		std::map<uint32_t, std::shared_ptr<DescriptorSetSpec>> descriptor_set_layouts;
+		std::vector<vk::DescriptorSetLayout> built_set_layouts;
 	};
 
 	class PipelineLayout {
@@ -33,20 +32,28 @@ namespace SNAKE {
 		PipelineLayout() = default;
 		~PipelineLayout() = default;
 		PipelineLayout(const PipelineLayout& other) = delete;
-		PipelineLayout(PipelineLayout&& other) = delete; 
+		PipelineLayout(PipelineLayout&& other) : pipeline_layout(std::move(other.pipeline_layout)) {};
 		PipelineLayout& operator=(const PipelineLayout& other) = delete;
 
-		void Init(const PipelineLayoutBuilder& builder) {
+		void Init(PipelineLayoutBuilder& builder) {
 			SNK_ASSERT(!pipeline_layout);
-			pipeline_layout = VulkanContext::GetLogicalDevice().device->createPipelineLayoutUnique(builder.pipeline_layout_info).value;
+			auto [res, val] = VulkanContext::GetLogicalDevice().device->createPipelineLayoutUnique(builder.pipeline_layout_info);
+			SNK_CHECK_VK_RESULT(res);
+			pipeline_layout = std::move(val);
+
+			descriptor_set_layouts = std::move(builder.descriptor_set_layouts);
 		}
 
 		vk::PipelineLayout GetPipelineLayout() {
 			return *pipeline_layout;
 		}
 
+		std::map<uint32_t, std::shared_ptr<DescriptorSetSpec>> descriptor_set_layouts;
+
 	private:
 		vk::UniquePipelineLayout pipeline_layout;
+
+		friend class GraphicsPipeline;
 	};
 
 	struct GraphicsPipelineBuilder {
@@ -64,14 +71,10 @@ namespace SNAKE {
 			return *this;
 		}
 
-		GraphicsPipelineBuilder& SetPipelineLayout(vk::PipelineLayout _layout) {
-			pipeline_layout = _layout;
-			return *this;
-		}
-
 		void Build();
 
-		vk::PipelineLayout pipeline_layout;
+		PipelineLayoutBuilder pipeline_layout_builder;
+		PipelineLayout pipeline_layout;
 
 		vk::GraphicsPipelineCreateInfo pipeline_info;
 
@@ -111,17 +114,20 @@ namespace SNAKE {
 		GraphicsPipeline(GraphicsPipeline&& other) = delete;
 		GraphicsPipeline& operator=(const GraphicsPipeline& other) = delete;
 
-		void Init(const GraphicsPipelineBuilder& builder) {
+		void Init( GraphicsPipelineBuilder& builder) {
 			SNK_ASSERT(!m_pipeline);
 			auto [res, pipeline] = VulkanContext::GetLogicalDevice().device->createGraphicsPipelineUnique(VK_NULL_HANDLE, builder.pipeline_info);
 			SNK_CHECK_VK_RESULT(res);
 			m_pipeline = std::move(pipeline);
+			pipeline_layout.pipeline_layout = std::move(builder.pipeline_layout.pipeline_layout);
+			pipeline_layout.descriptor_set_layouts = std::move(builder.pipeline_layout.descriptor_set_layouts);
 		}
 
 		vk::Pipeline GetPipeline() {
 			return *m_pipeline;
 		}
 
+		PipelineLayout pipeline_layout;
 	private:
 		vk::UniquePipeline m_pipeline;
 	};

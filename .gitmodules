@@ -19,3 +19,6 @@
 [submodule "Core/extern/entt"]
 	path = Core/extern/entt
 	url = https://github.com/skypjack/entt
+[submodule "Core/extern/spirv-cross"]
+	path = Core/extern/spirv-cross
+	url = https://github.com/KhronosGroup/SPIRV-Cross

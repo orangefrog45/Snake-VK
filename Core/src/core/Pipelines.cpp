@@ -3,6 +3,31 @@
 #include "shaders/ShaderLibrary.h"
 
 namespace SNAKE {
+
+	void PipelineLayoutBuilder::Build() {
+		if (!descriptor_set_layouts.empty()) {
+			auto last = descriptor_set_layouts.end();
+			last--;
+
+			unsigned highest_idx = last->first;
+
+			if (!null_spec.GetLayout())
+				null_spec.GenDescriptorLayout();
+
+			for (unsigned current_idx = 0; current_idx <= highest_idx; current_idx++) {
+				if (descriptor_set_layouts.contains(current_idx))
+					built_set_layouts.push_back(descriptor_set_layouts[current_idx]->GetLayout());
+				else
+					built_set_layouts.push_back(null_spec.GetLayout());
+			}
+		}
+
+		pipeline_layout_info.setLayoutCount = built_set_layouts.size();
+		pipeline_layout_info.pSetLayouts = built_set_layouts.data();
+		pipeline_layout_info.pushConstantRangeCount = push_constants.size();
+		pipeline_layout_info.pPushConstantRanges = push_constants.data();
+	}
+
 	GraphicsPipelineBuilder::GraphicsPipelineBuilder() {
 		depth_stencil_info.depthTestEnable = true;
 		depth_stencil_info.depthWriteEnable = true;
@@ -32,7 +57,7 @@ namespace SNAKE {
 	}
 
 	GraphicsPipelineBuilder& GraphicsPipelineBuilder::AddShader(vk::ShaderStageFlagBits stage, const std::string& filepath) {
-		shader_modules.push_back(std::move(ShaderLibrary::CreateShaderModule(filepath)));
+		shader_modules.push_back(std::move(ShaderLibrary::CreateShaderModule(filepath, pipeline_layout_builder)));
 
 		auto& module = shader_modules[shader_modules.size() - 1];
 
@@ -69,6 +94,9 @@ namespace SNAKE {
 
 
 	void GraphicsPipelineBuilder::Build() {
+		pipeline_layout_builder.Build();
+		pipeline_layout.Init(pipeline_layout_builder);
+
 		render_info.colorAttachmentCount = colour_attachment_formats.size();
 		render_info.pColorAttachmentFormats = colour_attachment_formats.data();
 
@@ -91,7 +119,7 @@ namespace SNAKE {
 		pipeline_info.pDepthStencilState = &depth_stencil_info;
 		pipeline_info.pColorBlendState = &colour_blend_state;
 		pipeline_info.pDynamicState = &dynamic_state_info;
-		pipeline_info.layout = pipeline_layout;
+		pipeline_info.layout = pipeline_layout.GetPipelineLayout();
 		pipeline_info.renderPass = nullptr;
 		pipeline_info.subpass = 0; // index of subpass where this pipeline is used
 		pipeline_info.pNext = &render_info;

@@ -18,7 +18,7 @@ namespace SNAKE {
 			m_binding_offsets(std::move(other.m_binding_offsets)),
 			m_layout_bindings(std::move(other.m_layout_bindings)), m_layout(std::move(other.m_layout)) {};
 
-		void GenDescriptorLayout() {
+		DescriptorSetSpec& GenDescriptorLayout() {
 			vk::DescriptorSetLayoutCreateInfo layout_info{};
 			layout_info.bindingCount = (uint32_t)m_layout_bindings.size();
 			layout_info.pBindings = m_layout_bindings.data();
@@ -35,10 +35,23 @@ namespace SNAKE {
 
 			m_size = device->getDescriptorSetLayoutSizeEXT(*m_layout);
 			m_aligned_size = aligned_size(m_size, VulkanContext::GetPhysicalDevice().buffer_properties.descriptorBufferOffsetAlignment);
+
+			return *this;
 		}
 
 		size_t GetSize() {
 			return m_size;
+		}
+
+		bool IsBindingPointOccupied(unsigned binding) {
+			return std::ranges::find_if(m_layout_bindings, [binding](const auto& p) {return p.binding == binding; }) != m_layout_bindings.end();
+		}
+
+		vk::DescriptorType GetDescriptorTypeAtBinding(unsigned binding) {
+			auto it = std::ranges::find_if(m_layout_bindings, [binding](const auto& p) {return p.binding == binding; });
+			SNK_ASSERT(it != m_layout_bindings.end());
+
+			return it->descriptorType;
 		}
 
 		DescriptorSetSpec& AddDescriptor(unsigned binding_point, vk::DescriptorType type, vk::ShaderStageFlags flags, uint32_t descriptor_count = 1) {
@@ -77,37 +90,72 @@ namespace SNAKE {
 		friend struct DescriptorBuffer;
 	};
 
-	struct DescriptorBuffer {
+	class DescriptorBuffer {
+	public:
 		DescriptorBuffer() = default;
 		~DescriptorBuffer() = default;
 		DescriptorBuffer(const DescriptorBuffer& other) = delete;
 		DescriptorBuffer& operator=(const DescriptorBuffer& other) = delete;
 
 		DescriptorBuffer(DescriptorBuffer&& other) noexcept :
-			descriptor_spec(std::move(other.descriptor_spec)),
+			mp_descriptor_spec(std::move(other.mp_descriptor_spec)),
 			descriptor_buffer(std::move(other.descriptor_buffer)) {};
 
 		void CreateBuffer(uint32_t num_sets) {
-			SNK_ASSERT(descriptor_spec.m_layout_bindings.size() != 0, "");
+			SNK_ASSERT(mp_descriptor_spec);
+			SNK_ASSERT(mp_descriptor_spec->m_layout_bindings.size() != 0);
 
-			vk::BufferUsageFlags flags;
-
-			for (const auto& binding : descriptor_spec.m_layout_bindings) {
+			for (const auto& binding : mp_descriptor_spec->m_layout_bindings) {
 				if (binding.descriptorType == vk::DescriptorType::eUniformBuffer)
-					flags |= vk::BufferUsageFlagBits::eResourceDescriptorBufferEXT;
+					m_usage_flags |= vk::BufferUsageFlagBits::eResourceDescriptorBufferEXT;
 				else if (binding.descriptorType == vk::DescriptorType::eCombinedImageSampler)
-					flags |= vk::BufferUsageFlagBits::eSamplerDescriptorBufferEXT;
+					m_usage_flags |= vk::BufferUsageFlagBits::eSamplerDescriptorBufferEXT;
 				else
 					SNK_BREAK("Unsupported descriptorType in descriptor layout binding");
 			}
 
-			descriptor_buffer.CreateBuffer(descriptor_spec.m_aligned_size * num_sets,
-				flags | vk::BufferUsageFlagBits::eShaderDeviceAddress, VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT);
+			descriptor_buffer.CreateBuffer(mp_descriptor_spec->m_aligned_size * num_sets,
+				m_usage_flags | vk::BufferUsageFlagBits::eShaderDeviceAddress, VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT);
 		}
 
-		DescriptorSetSpec descriptor_spec;
+		void LinkResource(vk::DescriptorGetInfoEXT resource_info, unsigned binding_idx, unsigned set_buffer_idx) {
+			auto& descriptor_buffer_properties = VulkanContext::GetPhysicalDevice().buffer_properties;
+
+			size_t size = 0;
+			auto descriptor_type = mp_descriptor_spec->GetDescriptorTypeAtBinding(binding_idx);
+			if (descriptor_type == vk::DescriptorType::eUniformBuffer)
+				size = descriptor_buffer_properties.uniformBufferDescriptorSize;
+			else if (descriptor_type == vk::DescriptorType::eCombinedImageSampler)
+				size = descriptor_buffer_properties.combinedImageSamplerDescriptorSize;
+			else
+				SNK_BREAK("LinkResource failed, unsupported descriptor type used");
+
+			VulkanContext::GetLogicalDevice().device->getDescriptorEXT(resource_info, size,
+				reinterpret_cast<std::byte*>(descriptor_buffer.Map()) + mp_descriptor_spec->GetBindingOffset(binding_idx) + mp_descriptor_spec->m_aligned_size * set_buffer_idx);
+		}
+
+		vk::DescriptorBufferBindingInfoEXT GetBindingInfo() {
+			vk::DescriptorBufferBindingInfoEXT info{};
+			info.address = descriptor_buffer.GetDeviceAddress();
+			info.usage = m_usage_flags;
+			return info;
+		}
+
+		// Returned pointer is alive as long as this object is alive
+		DescriptorSetSpec* GetDescriptorSpec() {
+			return mp_descriptor_spec.get();
+		}
+
+		void SetDescriptorSpec(std::shared_ptr<DescriptorSetSpec> spec) {
+			mp_descriptor_spec = spec;
+		}
 
 		S_VkBuffer descriptor_buffer;
+
+	private:
+		std::shared_ptr<DescriptorSetSpec> mp_descriptor_spec = nullptr;
+
+		vk::BufferUsageFlags m_usage_flags;
 	};
 
 
@@ -143,24 +191,18 @@ namespace SNAKE {
 
 		uint16_t m_global_buffer_index = INVALID_GLOBAL_INDEX;
 
-		friend class GlobalMaterialDescriptorBuffer;
+		friend class GlobalMaterialBufferManager;
 		friend class AssetManager;
 	};
 
 
 
 
-	class GlobalMaterialDescriptorBuffer {
+	class GlobalMaterialBufferManager {
 	public:
-		void Init() {
+		void Init(const std::array<std::shared_ptr<DescriptorBuffer>, MAX_FRAMES_IN_FLIGHT>& buffers) {
+			descriptor_buffers = buffers;
 			for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-				descriptor_buffers[i].descriptor_spec.AddDescriptor(0, vk::DescriptorType::eUniformBuffer,
-					vk::ShaderStageFlagBits::eAllGraphics, 64);
-
-				descriptor_buffers[i].descriptor_spec.GenDescriptorLayout();
-
-				descriptor_buffers[i].CreateBuffer(1);
-
 				m_material_ubos[i].CreateBuffer(4096 * material_size,
 					vk::BufferUsageFlagBits::eUniformBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress,
 					VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT);
@@ -178,8 +220,8 @@ namespace SNAKE {
 				VulkanContext::GetLogicalDevice().device->getDescriptorEXT(
 					buffer_descriptor_info,
 					VulkanContext::GetPhysicalDevice().buffer_properties.uniformBufferDescriptorSize,
-					reinterpret_cast<std::byte*>(descriptor_buffers[i].descriptor_buffer.Map()) +
-					descriptor_buffers[i].descriptor_spec.GetBindingOffset(0));
+					reinterpret_cast<std::byte*>(descriptor_buffers[i]->descriptor_buffer.Map()) +
+					descriptor_buffers[i]->GetDescriptorSpec()->GetBindingOffset(0));
 			}
 
 			m_material_update_event_listener.callback = [this](Event const* p_event) {
@@ -211,8 +253,7 @@ namespace SNAKE {
 		// Will probably use up the space for something in the future anyway
 		inline static constexpr uint32_t material_size = sizeof(uint32_t) * 8 * 2;
 
-		std::array<DescriptorBuffer, MAX_FRAMES_IN_FLIGHT> descriptor_buffers{};
-
+		std::array<std::shared_ptr<DescriptorBuffer>, MAX_FRAMES_IN_FLIGHT> descriptor_buffers{};
 	private:
 		std::array<S_VkBuffer, MAX_FRAMES_IN_FLIGHT> material_ubos;
 
@@ -252,17 +293,10 @@ namespace SNAKE {
 		std::unordered_map<FrameInFlightIndex, std::vector<AssetRef<MaterialAsset>>> m_materials_to_update;
 	};
 
-	class GlobalTextureDescriptorBuffer {
+	class GlobalTextureBufferManager {
 	public:
-		void Init() {
-			for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-				descriptor_buffers[i].descriptor_spec.AddDescriptor(0, vk::DescriptorType::eCombinedImageSampler,
-					vk::ShaderStageFlagBits::eAllGraphics, 4096);
-
-				descriptor_buffers[i].descriptor_spec.GenDescriptorLayout();
-
-				descriptor_buffers[i].CreateBuffer(1);
-			}
+		void Init(const std::array<std::shared_ptr<DescriptorBuffer>, MAX_FRAMES_IN_FLIGHT>& buffers) {
+			descriptor_buffers = buffers;
 
 			m_frame_start_listener.callback = [this](Event const* p_event) {
 				auto* p_casted = dynamic_cast<FrameStartEvent const*>(p_event);
@@ -279,7 +313,7 @@ namespace SNAKE {
 			tex.m_global_index = m_current_index++;
 		}
 
-		std::array<DescriptorBuffer, MAX_FRAMES_IN_FLIGHT> descriptor_buffers{};
+		std::array<std::shared_ptr<DescriptorBuffer>, MAX_FRAMES_IN_FLIGHT> descriptor_buffers{};
 
 	private:
 		void RegisterTexturesInternal(FrameInFlightIndex frame_in_flight_idx) {
@@ -298,8 +332,8 @@ namespace SNAKE {
 				image_desc_info.data.pCombinedImageSampler = &image_descriptor;
 				VulkanContext::GetLogicalDevice().device->getDescriptorEXT(image_desc_info,
 					buffer_properties.combinedImageSamplerDescriptorSize,
-					reinterpret_cast<std::byte*>(descriptor_buffers[frame_in_flight_idx].descriptor_buffer.Map()) + p_tex->GetGlobalIndex() *
-					buffer_properties.combinedImageSamplerDescriptorSize + descriptor_buffers[frame_in_flight_idx].descriptor_spec.GetBindingOffset(0));
+					reinterpret_cast<std::byte*>(descriptor_buffers[frame_in_flight_idx]->descriptor_buffer.Map()) + p_tex->GetGlobalIndex() *
+					buffer_properties.combinedImageSamplerDescriptorSize + descriptor_buffers[frame_in_flight_idx]->GetDescriptorSpec()->GetBindingOffset(1));
 
 			}
 

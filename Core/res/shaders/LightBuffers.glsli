@@ -1,0 +1,9 @@
+struct DirectionalLight {
+    vec4 colour;
+    vec4 dir;
+    mat4 light_transform;
+};
+
+layout(set = 2, binding = 0) uniform LightData {
+    DirectionalLight light;
+} ubo_light_data;

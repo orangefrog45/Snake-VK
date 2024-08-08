@@ -1,6 +1,7 @@
 #pragma once
 #include "Asset.h"
 #include "util/util.h"
+#include "core/DescriptorBuffer.h"
 
 namespace SNAKE {
 	class AssetManager {
@@ -10,7 +11,7 @@ namespace SNAKE {
 			return instance;
 		}
 
-		static void Init() { Get().LoadCoreAssets(); }
+		static void Init() { Get().I_Init(); }
 		static void Shutdown();
 
 		static void DeleteAsset(Asset* asset);
@@ -47,10 +48,24 @@ namespace SNAKE {
 			return AssetRef<T>{	p_asset };
 		}
 
-		inline static constexpr uint32_t NUM_CORE_ASSETS = 1;
+		static vk::DeviceAddress GetGlobalTexMatBufDeviceAddress(uint32_t current_frame) {
+			return Get().m_global_tex_buffer_manager.descriptor_buffers[current_frame]->descriptor_buffer.GetDeviceAddress();
+		}
+
+		static vk::DescriptorBufferBindingInfoEXT GetGlobalTexMatBufBindingInfo(uint32_t current_frame) {
+			return Get().m_global_tex_buffer_manager.descriptor_buffers[current_frame]->GetBindingInfo();
+		}
+
+
 	private:
 		void LoadCoreAssets();
+		void I_Init();
+
+		void InitGlobalBufferManagers();
 
 		std::unordered_map<uint64_t, Asset*> m_assets;
+
+		GlobalTextureBufferManager m_global_tex_buffer_manager;
+		GlobalMaterialBufferManager m_global_material_buffer_manager;
 	};
 }

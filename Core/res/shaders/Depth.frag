@@ -1,14 +1,6 @@
 #version 450
 
-struct DirectionalLight {
-    vec4 colour;
-    vec4 dir;
-    mat4 light_transform;
-};
-
-layout(set = 0, binding = 0) uniform LightData {
-    DirectionalLight light;
-} ubo_light_data;
+#include "LightBuffers.glsli"
 
 layout(location = 0) in vec3 in_normal;
 

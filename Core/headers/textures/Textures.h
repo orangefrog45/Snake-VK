@@ -83,6 +83,6 @@ namespace SNAKE {
 		// Index into the global texture descriptor buffer
 		uint16_t m_global_index = INVALID_GLOBAL_INDEX;
 
-		friend class GlobalTextureDescriptorBuffer;
+		friend class GlobalTextureBufferManager;
 	};
 }

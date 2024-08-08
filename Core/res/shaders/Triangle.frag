@@ -1,42 +1,15 @@
 #version 450
 
 layout(location = 0) out vec4 out_colour;
-layout(set = 0, binding = 1) uniform sampler2D depth_tex;
-layout(set = 1, binding = 0) uniform sampler2D textures[4096];
+layout(set = 3, binding = 0) uniform sampler2D depth_tex;
 
 layout(location = 0) in vec3 vs_col;
 layout(location = 1) in vec2 vs_tex_coord;
 layout(location = 2) in vec3 vs_normal;
 layout(location = 3) in vec3 vs_world_pos;
 
-
-struct DirectionalLight {
-    vec4 colour;
-    vec4 dir;
-    mat4 light_transform;
-};
-
-struct Material {
-    uint albedo_tex_idx;
-    uint normal_tex_idx;
-    uint roughness_tex_idx;
-    uint metallic_tex_idx;
-    uint ao_tex_idx;
-
-    float roughness;
-    float metallic;
-    float ao;
-
-    vec4 padding[2];
-};
-
-layout(set = 2, binding = 0) uniform MaterialUBO {
-    Material materials[4096];
-} material_ubo;
-
-layout(set = 3, binding = 0) uniform LightData {
-    DirectionalLight light;
-} ubo_light_data;
+#include "LightBuffers.glsli"
+#include "TexMatBuffers.glsli"
 
 const mat4 bias = mat4( 
   0.5, 0.0, 0.0, 0.0,

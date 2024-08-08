@@ -28,6 +28,11 @@ VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE
 
 using namespace SNAKE;
 
+enum class DescriptorSetIndices {
+	CAMERA_MATRIX_UBO = 0,
+	GLOBAL_TEX_MAT,
+	LIGHTS
+};
 
 static VKAPI_ATTR vk::Bool32 VKAPI_CALL DebugCallback(
 	VkDebugUtilsMessageSeverityFlagBitsEXT severity,
@@ -157,6 +162,7 @@ namespace SNAKE {
 			VulkanContext::InitVMA();
 			window.CreateSwapchain();
 
+
 			// Create command pool which can allocate command buffers
 			CreateCommandPool();
 
@@ -167,27 +173,27 @@ namespace SNAKE {
 			p_ent->GetComponent<TransformComponent>()->SetPosition({ 4, 0, 0 });
 			p_ent->GetComponent<TransformComponent>()->SetScale(1, 2, 2);
 
+			AssetManager::Init();
+
 			m_tex = AssetManager::CreateAsset<Texture2DAsset>();
 			m_material = AssetManager::CreateAsset<MaterialAsset>();
 			m_material_2 = AssetManager::CreateAsset<MaterialAsset>();
 
-			m_texture_descriptor_buffer.Init();
-			m_material_descriptor_buffer.Init();
 			m_tex->p_tex = std::make_unique<Texture2D>();
 			m_tex->p_tex->LoadFromFile("res/textures/oranges_opt.jpg", *m_cmd_pool);
-			m_texture_descriptor_buffer.RegisterTexture(*m_tex->p_tex);
-			m_material_descriptor_buffer.RegisterMaterial(m_material);
-			m_material_descriptor_buffer.RegisterMaterial(m_material_2);
+			//m_texture_descriptor_buffer.RegisterTexture(*m_tex->p_tex);
+			//m_material_descriptor_buffer.RegisterMaterial(m_material);
+			//m_material_descriptor_buffer.RegisterMaterial(m_material_2);
 			m_material_2->p_albedo_tex = &*m_tex->p_tex;
 			m_material_2->metallic = 1.f;
 
 			CreateUniformBuffers();
 
-			CreateDescriptorBuffers();
-
 			SetupShadowMapping();
 
 			CreateGraphicsPipeline();
+
+			CreateDescriptorBuffers();
 
 			m_mesh = AssetManager::CreateAsset<StaticMeshAsset>();
 			m_mesh->data = std::make_shared<StaticMeshData>();
@@ -238,14 +244,14 @@ namespace SNAKE {
 			auto attribute_desc = Vertex::GetAttributeDescriptions();
 
 			PipelineLayoutBuilder layout_builder{};
-			layout_builder.AddPushConstant(0, sizeof(glm::mat4), vk::ShaderStageFlagBits::eVertex)
-				.SetDescriptorSetLayouts({ m_descriptor_buffers[0].descriptor_spec.GetLayout(),
-				m_texture_descriptor_buffer.descriptor_buffers[0].descriptor_spec.GetLayout(),
-				m_material_descriptor_buffer.descriptor_buffers[0].descriptor_spec.GetLayout(),
-					m_light_descriptor_spec.GetLayout()})
-				.Build();
+		/*	layout_builder.AddPushConstant(0, sizeof(glm::mat4), vk::ShaderStageFlagBits::eVertex)
+				.AddDescriptorSetLayout(0, m_descriptor_buffers[0].descriptor_spec.GetLayout())
+				.AddDescriptorSetLayout(1, m_texture_descriptor_buffer.descriptor_buffers[0].descriptor_spec.GetLayout())
+				.AddDescriptorSetLayout(2, m_material_descriptor_buffer.descriptor_buffers[0].descriptor_spec.GetLayout())
+				.AddDescriptorSetLayout(3, m_light_descriptor_spec.GetLayout())
+				.Build();*/
 
-			m_pipeline_layout.Init(layout_builder);
+			//m_pipeline_layout.Init(layout_builder);
 
 			GraphicsPipelineBuilder graphics_builder{};
 			graphics_builder.AddShader(vk::ShaderStageFlagBits::eVertex, "res/shaders/vert.spv")
@@ -255,7 +261,7 @@ namespace SNAKE {
 				.AddVertexBinding(attribute_desc[2], binding_desc[2])
 				.AddColourAttachment(window.m_vk_context.swapchain_format)
 				.AddDepthAttachment(FindDepthFormat())
-				.SetPipelineLayout(m_pipeline_layout.GetPipelineLayout())
+				//.SetPipelineLayout(m_pipeline_layout.GetPipelineLayout())
 				.Build();
 			
 			m_graphics_pipeline.Init(graphics_builder);
@@ -336,38 +342,21 @@ namespace SNAKE {
 			cmd_buffer.bindVertexBuffers(0, 3, vert_buffers.data(), offsets.data());
 			cmd_buffer.bindIndexBuffer(m_mesh->data->index_buf.buffer, 0, vk::IndexType::eUint32);
 
-			vk::DescriptorBufferBindingInfoEXT descriptor_buffer_binding_info{};
-			descriptor_buffer_binding_info.address = m_descriptor_buffers[m_current_frame].descriptor_buffer.GetDeviceAddress();
-			descriptor_buffer_binding_info.usage = vk::BufferUsageFlagBits::eResourceDescriptorBufferEXT | vk::BufferUsageFlagBits::eSamplerDescriptorBufferEXT ;
-
-			vk::DescriptorBufferBindingInfoEXT tex_descriptor_buffer_binding_info{};
-			tex_descriptor_buffer_binding_info.address = m_texture_descriptor_buffer.descriptor_buffers[m_current_frame].descriptor_buffer.GetDeviceAddress();
-			tex_descriptor_buffer_binding_info.usage = vk::BufferUsageFlagBits::eSamplerDescriptorBufferEXT;
-
-			vk::DescriptorBufferBindingInfoEXT mat_descriptor_buf_binding_info{};
-			mat_descriptor_buf_binding_info.address = m_material_descriptor_buffer.descriptor_buffers[m_current_frame].descriptor_buffer.GetDeviceAddress();
-			mat_descriptor_buf_binding_info.usage = vk::BufferUsageFlagBits::eResourceDescriptorBufferEXT;
-
-			vk::DescriptorBufferBindingInfoEXT light_buffer_binding_info{};
-			light_buffer_binding_info.address = m_light_descriptor_buffers[m_current_frame].descriptor_buffer.GetDeviceAddress();
-			light_buffer_binding_info.usage = vk::BufferUsageFlagBits::eResourceDescriptorBufferEXT;
-
-			std::array<vk::DescriptorBufferBindingInfoEXT, 4> binding_infos = { descriptor_buffer_binding_info, 
-				tex_descriptor_buffer_binding_info, mat_descriptor_buf_binding_info, light_buffer_binding_info };
+			std::array<vk::DescriptorBufferBindingInfoEXT, 4> binding_infos = { m_matrix_descriptor_buffers[m_current_frame].GetBindingInfo(),
+				AssetManager::GetGlobalTexMatBufBindingInfo(m_current_frame), m_light_descriptor_buffers[m_current_frame].GetBindingInfo(), 
+				 m_main_pass_descriptor_buffers[m_current_frame].GetBindingInfo()};
 
 			cmd_buffer.bindDescriptorBuffersEXT(binding_infos);
 
 			std::array<uint32_t, 4> buffer_indices = { 0, 1, 2, 3 };
 			std::array<vk::DeviceSize, 4> buffer_offsets = { 0, 0, 0, 0 };
 
-			cmd_buffer.setDescriptorBufferOffsetsEXT(vk::PipelineBindPoint::eGraphics, m_pipeline_layout.GetPipelineLayout(), 0, buffer_indices, buffer_offsets);
+			cmd_buffer.setDescriptorBufferOffsetsEXT(vk::PipelineBindPoint::eGraphics, m_graphics_pipeline.pipeline_layout.GetPipelineLayout(), 0, buffer_indices, buffer_offsets);
 			for (auto [entity, transform] : scene.GetRegistry().view<TransformComponent>().each()) {
-				cmd_buffer.pushConstants(m_pipeline_layout.GetPipelineLayout(), vk::ShaderStageFlagBits::eVertex, 0, sizeof(glm::mat4), &transform.GetMatrix()[0][0]);
+				cmd_buffer.pushConstants(m_graphics_pipeline.pipeline_layout.GetPipelineLayout(), vk::ShaderStageFlagBits::eAllGraphics, 0, sizeof(glm::mat4), &transform.GetMatrix()[0][0]);
 				cmd_buffer.drawIndexed((uint32_t)m_mesh->data->index_buf.alloc_info.size / sizeof(uint32_t), 1, 0, 0, 0);
 			}
 		
-
-
 			cmd_buffer.endRenderingKHR();
 
 			Image2D::TransitionImageLayout(window.m_vk_context.swapchain_images[image_index],
@@ -378,18 +367,6 @@ namespace SNAKE {
 			SNK_CHECK_VK_RESULT(
 				cmd_buffer.end()
 			);
-		}
-
-		vk::UniqueShaderModule CreateShaderModule(const std::vector<char>& code, const std::string& filepath) {
-			vk::ShaderModuleCreateInfo create_info{
-				vk::ShaderModuleCreateFlags{0},
-				code.size(), reinterpret_cast<const uint32_t*>(code.data())
-			};
-
-			vk::UniqueShaderModule shader_module = VulkanContext::GetLogicalDevice().device->createShaderModuleUnique(create_info).value;
-
-			SNK_ASSERT(shader_module, "Shader module for shader '{0}' created successfully", filepath)
-			return shader_module;
 		}
 
 		void CreateSyncObjects() {
@@ -498,35 +475,38 @@ namespace SNAKE {
 		}
 
 		void CreateDescriptorBuffers() {
-			m_light_descriptor_spec.AddDescriptor(0, vk::DescriptorType::eUniformBuffer, vk::ShaderStageFlagBits::eAllGraphics)
-				.GenDescriptorLayout();
-		
 			auto& device = VulkanContext::GetLogicalDevice().device;
 			auto& descriptor_buffer_properties = VulkanContext::GetPhysicalDevice().buffer_properties;
 
 			for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-				m_descriptor_buffers[i].descriptor_spec.AddDescriptor(0, vk::DescriptorType::eUniformBuffer, vk::ShaderStageFlagBits::eVertex)
-					.AddDescriptor(1, vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eFragment)
-					.AddDescriptor(2, vk::DescriptorType::eUniformBuffer, vk::ShaderStageFlagBits::eAllGraphics)
+				auto matrix_descriptor_set_spec = std::make_shared<DescriptorSetSpec>();
+				matrix_descriptor_set_spec->AddDescriptor(0, vk::DescriptorType::eUniformBuffer, vk::ShaderStageFlagBits::eAllGraphics)
 					.GenDescriptorLayout();
 
-				m_descriptor_buffers[i].CreateBuffer(1);
+				auto light_descriptor_set_spec = std::make_shared<DescriptorSetSpec>();
+				light_descriptor_set_spec->AddDescriptor(0, vk::DescriptorType::eUniformBuffer, vk::ShaderStageFlagBits::eAllGraphics)
+					.GenDescriptorLayout();
 
-				m_light_descriptor_buffers[i].descriptor_spec.AddDescriptor(0, vk::DescriptorType::eUniformBuffer,
-					vk::ShaderStageFlagBits::eAllGraphics).GenDescriptorLayout();
+				auto main_pass_descriptor_set_spec = std::make_shared<DescriptorSetSpec>();
+				main_pass_descriptor_set_spec->AddDescriptor(0, vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eAllGraphics)
+					.GenDescriptorLayout();
+
+				m_matrix_descriptor_buffers[i].SetDescriptorSpec(matrix_descriptor_set_spec);
+				m_light_descriptor_buffers[i].SetDescriptorSpec(light_descriptor_set_spec);
+				m_main_pass_descriptor_buffers[i].SetDescriptorSpec(main_pass_descriptor_set_spec);
+				
+				m_main_pass_descriptor_buffers[i].CreateBuffer(1);
+				m_matrix_descriptor_buffers[i].CreateBuffer(1);
 				m_light_descriptor_buffers[i].CreateBuffer(1);
 
-				auto [mat_info, a] = m_matrix_ubos[i].CreateDescriptorGetInfo();
-				device->getDescriptorEXT(mat_info, descriptor_buffer_properties.uniformBufferDescriptorSize,
-					reinterpret_cast<std::byte*>(m_descriptor_buffers[i].descriptor_buffer.Map()) + m_descriptor_buffers[i].descriptor_spec.GetBindingOffset(0));
+				auto mat_info = m_matrix_ubos[i].CreateDescriptorGetInfo();
+				m_matrix_descriptor_buffers[i].LinkResource(mat_info.first, 0, 0);
 
-				auto [shadow_info, b] = m_shadow_depth_image.CreateDescriptorGetInfo(vk::ImageLayout::eShaderReadOnlyOptimal);
-				device->getDescriptorEXT(shadow_info, descriptor_buffer_properties.combinedImageSamplerDescriptorSize,
-					reinterpret_cast<std::byte*>(m_descriptor_buffers[i].descriptor_buffer.Map()) + m_descriptor_buffers[i].descriptor_spec.GetBindingOffset(1));
+				auto shadow_map_info = m_shadow_depth_image.CreateDescriptorGetInfo(vk::ImageLayout::eShaderReadOnlyOptimal);
+				m_main_pass_descriptor_buffers[i].LinkResource(shadow_map_info.first, 0, 0);
 
-				auto [light_info, c] = m_light_ubos[i].CreateDescriptorGetInfo();
-				device->getDescriptorEXT(light_info, descriptor_buffer_properties.uniformBufferDescriptorSize,
-					reinterpret_cast<std::byte*>(m_light_descriptor_buffers[i].descriptor_buffer.Map()) + m_light_descriptor_buffers[i].descriptor_spec.GetBindingOffset(0));
+				auto light_info = m_light_ubos[i].CreateDescriptorGetInfo();
+				m_light_descriptor_buffers[i].LinkResource(light_info.first, 0, 0);
 			}
 		}
 		// Adding 8 floats for alignment
@@ -640,10 +620,8 @@ namespace SNAKE {
 				vk::AccessFlagBits::eNone, vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTopOfPipe);
 
 			PipelineLayoutBuilder layout_builder{};
-			layout_builder.AddPushConstant(0, sizeof(glm::mat4), vk::ShaderStageFlagBits::eVertex)
-				.SetDescriptorSetLayouts({ m_light_descriptor_spec.GetLayout() })
-				.Build();
-			m_shadow_pipeline_layout.Init(layout_builder);
+			DescriptorSetSpec spec{};
+			spec.GenDescriptorLayout();
 
 			auto vert_binding_descs = Vertex::GetBindingDescription();
 			auto vert_attr_descs = Vertex::GetAttributeDescriptions();
@@ -655,7 +633,7 @@ namespace SNAKE {
 				.AddVertexBinding(vert_attr_descs[0], vert_binding_descs[0])
 				.AddVertexBinding(vert_attr_descs[1], vert_binding_descs[1])
 				.AddVertexBinding(vert_attr_descs[2], vert_binding_descs[2])
-				.SetPipelineLayout(m_shadow_pipeline_layout.GetPipelineLayout())
+				//.SetPipelineLayout(m_shadow_pipeline_layout.GetPipelineLayout())
 				.Build();
 
 			m_shadow_pipeline.Init(builder);
@@ -699,12 +677,6 @@ namespace SNAKE {
 			// Binds shaders and sets all state like rasterizer, blend, multisampling etc
 			cmd.bindPipeline(vk::PipelineBindPoint::eGraphics, m_shadow_pipeline.GetPipeline());
 
-			vk::DescriptorBufferBindingInfoEXT light_descriptor_buf_binding_info{};
-			light_descriptor_buf_binding_info.address = m_material_descriptor_buffer.descriptor_buffers[m_current_frame].descriptor_buffer.GetDeviceAddress();
-			light_descriptor_buf_binding_info.usage = vk::BufferUsageFlagBits::eResourceDescriptorBufferEXT;
-
-
-			cmd.bindDescriptorBuffersEXT(light_descriptor_buf_binding_info);
 
 			vk::Viewport viewport{};
 			viewport.x = 0.0f;
@@ -733,10 +705,10 @@ namespace SNAKE {
 			std::array<uint32_t, 1> buffer_indices = { 0 };
 			std::array<vk::DeviceSize, 1> buffer_offsets = { 0 };
 
-			cmd.setDescriptorBufferOffsetsEXT(vk::PipelineBindPoint::eGraphics, m_shadow_pipeline_layout.GetPipelineLayout(), 0, buffer_indices, buffer_offsets);
+			cmd.setDescriptorBufferOffsetsEXT(vk::PipelineBindPoint::eGraphics, m_shadow_pipeline.pipeline_layout.GetPipelineLayout(), (uint32_t)DescriptorSetIndices::LIGHTS, buffer_indices, buffer_offsets);
 
 			for (auto [entity, transform] : scene.GetRegistry().view<TransformComponent>().each()) {
-				cmd.pushConstants(m_pipeline_layout.GetPipelineLayout(), vk::ShaderStageFlagBits::eVertex, 0, sizeof(glm::mat4), &transform.GetMatrix()[0][0]);
+				cmd.pushConstants(m_shadow_pipeline.pipeline_layout.GetPipelineLayout(), vk::ShaderStageFlagBits::eAllGraphics, 0, sizeof(glm::mat4), &transform.GetMatrix()[0][0]);
 				cmd.drawIndexed((uint32_t)m_mesh->data->index_buf.alloc_info.size / sizeof(uint32_t), 1, 0, 0, 0);
 			}
 
@@ -755,9 +727,6 @@ namespace SNAKE {
 	private:
 		Scene scene;
 
-		GlobalTextureDescriptorBuffer m_texture_descriptor_buffer;
-		GlobalMaterialDescriptorBuffer m_material_descriptor_buffer;
-
 		AssetRef<MaterialAsset> m_material{nullptr};
 		AssetRef<MaterialAsset> m_material_2{ nullptr };
 		AssetRef<StaticMeshAsset> m_mesh{ nullptr };
@@ -768,21 +737,26 @@ namespace SNAKE {
 		Image2D m_depth_image;
 
 		std::array<S_VkBuffer, MAX_FRAMES_IN_FLIGHT> m_matrix_ubos;
-		std::array<DescriptorBuffer, MAX_FRAMES_IN_FLIGHT> m_descriptor_buffers;
+
+		// TODO: Move to scene camera system
+		std::array<DescriptorBuffer, MAX_FRAMES_IN_FLIGHT> m_matrix_descriptor_buffers;
 
 		vk::UniqueDebugUtilsMessengerEXT m_messenger;
 
 		GraphicsPipeline m_graphics_pipeline;
-		PipelineLayout m_pipeline_layout;
 
-		DescriptorSetSpec m_light_descriptor_spec;
 		std::array<S_VkBuffer, MAX_FRAMES_IN_FLIGHT> m_light_ubos;
 
 		GraphicsPipeline m_shadow_pipeline;
-		PipelineLayout m_shadow_pipeline_layout;
+
 		Image2D m_shadow_depth_image;
 		std::array<CommandBuffer, MAX_FRAMES_IN_FLIGHT> m_shadow_cmd_buffers;
+
+		// TODO: Move to a scene lighting system/manager
 		std::array<DescriptorBuffer, MAX_FRAMES_IN_FLIGHT> m_light_descriptor_buffers;
+
+		std::array<DescriptorBuffer, MAX_FRAMES_IN_FLIGHT> m_main_pass_descriptor_buffers;
+
 
 		vk::UniqueCommandPool m_cmd_pool;
 		std::array<CommandBuffer, MAX_FRAMES_IN_FLIGHT> m_cmd_buffers;
