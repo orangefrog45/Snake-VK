@@ -64,7 +64,18 @@ src/main.cpp
  "headers/scene/Scene.h" 
  "headers/scene/Entity.h" 
  "headers/components/Component.h"
- "headers/components/TransformComponent.h" "src/components/TransformComponent.cpp" "src/util/ExtraMath.cpp" "headers/util/ExtraMath.h" "headers/core/Input.h" "src/core/Input.cpp"  "headers/scene/System.h" "headers/scene/LightBufferSystem.h" "headers/components/Lights.h"  "src/scene/LightBufferSystem.cpp")
+ "headers/components/TransformComponent.h" 
+ "src/components/TransformComponent.cpp" 
+ "src/util/ExtraMath.cpp" 
+ "headers/util/ExtraMath.h" 
+ "headers/core/Input.h" 
+ "src/core/Input.cpp"  
+ "headers/scene/System.h" 
+ "headers/scene/LightBufferSystem.h" 
+ "headers/components/Lights.h"  
+ "src/scene/LightBufferSystem.cpp" 
+ "src/scene/SceneInfoBufferSystem.cpp"
+ "headers/scene/CameraSystem.h" "headers/components/CameraComponent.h" "src/scene/CameraSystem.cpp" "headers/renderpasses/ShadowPass.h" "src/renderpasses/ShadowPass.cpp" "headers/renderpasses/ForwardPass.h" "src/renderpasses/ForwardPass.cpp" "headers/components/MeshComponent.h")
 
 
 target_link_options(SNAKE_VK_CORE PRIVATE -INCREMENTAL -ZI)
@@ -99,5 +110,6 @@ extern/entt/src/
 extern/spirv-cross
 )
 
+file(COPY ${CMAKE_CURRENT_LIST_DIR}/res/ DESTINATION "${CMAKE_BINARY_DIR}/Core/res")
 
 

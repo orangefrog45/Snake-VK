@@ -4,10 +4,10 @@
 #include "util/util.h"
 
 namespace SNAKE {
-	vk::UniqueCommandBuffer BeginSingleTimeCommands(vk::CommandPool pool) {
+	vk::UniqueCommandBuffer BeginSingleTimeCommands() {
 		vk::CommandBufferAllocateInfo alloc_info{};
 		alloc_info.level = vk::CommandBufferLevel::ePrimary;
-		alloc_info.commandPool = pool;
+		alloc_info.commandPool = VulkanContext::GetCommandPool();
 		alloc_info.commandBufferCount = 1;
 
 		// Create new command buffer to perform memory transfer
@@ -49,8 +49,8 @@ namespace SNAKE {
 		SNK_CHECK_VK_RESULT(device.graphics_queue.waitIdle());
 	}
 
-	void CopyBufferToImage(vk::Buffer buffer, vk::Image image, uint32_t width, uint32_t height, vk::CommandPool cmd_pool) {
-		auto cmd_buf = BeginSingleTimeCommands(cmd_pool);
+	void CopyBufferToImage(vk::Buffer buffer, vk::Image image, uint32_t width, uint32_t height) {
+		auto cmd_buf = BeginSingleTimeCommands();
 
 		vk::BufferImageCopy region{};
 		region.bufferOffset = 0;
@@ -165,8 +165,8 @@ namespace SNAKE {
 		return required_extensions.empty();
 	}
 
-	void CopyBuffer(vk::Buffer src, vk::Buffer dst, vk::DeviceSize size, vk::CommandPool pool) {
-		vk::UniqueCommandBuffer cmd_buf = BeginSingleTimeCommands(pool);
+	void CopyBuffer(vk::Buffer src, vk::Buffer dst, vk::DeviceSize size) {
+		vk::UniqueCommandBuffer cmd_buf = BeginSingleTimeCommands();
 
 		vk::BufferCopy copy_region{};
 		copy_region.srcOffset = 0;

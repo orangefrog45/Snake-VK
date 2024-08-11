@@ -2,6 +2,7 @@
 #include "core/VkContext.h"
 #include "core/VkCommon.h"
 #include "util/util.h"
+#include "core/Window.h"
 
 using namespace SNAKE;
 
@@ -32,6 +33,18 @@ void VulkanContext::IPickPhysicalDevice(vk::SurfaceKHR surface, const std::vecto
 	m_physical_device.device.getProperties2(&device_properties);
 
 	SNK_ASSERT(m_physical_device.device, "Physical device created");
+}
+
+
+void VulkanContext::CreateCommandPool(Window* p_window) {
+	QueueFamilyIndices qf_indices = FindQueueFamilies(VulkanContext::GetPhysicalDevice().device, *p_window->GetVkContext().surface);
+
+	vk::CommandPoolCreateInfo pool_info{};
+	pool_info.flags = vk::CommandPoolCreateFlagBits::eResetCommandBuffer; // allow command buffers under this pool to be rerecorded individually instead of having to be reset together
+	pool_info.queueFamilyIndex = qf_indices.graphics_family.value();
+
+	Get().m_cmd_pool = VulkanContext::GetLogicalDevice().device->createCommandPoolUnique(pool_info).value;
+	SNK_ASSERT(Get().m_cmd_pool, "Command pool created");
 }
 
 
@@ -137,6 +150,6 @@ void VulkanContext::ICreateInstance(const char* app_name) {
 	};
 
 	m_instance = vk::createInstanceUnique(create_info, nullptr, VULKAN_HPP_DEFAULT_DISPATCHER).value;
-	SNK_ASSERT(m_instance, "Vulkan instance created");
+	SNK_ASSERT(m_instance);
 
 }

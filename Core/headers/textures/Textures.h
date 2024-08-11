@@ -5,9 +5,9 @@
 namespace SNAKE {
 	struct Image2DSpec {
 		vk::Format format = vk::Format::eUndefined;
-		vk::ImageUsageFlags usage;
-		vk::ImageTiling tiling;
-		glm::uvec2 size;
+		vk::ImageUsageFlags usage = vk::ImageUsageFlagBits::eSampled;
+		vk::ImageTiling tiling = vk::ImageTiling::eOptimal;
+		glm::uvec2 size{ 0, 0 };
 	};
 
 	class Image2D {
@@ -36,8 +36,6 @@ namespace SNAKE {
 
 		void CreateImage(VmaAllocationCreateFlags flags=0);
 
-		void LoadFromFile(const std::string& filepath, vk::CommandPool pool);
-
 		void DestroyImage();
 
 		void CreateImageView(vk::ImageAspectFlags aspect_flags);
@@ -46,9 +44,9 @@ namespace SNAKE {
 
 		std::pair<vk::DescriptorGetInfoEXT, std::shared_ptr<vk::DescriptorImageInfo>> CreateDescriptorGetInfo(vk::ImageLayout layout) const;
 
-		static void TransitionImageLayout(const vk::Image& image, vk::ImageAspectFlags aspect_flags, vk::ImageLayout old_layout, vk::ImageLayout new_layout, vk::CommandPool pool, vk::CommandBuffer buf = {});
+		static void TransitionImageLayout(const vk::Image& image, vk::ImageAspectFlags aspect_flags, vk::ImageLayout old_layout, vk::ImageLayout new_layout, vk::CommandBuffer buf = {});
 
-		static void TransitionImageLayout(const vk::Image& image, vk::ImageAspectFlags aspect_flags, vk::ImageLayout old_layout, vk::ImageLayout new_layout, vk::CommandPool pool, 
+		static void TransitionImageLayout(const vk::Image& image, vk::ImageAspectFlags aspect_flags, vk::ImageLayout old_layout, vk::ImageLayout new_layout, 
 			vk::AccessFlags src_access, vk::AccessFlags dst_access, vk::PipelineStageFlags src_stage, vk::PipelineStageFlags dst_stage,  
 			vk::CommandBuffer buf = {});
 
@@ -64,7 +62,7 @@ namespace SNAKE {
 			return m_image;
 		}
 
-	private:
+	protected:
 		Image2DSpec m_spec;
 
 		vk::UniqueSampler m_sampler;
@@ -76,6 +74,8 @@ namespace SNAKE {
 	class Texture2D : public Image2D {
 	public:
 		inline uint16_t GetGlobalIndex() const { return m_global_index; };
+
+		void LoadFromFile(const std::string& filepath);
 
 		inline static constexpr uint16_t INVALID_GLOBAL_INDEX = std::numeric_limits<uint16_t>::max();
 	private:

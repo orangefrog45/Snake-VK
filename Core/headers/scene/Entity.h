@@ -13,7 +13,9 @@ namespace SNAKE {
 			if (GetComponent<T>()) 
 				return GetComponent<T>();
 
-			return &mp_registry->emplace<T>(m_entt_handle, this, std::forward<Args>(args)...);
+			auto* p_comp = &mp_registry->emplace<T>(m_entt_handle, this, std::forward<Args>(args)...);
+			EventManagerG::DispatchEvent(ComponentEvent<T>(p_comp, ComponentEventType::ADDED));
+			return p_comp;
 		}
 
 		template<std::derived_from<Component> T>
@@ -26,6 +28,7 @@ namespace SNAKE {
 			if (!HasComponent<T>())
 				return;
 
+			EventManagerG::DispatchEvent(ComponentEvent<T>(GetComponent<T>, ComponentEventType::REMOVED));
 			mp_registry->erase<T>(m_entt_handle);
 		}
 

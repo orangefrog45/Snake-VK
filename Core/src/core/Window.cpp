@@ -46,6 +46,10 @@ void Window::InitGLFW() {
 	s_glfw_initialized = true;
 }
 
+void Window::OnUpdate() {
+	input.OnUpdate(p_window);
+}
+
 void Window::Init(const std::string& window_name, uint32_t width, uint32_t height, bool resizable) {
 	// Default API is OpenGL so set to GLFW_NO_API
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);

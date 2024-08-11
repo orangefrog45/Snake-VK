@@ -9,10 +9,7 @@ layout(location = 1) out vec2 vs_tex_coord;
 layout(location = 2) out vec3 vs_normal;
 layout(location = 3) out vec3 vs_world_pos;
 
-layout(set = 0, binding = 0) uniform MatrixUBO {
-    mat4 view;
-    mat4 proj;
-} ubo;
+#include "CommonUBO.glsl"
 
 layout(push_constant) uniform pc {
     mat4 transform;
@@ -24,7 +21,7 @@ void main() {
 
     vs_world_pos = world_pos;
 
-    gl_Position = ubo.proj * ubo.view * vec4(world_pos, 1.0);
+    gl_Position = common_ubo.proj * common_ubo.view * vec4(world_pos, 1.0);
     vs_tex_coord = in_tex_coord;
     vs_normal = in_normal;
     vs_col = vec3(1);

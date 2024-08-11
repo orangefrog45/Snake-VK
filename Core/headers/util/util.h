@@ -31,7 +31,32 @@
 #define SNK_ASSERT_ARG(x, ...) if (!(x)) {SNK_BREAK("Assertion failed: '{0}'", __VA_ARGS__);}
 
 namespace SNAKE {
+	namespace detail {
+		template<typename T>
+		concept HasConvertToBytesOverride = requires(T t) {
+			t.ConvertSelfToBytes(std::declval<std::byte*&>());
+		};
+
+		template<typename T>
+		void ConvertToBytes(std::byte*& byte, T&& val) {
+			if constexpr (HasConvertToBytesOverride<T>) {
+				val.ConvertSelfToBytes(byte);
+			}
+			else {
+				std::memcpy(byte, &val, sizeof(T));
+				byte += sizeof(T);
+			}
+
+		}
+	}
+
 	namespace util {
+		// Copies raw bytes of types into array of std::byte, this will increment the ptr provided by sizeof(T)
+		template<typename... Args>
+		void ConvertToBytes(std::byte*& byte, Args&&... args) {
+			(detail::ConvertToBytes(byte, std::forward<Args>(args)), ...);
+		}
+
 		template<typename Container, typename... Args>
 			requires((std::is_convertible_v<Args, typename Container::value_type>, ...))
 		void PushBackMultiple(Container& container, Args&&... args) {
@@ -42,7 +67,6 @@ namespace SNAKE {
 		constexpr std::array<typename std::decay<ArrayType>::type, sizeof...(Args) + 1> array(ArrayType&& first, Args&&... args) {
 			return { { std::forward<ArrayType>(first),  std::forward<Args>(args)... } };
 		}
-
 
 
 		/* Type ID Stuff */

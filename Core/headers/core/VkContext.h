@@ -26,19 +26,25 @@ namespace SNAKE {
 		}
 
 		static void CreateInstance(const char* app_name) {
-			SNK_ASSERT(!Get().m_instance, "Instance not already created");
+			SNK_ASSERT(!Get().m_instance);
 			Get().ICreateInstance(app_name);
 		}
 
 		static void PickPhysicalDevice(vk::SurfaceKHR surface, const std::vector<const char*>& required_extensions_vec) {
-			SNK_ASSERT(!Get().m_physical_device.device, "Physical device not already created");
+			SNK_ASSERT(!Get().m_physical_device.device);
 			Get().IPickPhysicalDevice(surface, required_extensions_vec);
 		}
 
 		static void CreateLogicalDevice(vk::SurfaceKHR surface, const std::vector<const char*>& required_device_extensions) {
-			SNK_ASSERT(!Get().m_device.device, "Logical device not already created");
+			SNK_ASSERT(!Get().m_device.device);
 			Get().ICreateLogicalDevice(surface, required_device_extensions);
 		}
+
+		static vk::CommandPool GetCommandPool() {
+			return *Get().m_cmd_pool;
+		}
+
+		static void CreateCommandPool(class Window* p_window);
 
 		static void InitVMA() {
 			Get().I_InitVMA();
@@ -75,6 +81,7 @@ namespace SNAKE {
 
 		void ICreateInstance(const char* app_name);
 
+
 		void IPickPhysicalDevice(vk::SurfaceKHR surface, const std::vector<const char*>& required_extensions_vec);
 
 		static bool IsDeviceSuitable(vk::PhysicalDevice device, vk::SurfaceKHR surface, const std::vector<const char*>& required_extensions_vec);
@@ -86,8 +93,8 @@ namespace SNAKE {
 		PhysicalDevice m_physical_device;
 		LogicalDevice m_device;
 
-		VmaAllocator m_allocator;
+		vk::UniqueCommandPool m_cmd_pool;
 
-		friend class VulkanApp;
+		VmaAllocator m_allocator{};
 	};
 }

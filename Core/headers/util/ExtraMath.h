@@ -38,6 +38,11 @@ namespace SNAKE {
 		static glm::mat3 Rotate2D(float rot);
 		static glm::mat3 Translation2D(float x, float y);
 
+		// .x = r, .y = theta, .z = phi
+		static glm::vec3 CartesianToSpherical(glm::vec3 vec);
+
+		static glm::vec3 SphericalToCartesian(float r, float theta, float phi);
+
 		static glm::vec3 ScreenCoordsToRayDir(glm::mat4 proj_matrix, glm::vec2 coords, glm::vec3 cam_pos, glm::vec3 cam_forward, glm::vec3 cam_up, unsigned int window_width, unsigned int window_height);
 	};
 }

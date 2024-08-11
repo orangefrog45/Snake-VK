@@ -1,3 +1,12 @@
+11/8/24:
+-Pointlights, spotlights, PBR
+-Created modular renderpasses
+
+9/6/23:
+-Created SceneInfoBufferSystem class to manage and update the descriptor/resource buffers for scene data
+-Camera components
+-Tied events into ECS
+
 8/6/23:
 -Automatic descriptor set spec generation through spirv_cross shader reflection
 -Descriptor buffer/set spec utilities to make them a bit more robust and reduce code

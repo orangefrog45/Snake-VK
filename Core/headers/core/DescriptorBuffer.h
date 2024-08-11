@@ -84,8 +84,8 @@ namespace SNAKE {
 		
 		std::unordered_map<BindingIndex, BindingOffset> m_binding_offsets;
 
-		size_t m_aligned_size;
-		size_t m_size;
+		size_t m_aligned_size = 0;
+		size_t m_size = 0;
 
 		friend struct DescriptorBuffer;
 	};
@@ -270,7 +270,7 @@ namespace SNAKE {
 			std::byte* p_data = reinterpret_cast<std::byte*>(m_material_ubos[frame_in_flight_idx].Map());
 
 			for (auto& mat_ref : m_materials_to_update[frame_in_flight_idx]) {
-				SNK_ASSERT(mat_ref->GetGlobalBufferIndex() != MaterialAsset::INVALID_GLOBAL_INDEX, "");
+				SNK_ASSERT(mat_ref->GetGlobalBufferIndex() != MaterialAsset::INVALID_GLOBAL_INDEX);
 
 				std::array<uint32_t, 5> texture_indices = { Texture2D::INVALID_GLOBAL_INDEX };
 

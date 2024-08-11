@@ -10,12 +10,12 @@
 
 using namespace SNAKE;
 
-void Image2D::LoadFromFile(const std::string& filepath, vk::CommandPool pool) {
+void Texture2D::LoadFromFile(const std::string& filepath) {
 	int width, height, channels;
 	// Force 4 channels as most GPUs only support these as samplers
 	stbi_uc* pixels = stbi_load(filepath.c_str(), &width, &height, &channels, 4);
 	vk::DeviceSize image_size = width * height * 4;
-	SNK_ASSERT(pixels, "Image file loaded");
+	SNK_ASSERT(pixels);
 
 	S_VkBuffer staging_buffer{};
 	staging_buffer.CreateBuffer(image_size, vk::BufferUsageFlagBits::eTransferSrc, VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT);
@@ -33,9 +33,9 @@ void Image2D::LoadFromFile(const std::string& filepath, vk::CommandPool pool) {
 
 	CreateImage();
 
-	TransitionImageLayout(m_image, vk::ImageAspectFlagBits::eColor, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal, pool);
-	CopyBufferToImage(staging_buffer.buffer, m_image, width, height, pool);
-	TransitionImageLayout(m_image, vk::ImageAspectFlagBits::eColor, vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal, pool);
+	TransitionImageLayout(m_image, vk::ImageAspectFlagBits::eColor, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal);
+	CopyBufferToImage(staging_buffer.buffer, m_image, width, height);
+	TransitionImageLayout(m_image, vk::ImageAspectFlagBits::eColor, vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal);
 
 	CreateImageView(vk::ImageAspectFlagBits::eColor);
 	CreateSampler();
@@ -117,14 +117,14 @@ std::pair<vk::DescriptorGetInfoEXT, std::shared_ptr<vk::DescriptorImageInfo>> Im
 	return std::make_pair(image_descriptor_info, image_info);
 }
 
-void Image2D::TransitionImageLayout(const vk::Image& image, vk::ImageAspectFlags aspect_flags, vk::ImageLayout old_layout, vk::ImageLayout new_layout, vk::CommandPool pool,
+void Image2D::TransitionImageLayout(const vk::Image& image, vk::ImageAspectFlags aspect_flags, vk::ImageLayout old_layout, vk::ImageLayout new_layout,
 	vk::AccessFlags src_access, vk::AccessFlags dst_access, vk::PipelineStageFlags src_stage, vk::PipelineStageFlags dst_stage,
 	vk::CommandBuffer buf) {
 	bool temporary_buf = !buf;
 	vk::UniqueCommandBuffer temp_handle;
 
 	if (temporary_buf) {
-		temp_handle = std::move(BeginSingleTimeCommands(pool));
+		temp_handle = std::move(BeginSingleTimeCommands());
 		buf = *temp_handle;
 	}
 
@@ -146,7 +146,7 @@ void Image2D::TransitionImageLayout(const vk::Image& image, vk::ImageAspectFlags
 		EndSingleTimeCommands(buf);
 }
 
-void Image2D::TransitionImageLayout(const vk::Image& image, vk::ImageAspectFlags aspect_flags, vk::ImageLayout old_layout, vk::ImageLayout new_layout, vk::CommandPool pool, vk::CommandBuffer buf) {
+void Image2D::TransitionImageLayout(const vk::Image& image, vk::ImageAspectFlags aspect_flags, vk::ImageLayout old_layout, vk::ImageLayout new_layout, vk::CommandBuffer buf) {
 	vk::PipelineStageFlags src_stage = vk::PipelineStageFlagBits::eNone;
 	vk::PipelineStageFlags dst_stage = vk::PipelineStageFlagBits::eNone;
 	vk::AccessFlags src_access;
@@ -193,7 +193,7 @@ void Image2D::TransitionImageLayout(const vk::Image& image, vk::ImageAspectFlags
 		SNK_BREAK("Unsupported layout transition");
 	}
 
-	TransitionImageLayout(image, aspect_flags, old_layout, new_layout, pool, src_access, dst_access, src_stage, dst_stage, buf);
+	TransitionImageLayout(image, aspect_flags, old_layout, new_layout, src_access, dst_access, src_stage, dst_stage, buf);
 	
 }
 

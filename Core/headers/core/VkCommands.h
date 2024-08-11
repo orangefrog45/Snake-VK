@@ -4,9 +4,9 @@
 
 namespace SNAKE {
 	struct CommandBuffer {
-		void Init(vk::CommandPool pool) {
+		void Init() {
 			vk::CommandBufferAllocateInfo alloc_info{};
-			alloc_info.commandPool = pool;
+			alloc_info.commandPool = VulkanContext::GetCommandPool();
 			alloc_info.level = vk::CommandBufferLevel::ePrimary; // can be submitted to a queue for execution, can't be called by other command buffers
 			alloc_info.commandBufferCount = 1;
 

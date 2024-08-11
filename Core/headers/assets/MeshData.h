@@ -3,15 +3,16 @@
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
 #include "util/Logger.h"
+#include "core/S_VkBuffer.h"
 #include "core/VkCommon.h"
 #include "Asset.h"
 
 namespace SNAKE {
 
+	struct StaticMeshDataAsset : public Asset {
+		StaticMeshDataAsset(uint64_t uuid = 0) : Asset(uuid) {};
 
-
-	struct StaticMeshData {
-		bool ImportFile(const std::string& filepath, vk::CommandPool cmd_pool) {
+		bool ImportFile(const std::string& filepath) {
 			Assimp::Importer importer;
 
 			const aiScene* p_scene = importer.ReadFile(filepath, aiProcess_Triangulate | aiProcess_JoinIdenticalVertices | aiProcess_SortByPType);
@@ -95,10 +96,10 @@ namespace SNAKE {
 			memcpy(p_data_index, indices.data(), indices.size() * sizeof(unsigned));
 			memcpy(p_data_tex_coord, tex_coords.data(), tex_coords.size() * sizeof(aiVector2D));
 
-			CopyBuffer(staging_buf_pos.buffer, position_buf.buffer, num_vertices * sizeof(aiVector3D), cmd_pool);
-			CopyBuffer(staging_buf_norm.buffer, normal_buf.buffer, num_vertices * sizeof(aiVector3D), cmd_pool);
-			CopyBuffer(staging_buf_index.buffer, index_buf.buffer, num_indices * sizeof(unsigned), cmd_pool);
-			CopyBuffer(staging_buf_tex_coord.buffer, tex_coord_buf.buffer, num_vertices * sizeof(aiVector2D), cmd_pool);
+			CopyBuffer(staging_buf_pos.buffer, position_buf.buffer, num_vertices * sizeof(aiVector3D));
+			CopyBuffer(staging_buf_norm.buffer, normal_buf.buffer, num_vertices * sizeof(aiVector3D));
+			CopyBuffer(staging_buf_index.buffer, index_buf.buffer, num_indices * sizeof(unsigned));
+			CopyBuffer(staging_buf_tex_coord.buffer, tex_coord_buf.buffer, num_vertices * sizeof(aiVector2D));
 
 			staging_buf_pos.Unmap();
 			staging_buf_index.Unmap();
@@ -116,7 +117,7 @@ namespace SNAKE {
 
 	class StaticMeshAsset : public Asset {
 	public:
-		std::shared_ptr<StaticMeshData> data;
+		std::shared_ptr<StaticMeshDataAsset> data;
 	private:
 		StaticMeshAsset(uint64_t uuid) : Asset(uuid) {};
 		friend class AssetManager;

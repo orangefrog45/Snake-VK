@@ -3,6 +3,7 @@
 #include <spdlog/sinks/stdout_color_sinks.h>
 
 namespace SNAKE {
+
 	class Logger {
 	public:
 		static void Init();
@@ -20,3 +21,4 @@ namespace SNAKE {
 #define SNK_CORE_WARN(...) SNAKE::Logger::GetCoreLogger()->warn(__VA_ARGS__)
 #define SNK_CORE_ERROR(...) SNAKE::Logger::GetCoreLogger()->error(__VA_ARGS__)
 #define SNK_CORE_CRITICAL(...) SNAKE::Logger::GetCoreLogger()->critical(__VA_ARGS__)
+

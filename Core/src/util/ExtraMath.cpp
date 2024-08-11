@@ -25,6 +25,15 @@ namespace SNAKE {
 		return rot_matrix;
 	}
 
+	glm::vec3 ExtraMath::CartesianToSpherical(glm::vec3 vec) {
+		auto l = vec.length();
+		return { l, atan2f(vec.y, vec.x), acosf(vec.z / l) };
+	}
+
+	glm::vec3 ExtraMath::SphericalToCartesian(float r, float theta, float phi) {
+		return r * glm::vec3{ sinf(phi) * cosf(theta), sinf(phi) * sinf(theta), cosf(phi) };
+	}
+
 	glm::mat3 ExtraMath::Translation2D(float x, float y) {
 		glm::mat3 translation_matrix(
 			1.0f, 0.0f, x,

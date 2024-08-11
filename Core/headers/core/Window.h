@@ -8,6 +8,17 @@
 struct GLFWwindow;
 
 namespace SNAKE {
+	struct WindowContextVK {
+		vk::UniqueSwapchainKHR swapchain;
+
+		std::vector<vk::Image> swapchain_images;
+		std::vector<vk::UniqueImageView> swapchain_image_views;
+
+		vk::Format swapchain_format;
+		vk::Extent2D swapchain_extent;
+		vk::UniqueSurfaceKHR surface;
+	};
+
 	class Window {
 	public:
 		static void InitGLFW();
@@ -19,6 +30,12 @@ namespace SNAKE {
 		void CreateSwapchain();
 		void RecreateSwapChain();
 		void CreateSurface();
+
+		void OnUpdate();
+
+		const WindowContextVK& GetVkContext() {
+			return m_vk_context;
+		}
 
 		Input input;
 	private:
@@ -34,16 +51,7 @@ namespace SNAKE {
 		GLFWwindow* p_window = nullptr;
 
 
-		struct WindowContextVK {
-			vk::UniqueSwapchainKHR swapchain;
-
-			std::vector<vk::Image> swapchain_images;
-			std::vector<vk::UniqueImageView> swapchain_image_views;
-
-			vk::Format swapchain_format;
-			vk::Extent2D swapchain_extent;
-			vk::UniqueSurfaceKHR surface;
-		} m_vk_context;
+		WindowContextVK m_vk_context;
 
 		inline static bool s_glfw_initialized = false;
 

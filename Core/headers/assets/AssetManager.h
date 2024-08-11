@@ -2,6 +2,7 @@
 #include "Asset.h"
 #include "util/util.h"
 #include "core/DescriptorBuffer.h"
+#include "assets/MeshData.h"
 
 namespace SNAKE {
 	class AssetManager {
@@ -11,11 +12,20 @@ namespace SNAKE {
 			return instance;
 		}
 
-		static void Init() { Get().I_Init(); }
+		static void Init(vk::CommandPool pool) { Get().I_Init(pool); }
 		static void Shutdown();
 
 		static void DeleteAsset(Asset* asset);
 		static void DeleteAsset(uint64_t uuid);
+
+		template<std::derived_from<Asset> AssetT>
+		void OnAssetAdd(AssetRef<AssetT> asset) {
+			if constexpr (std::is_same_v<AssetT, StaticMeshDataAsset>) {
+
+			}
+		}
+
+		bool LoadMeshFromFile(AssetRef<StaticMeshDataAsset> mesh_data_asset);
 
 		template<std::derived_from<Asset> AssetT, typename... Args>
 		static AssetRef<AssetT> CreateAsset(uint64_t uuid = 0, Args&&... args) {
@@ -32,6 +42,10 @@ namespace SNAKE {
 
 			return AssetRef<AssetT>(*p_asset);
 		}
+
+		enum CoreAssetIDs {
+			SPHERE_MESH = 1,
+		};
 
 		template<typename T>
 		static AssetRef<T> GetAsset(uint64_t uuid) {
@@ -58,8 +72,8 @@ namespace SNAKE {
 
 
 	private:
-		void LoadCoreAssets();
-		void I_Init();
+		void LoadCoreAssets(vk::CommandPool pool);
+		void I_Init(vk::CommandPool pool);
 
 		void InitGlobalBufferManagers();
 
