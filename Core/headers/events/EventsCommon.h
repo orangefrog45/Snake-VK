@@ -18,8 +18,22 @@ namespace SNAKE {
 		uint32_t new_height = 0;
 	};
 
-	struct FrameStartEvent : public Event {
-		FrameStartEvent(uint8_t idx) : frame_flight_index(idx) { };
-		uint8_t frame_flight_index;
+	struct FrameSyncFenceEvent : public Event {
 	};
+
+	struct FrameStartEvent : public Event {
+	};
+	
+	struct EngineUpdateEvent : public Event {
+
+	};
+
+	struct EngineRenderEvent : public Event {
+
+	};
+
+	struct EngineShutdownEvent : public Event {
+
+	};
+
 }

@@ -22,8 +22,8 @@ add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/extern/assimp)
 
 add_subdirectory(extern/spirv-cross)
 
-add_executable(SNAKE_VK_CORE
-src/main.cpp
+add_library(SNAKE_VK_CORE
+
 "headers/util/util.h"
 "headers/util/Logger.h"
 "src/util/util.cpp"
@@ -38,7 +38,7 @@ src/main.cpp
  "src/util/UUID.cpp" 
  "src/core/Window.cpp" 
  "headers/events/EventsCommon.h" 
- "headers/core/VulkanApp.h" 
+  
  "headers/core/VkCommon.h" 
  "src/core/VkCommon.cpp" 
  "headers/core/VkContext.h" 
@@ -75,7 +75,24 @@ src/main.cpp
  "headers/components/Lights.h"  
  "src/scene/LightBufferSystem.cpp" 
  "src/scene/SceneInfoBufferSystem.cpp"
- "headers/scene/CameraSystem.h" "headers/components/CameraComponent.h" "src/scene/CameraSystem.cpp" "headers/renderpasses/ShadowPass.h" "src/renderpasses/ShadowPass.cpp" "headers/renderpasses/ForwardPass.h" "src/renderpasses/ForwardPass.cpp" "headers/components/MeshComponent.h")
+ "headers/scene/CameraSystem.h" 
+ "headers/components/CameraComponent.h" 
+ "src/scene/CameraSystem.cpp" 
+ "headers/renderpasses/ShadowPass.h" 
+ "src/renderpasses/ShadowPass.cpp" 
+ "headers/renderpasses/ForwardPass.h" 
+ "src/renderpasses/ForwardPass.cpp" 
+ "headers/components/MeshComponent.h" 
+ "headers/core/LayerManager.h" 
+ "headers/core/App.h" 
+ "headers/rendering/VkRenderer.h" 
+ "headers/rendering/VkSceneRenderer.h" 
+ "headers/assets/ResourceBufferManagers.h" 
+ "src/assets/ResourceBufferManagers.cpp"
+ "headers/assets/MaterialAsset.h" 
+ "src/core/DescriptorBuffer.cpp" 
+ "src/core/App.cpp"
+ "src/scene/Scene.cpp" "headers/components/Components.h")
 
 
 target_link_options(SNAKE_VK_CORE PRIVATE -INCREMENTAL -ZI)
@@ -97,7 +114,7 @@ assimp
 spirv-cross-cpp
 )
 
-target_include_directories(SNAKE_VK_CORE PUBLIC
+set(SNAKE_VK_CORE_INCLUDES 
 ${Vulkan_INCLUDE_DIRS}
 headers
 extern/spdlog/include
@@ -108,8 +125,13 @@ extern/vma/include
 extern/assimp/include
 extern/entt/src/
 extern/spirv-cross
+CACHE STRING ""
+)
+target_include_directories(SNAKE_VK_CORE PUBLIC
+${SNAKE_VK_CORE_INCLUDES}
 )
 
-file(COPY ${CMAKE_CURRENT_LIST_DIR}/res/ DESTINATION "${CMAKE_BINARY_DIR}/Core/res")
+set(SNAKE_VK_CORE_RESOURCE_FOLDER ${CMAKE_CURRENT_LIST_DIR}/res/ CACHE STRING "")
+file(COPY ${SNAKE_VK_CORE_RESOURCE_FOLDER} DESTINATION "${CMAKE_BINARY_DIR}/Core/res")
 
 

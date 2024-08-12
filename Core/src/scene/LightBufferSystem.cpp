@@ -15,9 +15,8 @@ namespace SNAKE {
 	constexpr size_t total_light_ssbo_size = directional_light_shader_size + (pointlight_shader_size + spotlight_shader_size) * light_array_size;
 
 	void LightBufferSystem::OnSystemAdd() {
-		m_frame_start_listener.callback = [this](Event const* p_event) {
-			auto* p_casted = dynamic_cast<FrameStartEvent const*>(p_event);
-			UpdateLightSSBO(p_casted->frame_flight_index);
+		m_frame_start_listener.callback = [this]([[maybe_unused]] auto _event ) {
+			UpdateLightSSBO();
 			};
 
 		EventManagerG::RegisterListener<FrameStartEvent>(m_frame_start_listener);
@@ -61,7 +60,8 @@ namespace SNAKE {
 	};
 
 
-	void LightBufferSystem::UpdateLightSSBO(FrameInFlightIndex frame_idx) {
+	void LightBufferSystem::UpdateLightSSBO() {
+		auto frame_idx = VulkanContext::GetCurrentFIF();
 		size_t current_shader_offset = 0;
 		std::byte* p_data = reinterpret_cast<std::byte*>(light_ssbos[frame_idx].Map());
 

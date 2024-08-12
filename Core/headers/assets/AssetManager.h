@@ -2,6 +2,7 @@
 #include "Asset.h"
 #include "util/util.h"
 #include "core/DescriptorBuffer.h"
+#include "assets/ResourceBufferManagers.h"
 #include "assets/MeshData.h"
 
 namespace SNAKE {
@@ -21,7 +22,7 @@ namespace SNAKE {
 		template<std::derived_from<Asset> AssetT>
 		void OnAssetAdd(AssetRef<AssetT> asset) {
 			if constexpr (std::is_same_v<AssetT, StaticMeshDataAsset>) {
-
+				// TODO: add multithreaded loading logic
 			}
 		}
 

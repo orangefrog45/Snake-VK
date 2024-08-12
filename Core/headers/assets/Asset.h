@@ -30,10 +30,10 @@ namespace SNAKE {
 	public:
 		AssetRef() = delete;
 
-		~AssetRef() { p_asset->ref_count--; }
+		~AssetRef() { if (p_asset) p_asset->ref_count--; }
 		AssetRef(AssetT& _asset) : p_asset(&_asset) { p_asset->ref_count++; };
 		AssetRef(AssetT* _asset) : p_asset(_asset) { if (p_asset) p_asset->ref_count++; };
-		AssetRef(const AssetRef& other) : p_asset(other.p_asset) { p_asset->ref_count++; };
+		AssetRef(const AssetRef& other) : p_asset(other.p_asset) { if (p_asset) p_asset->ref_count++; };
 		AssetRef(AssetRef&& other) : p_asset(other.p_asset) { other.p_asset = nullptr; };
 		AssetRef& operator=(const AssetRef& other) {
 			if (this == &other)
@@ -51,6 +51,7 @@ namespace SNAKE {
 			p_asset = _asset;
 			_asset->ref_count++;
 		}
+
 		AssetT* operator->() const {
 			return p_asset;
 		}

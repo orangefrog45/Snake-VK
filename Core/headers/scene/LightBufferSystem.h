@@ -8,7 +8,7 @@ namespace SNAKE {
 	public:
 		void OnSystemAdd() override;
 
-		void UpdateLightSSBO(FrameInFlightIndex frame_idx);
+		void UpdateLightSSBO();
 
 		std::array<DescriptorBuffer, MAX_FRAMES_IN_FLIGHT> light_descriptor_buffers;
 		std::array<S_VkBuffer, MAX_FRAMES_IN_FLIGHT> light_ssbos;

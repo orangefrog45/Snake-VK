@@ -4,6 +4,7 @@
 #include "core/S_VkBuffer.h"
 #include "util/Logger.h"
 #include "util/util.h"
+#include "rendering/VkRenderer.h"
 
 #include "stb_image.h"
 
@@ -30,14 +31,15 @@ void Texture2D::LoadFromFile(const std::string& filepath) {
 	m_spec.size.x = width;
 	m_spec.size.y = height;
 	m_spec.tiling = vk::ImageTiling::eOptimal;
+	m_spec.aspect_flags = vk::ImageAspectFlagBits::eColor;
 
 	CreateImage();
 
-	TransitionImageLayout(m_image, vk::ImageAspectFlagBits::eColor, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal);
+	TransitionImageLayout(vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal);
 	CopyBufferToImage(staging_buffer.buffer, m_image, width, height);
-	TransitionImageLayout(m_image, vk::ImageAspectFlagBits::eColor, vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal);
+	TransitionImageLayout(vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal);
 
-	CreateImageView(vk::ImageAspectFlagBits::eColor);
+	CreateImageView();
 	CreateSampler();
 }
 
@@ -94,7 +96,7 @@ void Image2D::CreateImage(VmaAllocationCreateFlags flags) {
 }
 
 void Image2D::DestroyImage() {
-	if (m_image)
+	if (m_image != VK_NULL_HANDLE)
 		vmaDestroyImage(VulkanContext::GetAllocator(), m_image, m_allocation);
 
 	if (m_sampler)
@@ -117,7 +119,7 @@ std::pair<vk::DescriptorGetInfoEXT, std::shared_ptr<vk::DescriptorImageInfo>> Im
 	return std::make_pair(image_descriptor_info, image_info);
 }
 
-void Image2D::TransitionImageLayout(const vk::Image& image, vk::ImageAspectFlags aspect_flags, vk::ImageLayout old_layout, vk::ImageLayout new_layout,
+void Image2D::TransitionImageLayout(vk::ImageLayout old_layout, vk::ImageLayout new_layout,
 	vk::AccessFlags src_access, vk::AccessFlags dst_access, vk::PipelineStageFlags src_stage, vk::PipelineStageFlags dst_stage,
 	vk::CommandBuffer buf) {
 	bool temporary_buf = !buf;
@@ -133,8 +135,8 @@ void Image2D::TransitionImageLayout(const vk::Image& image, vk::ImageAspectFlags
 	barrier.newLayout = new_layout;
 	barrier.srcQueueFamilyIndex = vk::QueueFamilyIgnored; // Not transfering queue family ownership so leave at ignore
 	barrier.dstQueueFamilyIndex = vk::QueueFamilyIgnored;
-	barrier.image = image;
-	barrier.subresourceRange.aspectMask = aspect_flags;
+	barrier.image = GetImage();
+	barrier.subresourceRange.aspectMask = m_spec.aspect_flags;
 	barrier.subresourceRange.baseMipLevel = 0;
 	barrier.subresourceRange.baseArrayLayer = 0;
 	barrier.subresourceRange.levelCount = 1;
@@ -146,7 +148,7 @@ void Image2D::TransitionImageLayout(const vk::Image& image, vk::ImageAspectFlags
 		EndSingleTimeCommands(buf);
 }
 
-void Image2D::TransitionImageLayout(const vk::Image& image, vk::ImageAspectFlags aspect_flags, vk::ImageLayout old_layout, vk::ImageLayout new_layout, vk::CommandBuffer buf) {
+void Image2D::TransitionImageLayout(vk::ImageLayout old_layout, vk::ImageLayout new_layout, vk::CommandBuffer buf) {
 	vk::PipelineStageFlags src_stage = vk::PipelineStageFlagBits::eNone;
 	vk::PipelineStageFlags dst_stage = vk::PipelineStageFlagBits::eNone;
 	vk::AccessFlags src_access;
@@ -193,16 +195,16 @@ void Image2D::TransitionImageLayout(const vk::Image& image, vk::ImageAspectFlags
 		SNK_BREAK("Unsupported layout transition");
 	}
 
-	TransitionImageLayout(image, aspect_flags, old_layout, new_layout, src_access, dst_access, src_stage, dst_stage, buf);
+	TransitionImageLayout(old_layout, new_layout, src_access, dst_access, src_stage, dst_stage, buf);
 	
 }
 
-void Image2D::CreateImageView(vk::ImageAspectFlags aspect_flags) {
+void Image2D::CreateImageView() {
 	vk::ImageViewCreateInfo info{};
 	info.image = m_image;
 	info.viewType = vk::ImageViewType::e2D;
 	info.format = m_spec.format;
-	info.subresourceRange.aspectMask = aspect_flags;
+	info.subresourceRange.aspectMask = m_spec.aspect_flags;
 	info.subresourceRange.baseMipLevel = 0;
 	info.subresourceRange.baseArrayLayer = 0;
 	info.subresourceRange.levelCount = 1;
@@ -211,4 +213,21 @@ void Image2D::CreateImageView(vk::ImageAspectFlags aspect_flags) {
 	auto [res, view] = VulkanContext::GetLogicalDevice().device->createImageViewUnique(info);
 	SNK_CHECK_VK_RESULT(res);
 	m_view = std::move(view);
+}
+
+FullscreenImage2D::FullscreenImage2D() {
+	m_swapchain_invalidate_listener.callback = [this](Event const* p_event) {
+		auto* p_casted = dynamic_cast<SwapchainInvalidateEvent const*>(p_event);
+		bool has_sampler = static_cast<bool>(m_sampler);
+		bool has_view = static_cast<bool>(m_view);
+		m_spec.size = p_casted->new_swapchain_extents;
+
+		DestroyImage();
+
+		CreateImage();
+		if (has_sampler) CreateSampler();
+		if (has_view) CreateImageView();
+	};
+
+	EventManagerG::RegisterListener<SwapchainInvalidateEvent>(m_swapchain_invalidate_listener);
 }

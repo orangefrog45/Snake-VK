@@ -5,6 +5,8 @@
 
 
 namespace SNAKE {
+	using FrameInFlightIndex = uint8_t;
+
 	struct LogicalDevice {
 		vk::UniqueDevice device;
 
@@ -42,6 +44,10 @@ namespace SNAKE {
 
 		static vk::CommandPool GetCommandPool() {
 			return *Get().m_cmd_pool;
+		}
+
+		static FrameInFlightIndex GetCurrentFIF() {
+			return Get().m_current_frame;
 		}
 
 		static void CreateCommandPool(class Window* p_window);
@@ -88,6 +94,8 @@ namespace SNAKE {
 
 		void ICreateLogicalDevice(vk::SurfaceKHR surface, const std::vector<const char*>& required_device_extensions);
 
+		FrameInFlightIndex m_current_frame = 0;
+
 		vk::UniqueInstance m_instance;
 
 		PhysicalDevice m_physical_device;
@@ -96,5 +104,7 @@ namespace SNAKE {
 		vk::UniqueCommandPool m_cmd_pool;
 
 		VmaAllocator m_allocator{};
+
+		friend class App;
 	};
 }

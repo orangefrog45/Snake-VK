@@ -68,6 +68,11 @@ namespace SNAKE {
 			return { { std::forward<ArrayType>(first),  std::forward<Args>(args)... } };
 		}
 
+		template<typename T>
+		bool VectorContains(T& value, const std::vector<T>& container) {
+			return std::ranges::find(container, value) != container.end();
+		}
+
 
 		/* Type ID Stuff */
 		using TypeID = uint16_t;

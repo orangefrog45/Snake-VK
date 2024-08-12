@@ -50,10 +50,6 @@ namespace SNAKE {
 		m_graphics_pipeline.Init(graphics_builder);
 	}
 
-	void ForwardPass::OnSwapchainInvalidate(glm::vec2 window_dimensions) {
-		m_depth_image.DestroyImage();
-		CreateDepthResources(window_dimensions);
-	}
 
 	void ForwardPass::CreateDepthResources(glm::vec2 window_dimensions) {
 		// Create depth image
@@ -63,20 +59,20 @@ namespace SNAKE {
 		depth_spec.size = { window_dimensions.x, window_dimensions.y };
 		depth_spec.tiling = vk::ImageTiling::eOptimal;
 		depth_spec.usage = vk::ImageUsageFlagBits::eDepthStencilAttachment;
+		depth_spec.aspect_flags = vk::ImageAspectFlagBits::eDepth | (HasStencilComponent(depth_format) ? vk::ImageAspectFlagBits::eStencil : vk::ImageAspectFlagBits::eNone);
 		m_depth_image.SetSpec(depth_spec);
 		m_depth_image.CreateImage();
-		m_depth_image.CreateImageView(vk::ImageAspectFlagBits::eDepth);
+		m_depth_image.CreateImageView() ;
 
-		m_depth_image.TransitionImageLayout(m_depth_image.GetImage(),
-			vk::ImageAspectFlagBits::eDepth | (HasStencilComponent(depth_format) ? vk::ImageAspectFlagBits::eStencil : vk::ImageAspectFlagBits::eNone),
-			vk::ImageLayout::eUndefined,
+		m_depth_image.TransitionImageLayout(vk::ImageLayout::eUndefined,
 			(HasStencilComponent(depth_format) ? vk::ImageLayout::eDepthAttachmentOptimal : vk::ImageLayout::eDepthAttachmentOptimal));
 	}
 
-	void ForwardPass::RecordCommandBuffer(FrameInFlightIndex frame_idx, Window& window, uint32_t image_index, Scene& scene) {
+	void ForwardPass::RecordCommandBuffer(Image2D& output_image, Scene& scene) {
+		auto frame_idx = VulkanContext::GetCurrentFIF();
+
 		m_cmd_buffers[frame_idx].buf->reset();
 
-		auto& window_context = window.GetVkContext();
 		auto cmd_buffer = *m_cmd_buffers[frame_idx].buf;
 
 		vk::CommandBufferBeginInfo begin_info{};
@@ -84,14 +80,13 @@ namespace SNAKE {
 			m_cmd_buffers[frame_idx].buf->begin(&begin_info)
 		);
 
-		Image2D::TransitionImageLayout(window.GetVkContext().swapchain_images[image_index],
-			vk::ImageAspectFlagBits::eColor, vk::ImageLayout::eUndefined,
+		output_image.TransitionImageLayout( vk::ImageLayout::eUndefined,
 			vk::ImageLayout::eColorAttachmentOptimal, *m_cmd_buffers[frame_idx].buf);
 
 		vk::RenderingAttachmentInfo colour_attachment_info{};
 		colour_attachment_info.loadOp = vk::AttachmentLoadOp::eClear; // Clear initially
 		colour_attachment_info.storeOp = vk::AttachmentStoreOp::eStore;
-		colour_attachment_info.imageView = *window_context.swapchain_image_views[image_index];
+		colour_attachment_info.imageView = output_image.GetImageView();
 		colour_attachment_info.imageLayout = vk::ImageLayout::eColorAttachmentOptimal;
 
 		vk::RenderingAttachmentInfo depth_attachment_info{};
@@ -106,7 +101,8 @@ namespace SNAKE {
 		render_info.colorAttachmentCount = 1;
 		render_info.pColorAttachments = &colour_attachment_info;
 		render_info.pDepthAttachment = &depth_attachment_info;
-		render_info.renderArea.extent = window_context.swapchain_extent;
+		auto spec = output_image.GetSpec();
+		render_info.renderArea.extent = vk::Extent2D{ spec.size.x, spec.size.y };
 		render_info.renderArea.offset = vk::Offset2D{ 0, 0 };
 
 		cmd_buffer.beginRenderingKHR(
@@ -119,14 +115,14 @@ namespace SNAKE {
 		vk::Viewport viewport{};
 		viewport.x = 0.0f;
 		viewport.y = 0.0f;
-		viewport.width = static_cast<float>(window_context.swapchain_extent.width);
-		viewport.height = static_cast<float>(window_context.swapchain_extent.height);
+		viewport.width = static_cast<float>(spec.size.x);
+		viewport.height = static_cast<float>(spec.size.y);
 		viewport.minDepth = 0.0f;
 		viewport.maxDepth = 1.0f;
 		cmd_buffer.setViewport(0, 1, &viewport);
 		vk::Rect2D scissor{};
 		scissor.offset = vk::Offset2D{ 0, 0 };
-		scissor.extent = window_context.swapchain_extent;
+		scissor.extent = render_info.renderArea.extent;
 		cmd_buffer.setScissor(0, 1, &scissor);
 
 
@@ -154,8 +150,7 @@ namespace SNAKE {
 
 		cmd_buffer.endRenderingKHR();
 
-		Image2D::TransitionImageLayout(window_context.swapchain_images[image_index],
-			vk::ImageAspectFlagBits::eColor, vk::ImageLayout::eColorAttachmentOptimal,
+		output_image.TransitionImageLayout(vk::ImageLayout::eColorAttachmentOptimal,
 			vk::ImageLayout::ePresentSrcKHR, cmd_buffer);
 
 

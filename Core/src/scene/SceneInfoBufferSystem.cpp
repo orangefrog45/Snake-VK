@@ -8,9 +8,8 @@ namespace SNAKE {
 	void SceneInfoBufferSystem::OnSystemAdd() {
 		constexpr size_t UBO_SIZE = aligned_size(sizeof(glm::mat4) * 2 + sizeof(glm::vec4), 64);
 
-		m_frame_start_listener.callback = [this](Event const* p_event) {
-			auto* p_casted = dynamic_cast<FrameStartEvent const*>(p_event);
-			UpdateUBO(p_casted->frame_flight_index);
+		m_frame_start_listener.callback = [this]([[maybe_unused]] auto _event) {
+			UpdateUBO(VulkanContext::GetCurrentFIF());
 			};
 
 		EventManagerG::RegisterListener<FrameStartEvent>(m_frame_start_listener);

@@ -14,9 +14,9 @@ namespace SNAKE {
 	public:
 		void Init();
 
-		void RecordCommandBuffers(FrameInFlightIndex frame_idx, class Scene* p_scene);
+		void RecordCommandBuffers(class Scene* p_scene);
 
-		vk::CommandBuffer GetCommandBuffer(FrameInFlightIndex idx) { return *m_cmd_buffers[idx].buf; }
+		vk::CommandBuffer GetCommandBuffer() { return *m_cmd_buffers[VulkanContext::GetCurrentFIF()].buf; }
 
 		Image2D m_dir_light_shadow_map;
 	private:

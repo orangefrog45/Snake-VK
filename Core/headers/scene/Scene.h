@@ -67,6 +67,7 @@ namespace SNAKE {
 			delete p_ent;
 		}
 
+		void AddDefaultSystems();
 
 		DirectionalLight directional_light;
 	private:

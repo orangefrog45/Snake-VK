@@ -25,7 +25,7 @@ namespace SNAKE {
 
 	void FramebufferResizeCallback(GLFWwindow* p_window, [[maybe_unused]] int width, [[maybe_unused]] int height) {
 		auto* p_win_obj = reinterpret_cast<Window*>(glfwGetWindowUserPointer(p_window));
-		//p_app->m_framebuffer_resized = true;
+		p_win_obj->m_just_resized = true;
 
 		WindowEvent _event;
 		_event.prev_width = p_win_obj->m_width;
@@ -162,36 +162,31 @@ void Window::CreateSwapchain() {
 	uint32_t swapchain_image_count;
 	SNK_CHECK_VK_RESULT(
 		l_device->getSwapchainImagesKHR(*m_vk_context.swapchain, &swapchain_image_count, nullptr)
-	)
+	);
 
 	m_vk_context.swapchain_images.resize(image_count);
 
-	SNK_CHECK_VK_RESULT(
-		l_device->getSwapchainImagesKHR(*m_vk_context.swapchain, &swapchain_image_count, m_vk_context.swapchain_images.data())
-	)
+	std::vector<vk::Image> temp_images{ swapchain_image_count };
 
+	SNK_CHECK_VK_RESULT(
+		l_device->getSwapchainImagesKHR(*m_vk_context.swapchain, &swapchain_image_count, temp_images.data())
+	);
+
+	Image2DSpec swapchain_spec;
+	swapchain_spec.format = surface_format.format;
+	swapchain_spec.size = { extent.width, extent.height };
+	swapchain_spec.aspect_flags = vk::ImageAspectFlagBits::eColor;
+	swapchain_spec.usage = vk::ImageUsageFlagBits::eColorAttachment;
+
+	for (int i = 0; i < temp_images.size(); i++) {
+		m_vk_context.swapchain_images[i] = std::make_unique<Image2D>(temp_images[i], swapchain_spec);
+		m_vk_context.swapchain_images[i]->CreateImageView();
+	}
 	m_vk_context.swapchain_format = surface_format.format;
 	m_vk_context.swapchain_extent = extent;
 
-	CreateImageViews();
 }
 
-void Window::CreateImageViews() {
-	m_vk_context.swapchain_image_views.resize(m_vk_context.swapchain_images.size());
-
-	for (size_t i = 0; i < m_vk_context.swapchain_images.size(); i++) {
-		vk::ImageViewCreateInfo create_info{ vk::ImageViewCreateFlags{0}, m_vk_context.swapchain_images[i], vk::ImageViewType::e2D, m_vk_context.swapchain_format };
-		create_info.subresourceRange.aspectMask = vk::ImageAspectFlagBits::eColor;
-		create_info.subresourceRange.baseMipLevel = 0;
-		create_info.subresourceRange.levelCount = 1;
-		create_info.subresourceRange.baseArrayLayer = 0;
-		create_info.subresourceRange.layerCount = 1;
-
-		m_vk_context.swapchain_image_views[i] = VulkanContext::GetLogicalDevice().device->createImageViewUnique(create_info).value;
-
-		SNK_ASSERT(m_vk_context.swapchain_image_views[i], "Swapchain image view {0} created", i);
-	}
-}
 
 void Window::RecreateSwapChain() {
 	SNK_CHECK_VK_RESULT(
@@ -200,11 +195,15 @@ void Window::RecreateSwapChain() {
 
 	m_vk_context.swapchain.reset();
 	m_vk_context.swapchain_images.clear();
-	m_vk_context.swapchain_image_views.clear();
-	
 
 	CreateSwapchain();
 }
+
+void Window::OnPresentNeedsResize() {
+	m_just_resized = false;
+	RecreateSwapChain();
+}
+
 
 void Window::CreateSurface() {
 	VkSurfaceKHR surface_temp;

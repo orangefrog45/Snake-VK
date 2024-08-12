@@ -10,14 +10,14 @@ namespace SNAKE {
 		shadow_spec.format = vk::Format::eD16Unorm;
 		shadow_spec.tiling = vk::ImageTiling::eOptimal;
 		shadow_spec.usage = vk::ImageUsageFlagBits::eDepthStencilAttachment | vk::ImageUsageFlagBits::eSampled;
+		shadow_spec.aspect_flags = vk::ImageAspectFlagBits::eDepth;
 
 		m_dir_light_shadow_map.SetSpec(shadow_spec);
 		m_dir_light_shadow_map.CreateImage();
-		m_dir_light_shadow_map.CreateImageView(vk::ImageAspectFlagBits::eDepth);
+		m_dir_light_shadow_map.CreateImageView();
 		m_dir_light_shadow_map.CreateSampler();
 
-		Image2D::TransitionImageLayout(m_dir_light_shadow_map.GetImage(),
-			vk::ImageAspectFlagBits::eDepth, vk::ImageLayout::eUndefined,
+		m_dir_light_shadow_map.TransitionImageLayout(vk::ImageLayout::eUndefined,
 			vk::ImageLayout::eShaderReadOnlyOptimal, vk::AccessFlagBits::eNone,
 			vk::AccessFlagBits::eNone, vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTopOfPipe);
 
@@ -45,15 +45,16 @@ namespace SNAKE {
 		}
 	}
 
-	void ShadowPass::RecordCommandBuffers(FrameInFlightIndex frame_idx, Scene* scene) {
+	void ShadowPass::RecordCommandBuffers(Scene* scene) {
+		auto frame_idx = VulkanContext::GetCurrentFIF();
+
 		m_cmd_buffers[frame_idx].buf->reset();
 
 		auto cmd = *m_cmd_buffers[frame_idx].buf;
 		vk::CommandBufferBeginInfo begin_info{};
 		SNK_CHECK_VK_RESULT(cmd.begin(&begin_info));
 
-		Image2D::TransitionImageLayout(m_dir_light_shadow_map.GetImage(),
-			vk::ImageAspectFlagBits::eDepth, vk::ImageLayout::eShaderReadOnlyOptimal,
+		m_dir_light_shadow_map.TransitionImageLayout( vk::ImageLayout::eShaderReadOnlyOptimal,
 			vk::ImageLayout::eDepthAttachmentOptimal, vk::AccessFlagBits::eShaderRead,
 			vk::AccessFlagBits::eDepthStencilAttachmentWrite, vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eEarlyFragmentTests, cmd);
 
@@ -116,8 +117,7 @@ namespace SNAKE {
 
 		cmd.endRenderingKHR();
 
-		Image2D::TransitionImageLayout(m_dir_light_shadow_map.GetImage(),
-			vk::ImageAspectFlagBits::eDepth, vk::ImageLayout::eDepthAttachmentOptimal,
+		m_dir_light_shadow_map.TransitionImageLayout(vk::ImageLayout::eDepthAttachmentOptimal,
 			vk::ImageLayout::eShaderReadOnlyOptimal, vk::AccessFlagBits::eDepthStencilAttachmentWrite,
 			vk::AccessFlagBits::eShaderRead, vk::PipelineStageFlagBits::eLateFragmentTests, vk::PipelineStageFlagBits::eBottomOfPipe, cmd);
 

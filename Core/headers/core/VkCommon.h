@@ -5,7 +5,6 @@
 #include <optional>
 
 namespace SNAKE {
-	using FrameInFlightIndex = uint8_t;
 	constexpr FrameInFlightIndex MAX_FRAMES_IN_FLIGHT = 2;
 
 	struct QueueFamilyIndices {
