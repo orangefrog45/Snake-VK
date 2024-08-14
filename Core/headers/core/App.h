@@ -1,6 +1,6 @@
 #pragma once
 #include "core/Window.h"
-#include "LayerManager.h"
+#include "layers/LayerManager.h"
 
 
 namespace SNAKE {
@@ -12,9 +12,10 @@ namespace SNAKE {
 		void MainLoop();
 
 		Window window;
-		LayerManager layers;
+		LayerManager layers{ &window };
 	private:
 		vk::UniqueDebugUtilsMessengerEXT m_messenger;
+
 		void CreateDebugCallback();
 	};
 }

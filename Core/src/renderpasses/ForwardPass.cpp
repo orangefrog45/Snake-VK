@@ -150,9 +150,6 @@ namespace SNAKE {
 
 		cmd_buffer.endRenderingKHR();
 
-		output_image.TransitionImageLayout(vk::ImageLayout::eColorAttachmentOptimal,
-			vk::ImageLayout::ePresentSrcKHR, cmd_buffer);
-
 
 		SNK_CHECK_VK_RESULT(
 			cmd_buffer.end()

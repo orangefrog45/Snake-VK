@@ -4,7 +4,7 @@
 #include "events/EventManager.h"
 #include "events/EventsCommon.h"
 #include "assets/Asset.h"
-
+#include <iostream>
 namespace SNAKE {
 
 	class DescriptorSetSpec {
@@ -44,7 +44,7 @@ namespace SNAKE {
 		size_t m_aligned_size = 0;
 		size_t m_size = 0;
 
-		friend struct DescriptorBuffer;
+		friend class DescriptorBuffer;
 	};
 
 	class DescriptorBuffer {

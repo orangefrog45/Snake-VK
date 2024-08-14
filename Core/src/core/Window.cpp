@@ -112,6 +112,16 @@ vk::Extent2D Window::ChooseSwapExtent(const vk::SurfaceCapabilitiesKHR& capabili
 	}
 }
 
+void Window::Shutdown() {
+	for (auto& image : m_vk_context.swapchain_images) {
+		image->DestroyImageView();
+		image->DestroySampler();
+	}
+
+	m_vk_context.swapchain.release();
+	m_vk_context.surface.release();
+}
+
 void Window::CreateSwapchain() {
 	SwapChainSupportDetails swapchain_support = QuerySwapChainSupport(VulkanContext::GetPhysicalDevice().device, *m_vk_context.surface);
 
@@ -193,7 +203,12 @@ void Window::RecreateSwapChain() {
 		VulkanContext::GetLogicalDevice().device->waitIdle()
 	);
 
-	m_vk_context.swapchain.reset();
+	for (auto& image : m_vk_context.swapchain_images) {
+		image->DestroyImageView();
+		image->DestroySampler();
+	}
+
+	m_vk_context.swapchain.release();
 	m_vk_context.swapchain_images.clear();
 
 	CreateSwapchain();
@@ -209,7 +224,7 @@ void Window::CreateSurface() {
 	VkSurfaceKHR surface_temp;
 
 	auto res = vk::Result(glfwCreateWindowSurface(*VulkanContext::GetInstance(), p_window, nullptr, &surface_temp));
-	m_vk_context.surface = vk::UniqueSurfaceKHR{ surface_temp };
+	m_vk_context.surface = vk::UniqueSurfaceKHR{ surface_temp, *VulkanContext::GetInstance()};
 	SNK_CHECK_VK_RESULT(res);
 }
 

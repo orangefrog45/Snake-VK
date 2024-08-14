@@ -1,6 +1,8 @@
 #include "EditorLayer.h"
 #include "components/Components.h"
 #include "rendering/VkRenderer.h"
+#include "imgui.h"
+
 
 using namespace SNAKE;
 
@@ -44,10 +46,11 @@ void EditorLayer::OnUpdate() {
 void EditorLayer::OnRender() {
 	uint32_t image_index;
 	vk::Semaphore image_avail_semaphore = VkRenderer::AcquireNextSwapchainImage(*p_window, image_index);
-	vk::Semaphore present_wait_semaphore = renderer.RenderScene(&scene, *p_window->GetVkContext().swapchain_images[image_index], image_avail_semaphore);
-	VkRenderer::PresentImage(*p_window, 1, &present_wait_semaphore, image_index);
+	renderer.RenderScene(&scene, *p_window->GetVkContext().swapchain_images[image_index], image_avail_semaphore);
 }
 
-void EditorLayer::OnImGuiRender() {}
+void EditorLayer::OnImGuiRender() {
+	ImGui::ShowDemoWindow();
+}
 
 void EditorLayer::OnShutdown() {}

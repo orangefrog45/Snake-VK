@@ -18,9 +18,6 @@ namespace SNAKE {
 			return *this;
 		}
 
-		// For filling in empty descriptor sets
-		inline static DescriptorSetSpec null_spec;
-
 		vk::PipelineLayoutCreateInfo pipeline_layout_info;
 		std::vector<vk::PushConstantRange> push_constants;
 		std::map<uint32_t, std::shared_ptr<DescriptorSetSpec>> descriptor_set_layouts;

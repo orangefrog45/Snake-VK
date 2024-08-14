@@ -11,14 +11,14 @@ namespace SNAKE {
 
 			unsigned highest_idx = last->first;
 
-			if (!null_spec.GetLayout())
-				null_spec.GenDescriptorLayout();
-
 			for (unsigned current_idx = 0; current_idx <= highest_idx; current_idx++) {
 				if (descriptor_set_layouts.contains(current_idx))
 					built_set_layouts.push_back(descriptor_set_layouts[current_idx]->GetLayout());
-				else
-					built_set_layouts.push_back(null_spec.GetLayout());
+				else {
+					descriptor_set_layouts[current_idx] = std::make_shared<DescriptorSetSpec>();
+					descriptor_set_layouts[current_idx]->GenDescriptorLayout();
+					built_set_layouts.push_back(descriptor_set_layouts[current_idx]->GetLayout());
+				}
 			}
 		}
 

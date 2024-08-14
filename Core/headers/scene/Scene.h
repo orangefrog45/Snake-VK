@@ -56,6 +56,10 @@ namespace SNAKE {
 			while (!m_entities.empty()) {
 				DeleteEntity(m_entities[0]);
 			}
+			while (!m_systems.empty()) {
+				delete m_systems.begin()->second;
+				m_systems.erase(m_systems.begin());
+			}
 		}
 
 		void DeleteEntity(Entity* p_ent) {

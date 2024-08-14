@@ -76,6 +76,13 @@ namespace SNAKE {
 		VulkanContext(const VulkanContext& other) = delete;
 		VulkanContext()=default;
 
+		~VulkanContext() {
+			vmaDestroyAllocator(m_allocator);
+			m_cmd_pool.release();
+			m_instance.release();
+			m_device.device.release();
+		}
+
 		void I_InitVMA() {
 			VmaAllocatorCreateInfo alloc_info{};
 			alloc_info.device = *m_device.device;

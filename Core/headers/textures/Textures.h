@@ -48,6 +48,14 @@ namespace SNAKE {
 
 		void CreateImageView();
 
+		void DestroyImageView() {
+			m_view.release();
+		}
+
+		void DestroySampler() {
+			m_sampler.release();
+		}
+
 		void CreateSampler();
 
 		std::pair<vk::DescriptorGetInfoEXT, std::shared_ptr<vk::DescriptorImageInfo>> CreateDescriptorGetInfo(vk::ImageLayout layout) const;

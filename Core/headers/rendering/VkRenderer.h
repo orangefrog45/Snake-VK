@@ -1,6 +1,7 @@
 #pragma once
 #include "core/Window.h"
 #include "util/util.h"
+#include "core/VkCommands.h"
 
 namespace SNAKE {
 	struct SwapchainInvalidateEvent : public Event {
@@ -16,45 +17,50 @@ namespace SNAKE {
 		}
 
 		static void Init() {
-			vk::SemaphoreCreateInfo semaphore_info{};
-
-			for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-				Get().m_image_avail_semaphores.push_back(std::move(VulkanContext::GetLogicalDevice().device->createSemaphoreUnique(semaphore_info).value));
-			}
-
-			SNK_ASSERT(Get().m_image_avail_semaphores[0]);
+			Get().InitImpl();
 		}
 
-
+		// Resulting swapchain image index is written into image_index
 		static vk::Semaphore AcquireNextSwapchainImage(Window& window, uint32_t& image_index) {
-			SNK_CHECK_VK_RESULT(VulkanContext::GetLogicalDevice().device->acquireNextImageKHR(*window.GetVkContext().swapchain, UINT64_MAX, 
-				*Get().m_image_avail_semaphores[VulkanContext::GetCurrentFIF()], VK_NULL_HANDLE, &image_index));
-
-			return *Get().m_image_avail_semaphores[VulkanContext::GetCurrentFIF()];
+			return Get().AcquireNextSwapchainImageImpl(window, image_index);
 		}
 
-		static void PresentImage(Window& window, uint32_t num_semaphores, vk::Semaphore* signal_semaphores, uint32_t image_index) {
-			auto swapchains = util::array(*window.GetVkContext().swapchain);
-
-			vk::PresentInfoKHR present_info{};
-			present_info.waitSemaphoreCount = num_semaphores;
-			present_info.pWaitSemaphores = signal_semaphores;
-			present_info.swapchainCount = 1;
-			present_info.pSwapchains = swapchains.data();
-			present_info.pImageIndices = &image_index;
-
-			// Queue presentation work that waits on the render_finished semaphore
-			auto present_result = VulkanContext::GetLogicalDevice().presentation_queue.presentKHR(present_info);
-			if (present_result == vk::Result::eErrorOutOfDateKHR || window.WasJustResized() || present_result == vk::Result::eSuboptimalKHR) {
-				window.OnPresentNeedsResize();
-				EventManagerG::DispatchEvent(SwapchainInvalidateEvent{ {window.GetWidth(), window.GetHeight()} });
-			}
-			else if (present_result != vk::Result::eSuccess) {
-				SNK_BREAK("Failed to present image");
+		static void Shutdown() {
+			for (FrameInFlightIndex i = 0; i < Get().m_in_flight_fences.size(); i++) {
+				SNK_CHECK_VK_RESULT(VulkanContext::GetLogicalDevice().device->waitForFences(1, &*Get().m_in_flight_fences[i], VK_TRUE, UINT64_MAX));
+				SNK_CHECK_VK_RESULT(VulkanContext::GetLogicalDevice().device->resetFences(1, &*Get().m_in_flight_fences[i]));
 			}
 		}
 
+		static uint32_t GetCurrentSwapchainImageIndex() {
+			return Get().m_current_swapchain_image_index;
+		}
+
+		// render_image should be in layout "ColorAttachmentOptimal" and have an image view
+		// This function also triggers the frame fence and so should always be called last after all renderpasses
+		static void RenderImGuiAndPresent(Window& window, Image2D& render_image, glm::vec2 render_dimensions) {
+			Get().RenderImGuiAndPresentImpl(window, render_image, render_dimensions);
+		}
+
+
+		inline static constexpr uint32_t READY_TO_REACQUIRE_SWAPCHAIN_IDX = std::numeric_limits<uint32_t>::max();
 	private:
+		static void PresentImage(Window& window, vk::Semaphore wait_semaphore);
+
+		void InitImpl();
+
+		void RenderImGuiAndPresentImpl(Window& window, Image2D& render_image, glm::vec2 render_dimensions);
+
+		vk::Semaphore AcquireNextSwapchainImageImpl(Window& window, uint32_t& image_index);
+
+		uint32_t m_current_swapchain_image_index = READY_TO_REACQUIRE_SWAPCHAIN_IDX;
+
+		std::array<vk::UniqueFence, MAX_FRAMES_IN_FLIGHT> m_in_flight_fences;
+		std::array<CommandBuffer, MAX_FRAMES_IN_FLIGHT> imgui_cmd_buffers;
+		std::array<vk::UniqueSemaphore, MAX_FRAMES_IN_FLIGHT> m_render_finished_semaphores;
+
+		EventListener m_fence_sync_listener;
+
 		std::vector<vk::UniqueSemaphore> m_image_avail_semaphores;
 	};
 

@@ -11,8 +11,6 @@ namespace SNAKE {
 
 		void RecordCommandBuffer(Image2D& output_image, class Scene& scene);
 
-		void Render();
-
 		vk::CommandBuffer GetCommandBuffer() {
 			return *m_cmd_buffers[VulkanContext::GetCurrentFIF()].buf;
 		}

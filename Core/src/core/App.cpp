@@ -6,8 +6,12 @@
 
 #include "assets/AssetManager.h"
 #include "core/App.h"
-#include "core/LayerManager.h"
 #include "rendering/VkRenderer.h"
+
+#define IMGUI_IMPL_VULKAN_HAS_DYNAMIC_RENDERING
+#include "imgui.h"
+#include "backends/imgui_impl_vulkan.h"
+#include "backends/imgui_impl_glfw.h"
 
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
@@ -44,6 +48,8 @@ void App::Init(const char* app_name) {
 	window.CreateSwapchain();
 	VulkanContext::CreateCommandPool(&window);
 
+	
+
 	AssetManager::Init(VulkanContext::GetCommandPool());
 	VkRenderer::Init();
 
@@ -66,15 +72,25 @@ void App::MainLoop() {
 		layers.OnRender();
 		EventManagerG::DispatchEvent(EngineRenderEvent{ });
 
+		layers.OnImGuiRender();
+
 		VulkanContext::Get().m_current_frame = (VulkanContext::Get().m_current_frame + 1) % MAX_FRAMES_IN_FLIGHT;
 	}
 
+	VulkanContext::GetLogicalDevice().device->waitIdle();
+	VkRenderer::Shutdown();
+	layers.ShutdownLayers();
+	EventManagerG::DispatchEvent(EngineShutdownEvent{ });
+	window.Shutdown();
+	AssetManager::Shutdown();
+	
+
 	glfwTerminate();
+	VulkanContext::GetLogicalDevice().device->waitIdle();
+
 }
 
 App::~App() {
-	layers.ShutdownLayers();
-	EventManagerG::DispatchEvent(EngineShutdownEvent{ });
 }
 
 void App::CreateDebugCallback() {

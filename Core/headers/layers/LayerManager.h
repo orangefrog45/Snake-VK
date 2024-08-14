@@ -1,8 +1,11 @@
 #pragma once
 #include "util/util.h"
 
+#include "core/Window.h"
 namespace SNAKE {
 	struct Layer {
+		virtual ~Layer() = default;
+
 		virtual void OnInit() = 0;
 		virtual void OnUpdate() = 0;
 		virtual void OnRender() = 0;
@@ -10,8 +13,11 @@ namespace SNAKE {
 		virtual void OnShutdown() = 0;
 	};
 
+
 	class LayerManager {
 	public:
+		LayerManager(class Window* _window) : mp_window(_window) {};
+
 		void PushLayer(Layer* p_layer) {
 			SNK_ASSERT(!util::VectorContains(p_layer, m_layers));
 			m_layers.push_back(p_layer);
@@ -28,17 +34,15 @@ namespace SNAKE {
 			m_layers.erase(it);
 		}
 
-		void InitLayers() {
-			for (auto* p_layer : m_layers) {
-				p_layer->OnInit();
-			}
-		}
+		void InitLayers();
 
 		void OnUpdate() {
 			for (auto* p_layer : m_layers) {
 				p_layer->OnUpdate();
 			}
 		}
+
+		void OnImGuiRender();
 
 		void OnRender() {
 			for (auto* p_layer : m_layers) {
@@ -49,10 +53,16 @@ namespace SNAKE {
 		void ShutdownLayers() {
 			for (auto* p_layer : m_layers) {
 				p_layer->OnShutdown();
+				delete p_layer;
 			}
+
+			m_layers.clear();
 		}
 
 	private:
+		class Window* mp_window = nullptr;
+		class ImGuiLayer* mp_imgui_layer = nullptr;
+
 		std::vector<Layer*> m_layers;
 	};
 }

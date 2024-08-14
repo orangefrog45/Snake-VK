@@ -12,13 +12,13 @@ namespace SNAKE {
 	struct StaticMeshDataAsset : public Asset {
 		StaticMeshDataAsset(uint64_t uuid = 0) : Asset(uuid) {};
 
-		bool ImportFile(const std::string& filepath) {
+		bool ImportFile(const std::string& t_filepath) {
 			Assimp::Importer importer;
 
-			const aiScene* p_scene = importer.ReadFile(filepath, aiProcess_Triangulate | aiProcess_JoinIdenticalVertices | aiProcess_SortByPType);
+			const aiScene* p_scene = importer.ReadFile(t_filepath, aiProcess_Triangulate | aiProcess_JoinIdenticalVertices | aiProcess_SortByPType);
 
 			if (!p_scene) {
-				SNK_CORE_ERROR("Failed to import mesh from filepath '{}' : '{}'", filepath, importer.GetErrorString());
+				SNK_CORE_ERROR("Failed to import mesh from filepath '{}' : '{}'", t_filepath, importer.GetErrorString());
 				return false;
 			}
 

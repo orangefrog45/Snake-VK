@@ -1,3 +1,14 @@
+14/8/24:
+-ImGui integration
+-Restructured render pipeline to integrate layers better
+-Fixed application clean-up
+
+12/8/24:
+-Restructured engine into "core" (library) and "editor" (exe) module
+-Layer manager
+-Scene renderer for rendering scenes, VkRenderer for rendering utilities
+
+
 11/8/24:
 -Pointlights, spotlights, PBR
 -Created modular renderpasses

@@ -197,7 +197,7 @@ namespace SNAKE {
 			m_key_states[static_cast<Key>(key)] = static_cast<InputType>(action);
 		}
 
-		void MouseCallback(int button, int action, int mods) {
+		void MouseCallback(int button, int action, [[maybe_unused]] int mods) {
 			auto& state = m_mouse_states[static_cast<MouseButton>(button)];
 			if (action != MOVE) {
 				state = static_cast<InputType>(action);

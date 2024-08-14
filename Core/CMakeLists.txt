@@ -3,6 +3,8 @@ cmake_minimum_required(VERSION 3.8)
 project(SNAKE_VK_CORE)
 
 
+
+
 find_package(Vulkan REQUIRED)
 find_library(SHADERC_LIB shaderc_combined $ENV{VULKAN_SDK}/Lib)
 add_subdirectory(extern/vma SYSTEM)
@@ -21,6 +23,24 @@ set(ASSIMP_INSTALL OFF CACHE BOOL "" FORCE)
 add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/extern/assimp)
 
 add_subdirectory(extern/spirv-cross)
+
+# IMGUI --------------------------------------
+add_library(imgui
+    extern/imgui/imgui.cpp
+    extern/imgui/imgui_demo.cpp
+    extern/imgui/imgui_draw.cpp
+    extern/imgui/backends/imgui_impl_glfw.cpp
+    extern/imgui/backends/imgui_impl_vulkan.cpp
+    extern/imgui/misc/cpp/imgui_stdlib.cpp
+    extern/imgui/imgui_tables.cpp
+    extern/imgui/imgui_widgets.cpp
+)
+target_include_directories(imgui PUBLIC 
+extern/imgui
+${Vulkan_INCLUDE_DIRS}
+extern/glfw/include
+)
+# ------------------------------------------
 
 add_library(SNAKE_VK_CORE
 
@@ -83,7 +103,7 @@ add_library(SNAKE_VK_CORE
  "headers/renderpasses/ForwardPass.h" 
  "src/renderpasses/ForwardPass.cpp" 
  "headers/components/MeshComponent.h" 
- "headers/core/LayerManager.h" 
+ "headers/layers/LayerManager.h" 
  "headers/core/App.h" 
  "headers/rendering/VkRenderer.h" 
  "headers/rendering/VkSceneRenderer.h" 
@@ -92,7 +112,7 @@ add_library(SNAKE_VK_CORE
  "headers/assets/MaterialAsset.h" 
  "src/core/DescriptorBuffer.cpp" 
  "src/core/App.cpp"
- "src/scene/Scene.cpp" "headers/components/Components.h")
+ "src/scene/Scene.cpp" "headers/components/Components.h" "src/rendering/VkRenderer.cpp" "headers/layers/ImGuiLayer.h" "src/layers/LayerManager.cpp" "src/layers/ImGuiLayer.cpp")
 
 
 target_link_options(SNAKE_VK_CORE PRIVATE -INCREMENTAL -ZI)
@@ -112,6 +132,7 @@ spdlog::spdlog
 glfw
 assimp
 spirv-cross-cpp
+imgui
 )
 
 set(SNAKE_VK_CORE_INCLUDES 
@@ -125,6 +146,7 @@ extern/vma/include
 extern/assimp/include
 extern/entt/src/
 extern/spirv-cross
+extern/imgui
 CACHE STRING ""
 )
 target_include_directories(SNAKE_VK_CORE PUBLIC

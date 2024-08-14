@@ -32,6 +32,8 @@ namespace SNAKE {
 
 		void OnPresentNeedsResize();
 
+		void Shutdown();
+
 		GLFWwindow* GetGLFWwindow() {
 			return p_window;
 		}

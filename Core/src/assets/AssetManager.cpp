@@ -43,6 +43,7 @@ namespace SNAKE {
 
 		while (!assets.empty()) {
 			DeleteAsset(assets.begin()->second);
+			assets.erase(assets.begin());
 		}
 	}
 

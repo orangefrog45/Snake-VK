@@ -136,6 +136,8 @@ void Image2D::TransitionImageLayout(vk::ImageLayout old_layout, vk::ImageLayout 
 	barrier.srcQueueFamilyIndex = vk::QueueFamilyIgnored; // Not transfering queue family ownership so leave at ignore
 	barrier.dstQueueFamilyIndex = vk::QueueFamilyIgnored;
 	barrier.image = GetImage();
+	barrier.srcAccessMask = src_access;
+	barrier.dstAccessMask = dst_access;
 	barrier.subresourceRange.aspectMask = m_spec.aspect_flags;
 	barrier.subresourceRange.baseMipLevel = 0;
 	barrier.subresourceRange.baseArrayLayer = 0;

@@ -1,5 +1,5 @@
 #pragma once
-#include "Core/LayerManager.h"
+#include "layers/LayerManager.h"
 #include "scene/Scene.h"
 #include "rendering/VkSceneRenderer.h"
 
@@ -21,5 +21,6 @@ namespace SNAKE {
 		VkSceneRenderer renderer;
 
 		Window* p_window = nullptr;
+
 	};
 }
