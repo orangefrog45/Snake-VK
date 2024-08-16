@@ -11,7 +11,6 @@ using namespace SNAKE;
 void ImGuiLayer::OnInit() {
 	IMGUI_CHECKVERSION();
 	ImGui::CreateContext();
-	ImGui::StyleColorsDark();
 
 	ImGui_ImplGlfw_InitForVulkan(mp_window->GetGLFWwindow(), true);
 
@@ -52,6 +51,8 @@ void ImGuiLayer::OnInit() {
 
 	ImGui_ImplVulkan_Init(&init_info);
 	ImGui_ImplVulkan_CreateFontsTexture();
+	ImGui::StyleColorsDark();
+
 };
 
 

@@ -1,14 +1,15 @@
 #pragma once
+#include "EntityEditor.h"
 #include "layers/LayerManager.h"
-#include "scene/Scene.h"
 #include "rendering/VkSceneRenderer.h"
+#include "scene/Scene.h"
 
 namespace SNAKE {
 	class Window;
 
 	class EditorLayer : public Layer {
 	public:
-		EditorLayer(Window* _window) : p_window(_window) {};
+		EditorLayer(Window* _window) : p_window(_window), ent_editor(&scene) {};
 		void OnInit() override;
 		void OnUpdate() override;
 		void OnRender() override;
@@ -17,6 +18,11 @@ namespace SNAKE {
 	private:
 		Scene scene;
 		Entity* p_cam_ent = nullptr;
+
+		// Entities which nodes have been opened in the entity viewer panel, revealing their children
+		std::unordered_set<Entity*> open_entity_nodes;
+
+		EntityEditor ent_editor;
 
 		VkSceneRenderer renderer;
 

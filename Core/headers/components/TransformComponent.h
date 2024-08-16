@@ -11,22 +11,15 @@ namespace SNAKE {
 	public:
 		TransformComponent(class Entity* p_entity = nullptr) : Component(p_entity) {};
 
-		void SetScale(float scaleX, float scaleY, float scaleZ) {
+		inline void SetScale(float scaleX, float scaleY, float scaleZ) {
 			SetScale({ scaleX, scaleY, scaleZ });
 		}
 
-		void SetAbsoluteScale(glm::vec3 scale) {
+		inline void SetAbsoluteScale(glm::vec3 scale) {
 			SetScale(scale / (m_abs_scale / m_scale));
 		}
 
-		inline void SetAbsolutePosition(glm::vec3 pos) {
-			glm::vec3 final_pos = pos;
-			if (GetParent() && !m_is_absolute) {
-				final_pos = glm::inverse(GetParent()->GetMatrix()) * glm::vec4(pos, 1.0);
-			}
-
-			SetPosition(final_pos);
-		}
+		void SetAbsolutePosition(glm::vec3 pos);
 
 		inline void SetAbsoluteOrientation(glm::vec3 orientation) {
 			SetOrientation(orientation - (m_abs_orientation - m_orientation));
@@ -82,9 +75,6 @@ namespace SNAKE {
 		// Returns inherited position([0]), scale([1]), rotation ([2]) including this components transforms.
 		std::tuple<glm::vec3, glm::vec3, glm::vec3> GetAbsoluteTransforms() { return std::make_tuple(m_abs_pos, m_abs_scale, m_abs_orientation); }
 
-		// TODO: Implement parenting
-		TransformComponent* GetParent();
-
 		const glm::mat4x4& GetMatrix() const { return m_transform; };
 
 		glm::vec3 GetPosition() const { return m_pos; };
@@ -108,7 +98,9 @@ namespace SNAKE {
 	private:
 		void UpdateAbsTransforms();
 
-		entt::entity m_parent_handle = entt::null;
+		class TransformSystem* mp_system = nullptr;
+		friend class TransformSystem;
+
 		// If true, transform will not take parent transforms into account when building matrix.
 		bool m_is_absolute = false;
 

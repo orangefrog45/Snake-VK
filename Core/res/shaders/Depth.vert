@@ -13,6 +13,6 @@ layout(push_constant) uniform pc {
 layout(location = 0) out vec3 out_normal;
 
 void main() {
-    out_normal = in_normal;
+    out_normal = transpose(inverse(mat3(push.transform))) * in_normal;
     gl_Position = ssbo_light_data.dir_light.light_transform * push.transform * vec4(in_position, 1.0);
 }

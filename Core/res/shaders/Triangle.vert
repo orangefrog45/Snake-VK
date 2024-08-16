@@ -23,6 +23,6 @@ void main() {
 
     gl_Position = common_ubo.proj * common_ubo.view * vec4(world_pos, 1.0);
     vs_tex_coord = in_tex_coord;
-    vs_normal = in_normal;
+    vs_normal = transpose(inverse(mat3(push.transform))) * in_normal;
     vs_col = vec3(1);
 }

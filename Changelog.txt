@@ -1,3 +1,9 @@
+16/8/24:
+-Transform system with entity parenting
+-Improvements to entity viewer panel, supports parent/child view
+-Reduced vertex/index buffer binding
+-Fixed shader normals
+
 14/8/24:
 -ImGui integration
 -Restructured render pipeline to integrate layers better

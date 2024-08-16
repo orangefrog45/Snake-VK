@@ -112,7 +112,7 @@ add_library(SNAKE_VK_CORE
  "headers/assets/MaterialAsset.h" 
  "src/core/DescriptorBuffer.cpp" 
  "src/core/App.cpp"
- "src/scene/Scene.cpp" "headers/components/Components.h" "src/rendering/VkRenderer.cpp" "headers/layers/ImGuiLayer.h" "src/layers/LayerManager.cpp" "src/layers/ImGuiLayer.cpp")
+ "src/scene/Scene.cpp" "headers/components/Components.h" "src/rendering/VkRenderer.cpp" "headers/layers/ImGuiLayer.h" "src/layers/LayerManager.cpp" "src/layers/ImGuiLayer.cpp" "src/scene/Entity.cpp" "src/scene/TransformSystem.cpp" "headers/scene/TransformSystem.h")
 
 
 target_link_options(SNAKE_VK_CORE PRIVATE -INCREMENTAL -ZI)

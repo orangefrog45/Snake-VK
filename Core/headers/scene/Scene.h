@@ -17,6 +17,8 @@ namespace SNAKE {
 		Entity* CreateEntity() {
 			Entity* p_ent = new Entity(this, m_registry.create(), &m_registry, UUID<uint64_t>()());
 			p_ent->AddComponent<TransformComponent>();
+			p_ent->AddComponent<TagComponent>();
+			p_ent->AddComponent<RelationshipComponent>();
 
 			m_entities.push_back(p_ent);
 			return p_ent;
@@ -61,6 +63,12 @@ namespace SNAKE {
 				m_systems.erase(m_systems.begin());
 			}
 		}
+
+		const std::vector<Entity*>& GetEntities() {
+			return m_entities;
+		}
+
+		Entity* GetEntity(entt::entity handle);
 
 		void DeleteEntity(Entity* p_ent) {
 			m_registry.destroy(p_ent->m_entt_handle);
