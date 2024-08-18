@@ -25,3 +25,6 @@
 [submodule "Core/extern/imgui"]
 	path = Core/extern/imgui
 	url = https://github.com/ocornut/imgui
+[submodule "Core/extern/json"]
+	path = Core/extern/json
+	url = https://github.com/nlohmann/json

@@ -1,8 +1,8 @@
 #include "pch/pch.h"
 #include "core/VkContext.h"
 #include "core/VkCommon.h"
-#include "util/util.h"
 #include "core/Window.h"
+#include "util/util.h"
 
 using namespace SNAKE;
 
@@ -32,7 +32,7 @@ void VulkanContext::IPickPhysicalDevice(vk::SurfaceKHR surface, const std::vecto
 	device_properties.pNext = &m_physical_device.buffer_properties;
 	m_physical_device.device.getProperties2(&device_properties);
 
-	SNK_ASSERT(m_physical_device.device, "Physical device created");
+	SNK_ASSERT(m_physical_device.device);
 }
 
 
@@ -44,7 +44,7 @@ void VulkanContext::CreateCommandPool(Window* p_window) {
 	pool_info.queueFamilyIndex = qf_indices.graphics_family.value();
 
 	Get().m_cmd_pool = VulkanContext::GetLogicalDevice().device->createCommandPoolUnique(pool_info).value;
-	SNK_ASSERT(Get().m_cmd_pool, "Command pool created");
+	SNK_ASSERT(Get().m_cmd_pool);
 }
 
 
@@ -109,7 +109,7 @@ void VulkanContext::ICreateLogicalDevice(vk::SurfaceKHR surface, const std::vect
 
 
 	m_device.device = m_physical_device.device.createDeviceUnique(device_create_info, nullptr, VULKAN_HPP_DEFAULT_DISPATCHER).value;
-	SNK_ASSERT(m_device.device, "Logical device creation");
+	SNK_ASSERT(m_device.device);
 
 	m_device.graphics_queue = m_device.device->getQueue(indices.graphics_family.value(), 0, VULKAN_HPP_DEFAULT_DISPATCHER);
 	m_device.presentation_queue = m_device.device->getQueue(indices.present_family.value(), 0, VULKAN_HPP_DEFAULT_DISPATCHER);
@@ -117,7 +117,7 @@ void VulkanContext::ICreateLogicalDevice(vk::SurfaceKHR surface, const std::vect
 
 void VulkanContext::ICreateInstance(const char* app_name) {
 	std::vector<const char*> layers = {
-		//"VK_LAYER_KHRONOS_validation"
+		"VK_LAYER_KHRONOS_validation"
 	};
 
 	std::vector<const char*> extensions = {

@@ -7,7 +7,7 @@ project(SNAKE_VK_CORE)
 
 
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MDd /MP /bigobj" CACHE INTERNAL "" FORCE)
-set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /MD /MP /O2 /j12" CACHE INTERNAL "" FORCE)
+set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /MD /MP /O2" CACHE INTERNAL "" FORCE)
 
 add_subdirectory("Core")
 add_subdirectory("Editor")
@@ -15,3 +15,4 @@ add_subdirectory("Editor")
 if(MSVC)
     target_compile_options(SNAKE_VK_CORE PRIVATE /W4)
 endif()
+

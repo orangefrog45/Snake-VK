@@ -23,7 +23,7 @@
       "cmakeCommandArgs": "",
       "buildCommandArgs": "",
       "ctestCommandArgs": "",
-      "inheritEnvironments": [ "msvc_x64_x64" ],
+      "inheritEnvironments": [ "msvc_x64" ],
       "enableClangTidyCodeAnalysis": true,
       "enableMicrosoftCodeAnalysis": true,
       "clangTidyChecks": "llvm-include-order, -modernize-use-override"

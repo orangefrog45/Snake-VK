@@ -125,7 +125,7 @@ namespace SNAKE {
 			vk::ImageTiling::eOptimal, vk::FormatFeatureFlagBits::eDepthStencilAttachment);
 	}
 
-	static VKAPI_ATTR vk::Bool32 VKAPI_CALL DebugCallback(
+	inline static VKAPI_ATTR vk::Bool32 VKAPI_CALL DebugCallback(
 		VkDebugUtilsMessageSeverityFlagBitsEXT severity,
 		VkDebugUtilsMessageTypeFlagsEXT type,
 		const VkDebugUtilsMessengerCallbackDataEXT* p_callback_data,

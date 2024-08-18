@@ -13,8 +13,6 @@ namespace SNAKE {
 
 		// Returns semaphore to wait on before presenting image
 		void RenderScene(class Scene* p_scene, Image2D& output_image, vk::Semaphore forward_wait_semaphore) {
-			auto frame_idx = VulkanContext::GetCurrentFIF();
-
 			m_shadow_pass.RecordCommandBuffers(p_scene);
 			m_forward_pass.RecordCommandBuffer(output_image, *p_scene);
 

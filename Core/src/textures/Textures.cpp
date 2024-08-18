@@ -1,10 +1,10 @@
+#include "core/S_VkBuffer.h"
 #include "core/VkCommon.h"
 #include "core/VkContext.h"
+#include "rendering/VkRenderer.h"
 #include "textures/Textures.h"
-#include "core/S_VkBuffer.h"
 #include "util/Logger.h"
 #include "util/util.h"
-#include "rendering/VkRenderer.h"
 
 #include "stb_image.h"
 
@@ -126,7 +126,7 @@ void Image2D::TransitionImageLayout(vk::ImageLayout old_layout, vk::ImageLayout 
 	vk::UniqueCommandBuffer temp_handle;
 
 	if (temporary_buf) {
-		temp_handle = std::move(BeginSingleTimeCommands());
+		temp_handle = BeginSingleTimeCommands();
 		buf = *temp_handle;
 	}
 

@@ -1,10 +1,12 @@
 #pragma once
-#include "util/util.h"
-#include "util/FileUtil.h"
+#include <spirv_cross.hpp>
+
 #include "core/VkIncl.h"
 #include "core/VkContext.h"
-#include "spirv_cross.hpp"
 #include "core/Pipelines.h"
+#include "util/util.h"
+#include "util/FileUtil.h"
+
 
 namespace SNAKE {
 	class ShaderLibrary {
@@ -12,10 +14,11 @@ namespace SNAKE {
 		static vk::UniqueShaderModule CreateShaderModule(const std::string& filepath, PipelineLayoutBuilder& layout_builder) {
 			using namespace spirv_cross;
 
-			SNK_ASSERT(files::FileExists(filepath));
-			auto code = files::ReadFileBinary(filepath);
+			SNK_ASSERT(files::PathExists(filepath));
+			std::vector<std::byte> output;
+			auto code = files::ReadBinaryFile(filepath, output);
 
-			Compiler comp(reinterpret_cast<uint32_t*>(code.data()), code.size() / 4);
+			Compiler comp(reinterpret_cast<uint32_t*>(output.data()), output.size() / 4);
 			
 			auto res = comp.get_shader_resources();
 
@@ -73,12 +76,12 @@ namespace SNAKE {
 
 			vk::ShaderModuleCreateInfo create_info{
 				vk::ShaderModuleCreateFlags{0},
-				code.size(), reinterpret_cast<const uint32_t*>(code.data())
+				output.size(), reinterpret_cast<const uint32_t*>(output.data())
 			};
 
 			vk::UniqueShaderModule shader_module = VulkanContext::GetLogicalDevice().device->createShaderModuleUnique(create_info).value;
 
-			SNK_ASSERT(shader_module, "Shader module for shader '{0}' created successfully", filepath)
+			SNK_ASSERT(shader_module)
 			return shader_module;
 		}
 	};

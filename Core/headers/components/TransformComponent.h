@@ -116,6 +116,7 @@ namespace SNAKE {
 
 		glm::vec3 g_up = { 0.0, 1.0, 0.0 };
 
+		friend class SceneSerializer;
 	};
 
 }

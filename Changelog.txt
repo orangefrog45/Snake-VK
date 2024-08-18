@@ -1,3 +1,9 @@
+18/8/24:
+-JSON entity/scene serialization
+-Editor project creation skeleton
+-Editor dialog boxes
+
+
 16/8/24:
 -Transform system with entity parenting
 -Improvements to entity viewer panel, supports parent/child view

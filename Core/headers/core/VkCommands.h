@@ -11,7 +11,7 @@ namespace SNAKE {
 			alloc_info.commandBufferCount = 1;
 
 			buf = std::move(VulkanContext::GetLogicalDevice().device->allocateCommandBuffersUnique(alloc_info).value[0]);
-			SNK_ASSERT(buf, "");
+			SNK_ASSERT(buf);
 		}
 
 		vk::UniqueCommandBuffer buf;

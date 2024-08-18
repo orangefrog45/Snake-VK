@@ -9,7 +9,7 @@ namespace SNAKE {
 	public:
 		EventListener() = default;
 		~EventListener() { if (DeathCallback) DeathCallback(*this); }
-		EventListener(const EventListener& other) : m_listening_event_id(other.m_listening_event_id), callback(other.callback) {};
+		EventListener(const EventListener& other) : callback(other.callback), m_listening_event_id(other.m_listening_event_id) {};
 
 		// _event arg will always be a downcasted pointer to the event being listened to
 		listener_callback callback = nullptr;

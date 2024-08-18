@@ -1,8 +1,8 @@
 #include "pch/pch.h"
-#include "scene/SceneInfoBufferSystem.h"
-#include "scene/CameraSystem.h"
 #include "components/CameraComponent.h"
+#include "scene/CameraSystem.h"
 #include "scene/Scene.h"
+#include "scene/SceneInfoBufferSystem.h"
 
 namespace SNAKE {
 	void SceneInfoBufferSystem::OnSystemAdd() {
@@ -49,7 +49,6 @@ namespace SNAKE {
 		auto* p_transform = p_cam_ent->GetComponent<TransformComponent>();
 
 		CommonUBO ubo{};
-		auto p = p_transform->GetPosition();
 
 		ubo.view = glm::lookAt(p_transform->GetPosition(), p_transform->GetPosition() + p_transform->forward, glm::vec3(0.f, 1.f, 0.f));
 		ubo.proj = p_cam_comp->GetProjectionMatrix();

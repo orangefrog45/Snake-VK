@@ -24,7 +24,7 @@ namespace SNAKE {
 			type = vk::DescriptorType::eStorageBuffer;
 		else if (m_usage & vk::BufferUsageFlagBits::eUniformBuffer)
 			type = vk::DescriptorType::eUniformBuffer;
-		else
+		else 
 			SNK_BREAK("Unsupported buffer type used for CreateDescriptorGetInfo");
 
 		auto addr_info = std::make_shared<vk::DescriptorAddressInfoEXT>();

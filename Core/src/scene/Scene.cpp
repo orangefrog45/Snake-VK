@@ -17,3 +17,7 @@ Entity* Scene::GetEntity(entt::entity handle) {
 	auto* p_tag = m_registry.try_get<TagComponent>(handle);
 	return p_tag ? p_tag->GetEntity() : nullptr;
 }
+
+Entity* Scene::GetEntity(uint64_t uuid) {
+	return m_uuid_entity_lookup[uuid];
+}

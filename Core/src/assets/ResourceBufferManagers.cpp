@@ -35,7 +35,7 @@ void GlobalMaterialBufferManager::Init(const std::array<std::shared_ptr<Descript
 		}
 		};
 
-	m_frame_start_listener.callback = [this](Event const* p_event) {
+	m_frame_start_listener.callback = [this]([[maybe_unused]] Event const* p_event) {
 		UpdateMaterialUBO();
 		};
 
@@ -80,7 +80,7 @@ void GlobalMaterialBufferManager::UpdateMaterialUBO() {
 void GlobalTextureBufferManager::Init(const std::array<std::shared_ptr<DescriptorBuffer>, MAX_FRAMES_IN_FLIGHT>& buffers) {
 	descriptor_buffers = buffers;
 
-	m_frame_start_listener.callback = [this](Event const* p_event) {
+	m_frame_start_listener.callback = [this]([[maybe_unused]] Event const* p_event) {
 		RegisterTexturesInternal();
 		};
 
@@ -99,7 +99,6 @@ void GlobalTextureBufferManager::RegisterTexturesInternal() {
 	for (auto* p_tex : m_textures_to_register[frame_in_flight_idx]) {
 		auto& buffer_properties = VulkanContext::GetPhysicalDevice().buffer_properties;
 
-		auto& spec = p_tex->GetSpec();
 		vk::DescriptorImageInfo image_descriptor{};
 		image_descriptor.imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
 		image_descriptor.imageView = p_tex->GetImageView();

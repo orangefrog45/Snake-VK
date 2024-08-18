@@ -1,6 +1,6 @@
 #pragma once
 #include "Asset.h"
-#include "Textures/Textures.h"
+#include "textures/Textures.h"
 
 namespace SNAKE {
 	class MaterialAsset : public Asset {

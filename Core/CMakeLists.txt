@@ -20,7 +20,10 @@ set(ASSIMP_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(ASSIMP_BUILD_ZLIB ON CACHE BOOL "" FORCE)
 set(ASSIMP_INJECT_DEBUG_POSTFIX ON CACHE BOOL "" FORCE)
 set(ASSIMP_INSTALL OFF CACHE BOOL "" FORCE)
+set(ASSIMP_WARNINGS_AS_ERRORS OFF CACHE BOOL "" FORCE)
 add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/extern/assimp)
+
+add_subdirectory(extern/json)
 
 add_subdirectory(extern/spirv-cross)
 
@@ -112,7 +115,7 @@ add_library(SNAKE_VK_CORE
  "headers/assets/MaterialAsset.h" 
  "src/core/DescriptorBuffer.cpp" 
  "src/core/App.cpp"
- "src/scene/Scene.cpp" "headers/components/Components.h" "src/rendering/VkRenderer.cpp" "headers/layers/ImGuiLayer.h" "src/layers/LayerManager.cpp" "src/layers/ImGuiLayer.cpp" "src/scene/Entity.cpp" "src/scene/TransformSystem.cpp" "headers/scene/TransformSystem.h")
+ "src/scene/Scene.cpp" "headers/components/Components.h" "src/rendering/VkRenderer.cpp" "headers/layers/ImGuiLayer.h" "src/layers/LayerManager.cpp" "src/layers/ImGuiLayer.cpp" "src/scene/Entity.cpp" "src/scene/TransformSystem.cpp" "headers/scene/TransformSystem.h" "headers/scene/SceneSerializer.h" "src/scene/SceneSerializer.cpp")
 
 
 target_link_options(SNAKE_VK_CORE PRIVATE -INCREMENTAL -ZI)
@@ -133,6 +136,7 @@ glfw
 assimp
 spirv-cross-cpp
 imgui
+nlohmann_json::nlohmann_json
 )
 
 set(SNAKE_VK_CORE_INCLUDES 
@@ -147,6 +151,7 @@ extern/assimp/include
 extern/entt/src/
 extern/spirv-cross
 extern/imgui
+extern/json/include
 CACHE STRING ""
 )
 target_include_directories(SNAKE_VK_CORE PUBLIC

@@ -37,7 +37,7 @@ void Entity::SetParent(Entity& parent_entity) {
 	// Update transform hierarchy
 	GetComponent<TransformComponent>()->RebuildMatrix(TransformComponent::UpdateType::ALL);
 
-	//Events::EventManager::DispatchEvent(Events::ECS_Event<RelationshipComponent>{ Events::ECS_EventType::COMP_UPDATED, p_comp });
+	EventManagerG::DispatchEvent(ComponentEvent<RelationshipComponent>(p_comp, ComponentEventType::UPDATED));
 }
 
 void Entity::RemoveParent() {
@@ -64,7 +64,7 @@ void Entity::RemoveParent() {
 	p_comp->parent = entt::null;
 
 
-	//Events::EventManager::DispatchEvent(Events::ECS_Event<RelationshipComponent>{ Events::ECS_EventType::COMP_UPDATED, p_comp });
+	EventManagerG::DispatchEvent(ComponentEvent<RelationshipComponent>(p_comp, ComponentEventType::UPDATED));
 }
 
 

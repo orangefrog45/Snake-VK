@@ -15,8 +15,8 @@ namespace SNAKE {
 		DescriptorSetSpec& operator=(const DescriptorSetSpec& other) = delete;
 
 		DescriptorSetSpec(DescriptorSetSpec&& other) :
-			m_binding_offsets(std::move(other.m_binding_offsets)),
-			m_layout_bindings(std::move(other.m_layout_bindings)), m_layout(std::move(other.m_layout)) {};
+			m_layout_bindings(std::move(other.m_layout_bindings)), m_layout(std::move(other.m_layout)),
+			m_binding_offsets(std::move(other.m_binding_offsets)) {}
 
 		DescriptorSetSpec& GenDescriptorLayout();
 
@@ -55,8 +55,8 @@ namespace SNAKE {
 		DescriptorBuffer& operator=(const DescriptorBuffer& other) = delete;
 
 		DescriptorBuffer(DescriptorBuffer&& other) noexcept :
-			mp_descriptor_spec(std::move(other.mp_descriptor_spec)),
-			descriptor_buffer(std::move(other.descriptor_buffer)) {};
+			descriptor_buffer(std::move(other.descriptor_buffer)),
+			mp_descriptor_spec(std::move(other.mp_descriptor_spec)) {}
 
 		void CreateBuffer(uint32_t num_sets);
 

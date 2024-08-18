@@ -1,3 +1,4 @@
+#include "pch/pch.h"
 #include "scene/LightBufferSystem.h"
 #include "scene/Scene.h"
 #include "util/ExtraMath.h"
@@ -69,7 +70,6 @@ namespace SNAKE {
 		dir_data.colour = glm::vec4(p_scene->directional_light.colour, 1.f);
 		dir_data.dir = glm::vec4(glm::normalize(ExtraMath::SphericalToCartesian(1.f, p_scene->directional_light.spherical_coords.x, p_scene->directional_light.spherical_coords.y)), 1.f);
 		auto ortho = glm::ortho(-100.f, 100.f, -100.f, 100.f, 0.1f, 100.f);
-		auto cam_pos = p_scene->GetSystem<CameraSystem>()->GetActiveCam()->GetEntity()->GetComponent<TransformComponent>()->GetAbsPosition();
 		auto view = glm::lookAt(glm::vec3(dir_data.dir) * 50.f, glm::vec3(0), glm::vec3{0, 1, 0});
 		dir_data.transform = ortho * view;
 		memcpy(light_ssbos[frame_idx].Map(), &dir_data, directional_light_shader_size);
@@ -77,7 +77,7 @@ namespace SNAKE {
 
 		auto pointlight_view = p_scene->GetRegistry().view<PointlightComponent>();
 		auto spotlight_view = p_scene->GetRegistry().view<SpotlightComponent>();
-		std::array<uint32_t, 2> light_counts = { pointlight_view.size(), spotlight_view.size() };
+		std::array<uint32_t, 2> light_counts = { (uint32_t)pointlight_view.size(), (uint32_t)spotlight_view.size() };
 		memcpy(p_data + current_shader_offset, light_counts.data(), light_counts.size() * sizeof(uint32_t));
 		current_shader_offset += 4 * sizeof(uint32_t);
 

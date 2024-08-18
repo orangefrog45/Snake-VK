@@ -57,7 +57,7 @@ namespace SNAKE {
 	}
 
 	GraphicsPipelineBuilder& GraphicsPipelineBuilder::AddShader(vk::ShaderStageFlagBits stage, const std::string& filepath) {
-		shader_modules.push_back(std::move(ShaderLibrary::CreateShaderModule(filepath, pipeline_layout_builder)));
+		shader_modules.push_back(ShaderLibrary::CreateShaderModule(filepath, pipeline_layout_builder));
 
 		auto& module = shader_modules[shader_modules.size() - 1];
 

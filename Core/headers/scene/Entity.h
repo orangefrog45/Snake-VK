@@ -7,7 +7,7 @@
 namespace SNAKE {
 	class Entity {
 	public:
-		Entity(class Scene* p_scene, entt::entity handle, entt::registry* p_reg, uint64_t uuid) : mp_scene(p_scene), m_entt_handle(handle), mp_registry(p_reg), m_uuid(uuid) {};
+		Entity(class Scene* p_scene, entt::entity handle, entt::registry* p_reg, uint64_t uuid) : mp_scene(p_scene), mp_registry(p_reg), m_entt_handle(handle), m_uuid(uuid) {};
 
 		template<std::derived_from<Component> T, typename... Args>
 		T* AddComponent(Args&&... args) {
@@ -62,6 +62,10 @@ namespace SNAKE {
 			return nullptr;
 		}
 
+		uint64_t GetUUID() const {
+			return m_uuid();
+		}
+
 		bool HasChildren() {
 			return GetComponent<RelationshipComponent>()->first != entt::null;
 		}
@@ -91,6 +95,7 @@ namespace SNAKE {
 		entt::entity m_entt_handle = entt::null;
 		UUID<uint64_t> m_uuid;
 
+		friend class SceneSerializer;
 		friend Scene;
 	};
 }

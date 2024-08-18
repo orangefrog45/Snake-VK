@@ -1,10 +1,10 @@
 #include "pch/pch.h"
-#include "renderpasses/ForwardPass.h"
-#include "scene/Scene.h"
-#include "scene/SceneInfoBufferSystem.h"
-#include "scene/LightBufferSystem.h"
 #include "assets/AssetManager.h"
 #include "components/MeshComponent.h"
+#include "renderpasses/ForwardPass.h"
+#include "scene/LightBufferSystem.h"
+#include "scene/Scene.h"
+#include "scene/SceneInfoBufferSystem.h"
 
 namespace SNAKE {
 
@@ -15,10 +15,6 @@ namespace SNAKE {
 		}
 
 		CreateDepthResources({p_window->GetWidth(), p_window->GetHeight()});
-
-		// Create descriptor buffers
-		auto& device = VulkanContext::GetLogicalDevice().device;
-		auto& descriptor_buffer_properties = VulkanContext::GetPhysicalDevice().buffer_properties;
 
 		for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
 			auto main_pass_descriptor_set_spec = std::make_shared<DescriptorSetSpec>();

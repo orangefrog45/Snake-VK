@@ -14,14 +14,21 @@ namespace SNAKE {
 			return m_registry;
 		}
 
-		Entity* CreateEntity() {
-			Entity* p_ent = new Entity(this, m_registry.create(), &m_registry, UUID<uint64_t>()());
+		Entity& CreateEntity(uint64_t uuid = 0) {
+			// Randomize uuid if left as default
+			if (uuid == 0)
+				uuid = UUID<uint64_t>()();
+
+			SNK_ASSERT(!m_uuid_entity_lookup.contains(uuid));
+
+			Entity* p_ent = new Entity(this, m_registry.create(), &m_registry, uuid);
 			p_ent->AddComponent<TransformComponent>();
 			p_ent->AddComponent<TagComponent>();
 			p_ent->AddComponent<RelationshipComponent>();
 
 			m_entities.push_back(p_ent);
-			return p_ent;
+			m_uuid_entity_lookup[p_ent->m_uuid()] = p_ent;
+			return *p_ent;
 		}
 
 		template<std::derived_from<System> T>
@@ -70,11 +77,14 @@ namespace SNAKE {
 
 		Entity* GetEntity(entt::entity handle);
 
+		Entity* GetEntity(uint64_t uuid);
+
 		void DeleteEntity(Entity* p_ent) {
 			m_registry.destroy(p_ent->m_entt_handle);
 			auto it = std::ranges::find(m_entities, p_ent);
 			SNK_ASSERT(it != m_entities.end());
 			m_entities.erase(it);
+			m_uuid_entity_lookup.erase(p_ent->m_uuid());
 
 			delete p_ent;
 		}
@@ -86,6 +96,8 @@ namespace SNAKE {
 		entt::registry m_registry;
 
 		std::vector<Entity*> m_entities;
+
+		std::unordered_map<uint64_t, Entity*> m_uuid_entity_lookup;
 
 		std::unordered_map<util::TypeID, System*> m_systems;
 	};

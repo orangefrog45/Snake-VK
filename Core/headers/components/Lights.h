@@ -1,6 +1,8 @@
 #pragma once
-
+#include "Component.h"
 namespace SNAKE {
+	class Entity;
+
 	struct LightAttenuation {
 		float exp = 0.05f;
 		float linear = 0.25f;
