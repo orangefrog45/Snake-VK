@@ -98,4 +98,9 @@ namespace SNAKE {
 		friend class SceneSerializer;
 		friend Scene;
 	};
+
+	struct EntityDeleteEvent : public Event {
+		EntityDeleteEvent(Entity* _ent) : p_ent(_ent) {}
+		Entity* p_ent = nullptr;
+	};
 }

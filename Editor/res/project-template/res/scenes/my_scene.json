@@ -1,0 +1,42 @@
+{
+    "DirLight": {
+        "Colour": [
+            1.0,
+            1.0,
+            1.0
+        ],
+        "SphericalCoords": [
+            0.0,
+            0.0
+        ]
+    },
+    "Entities": [
+        {
+            "Name": "New entity",
+            "ParentUUID": 0,
+            "StaticMesh": {
+                "AssetUUID": 1
+            },
+            "Transform": {
+                "Abs": false,
+                "O": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "P": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "S": [
+                    1.0,
+                    1.0,
+                    1.0
+                ]
+            },
+            "UUID": 171721715750585366
+        }
+    ],
+    "SceneUUID": 10979679584156046672
+}

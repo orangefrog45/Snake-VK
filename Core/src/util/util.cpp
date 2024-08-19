@@ -3,6 +3,8 @@
 #include "util/util.h"
 #include <fstream>
 #include <filesystem>
+#include <Windows.h>
+#include <ShlObj.h>
 
 namespace SNAKE {
 	namespace files {
@@ -91,6 +93,75 @@ namespace SNAKE {
 		}
 	}
 
+
+	std::string SelectFileFromExplorer(const std::string& start_dir) {
+		if (!start_dir.empty() && !PathExists(start_dir)) {
+			SNK_CORE_ERROR("SelectFileFromExplorer failed, start_dir '{}' doesn't exist", start_dir);
+			return "";
+		}
+
+		auto current_path = std::filesystem::current_path();
+		char buffer[MAX_PATH];
+		ZeroMemory(&buffer, sizeof(buffer));
+		
+		OPENFILENAME ofn{};
+		ZeroMemory(&ofn, sizeof(OPENFILENAME));
+
+		ofn.lStructSize = sizeof(OPENFILENAME);
+		ofn.nMaxCustFilter = 0;
+		ofn.nFilterIndex = 0;
+		ofn.hwndOwner = GetFocus();
+		ofn.lpstrFilter = nullptr;
+		ofn.nMaxFile = MAX_PATH;
+		ofn.lpstrTitle = nullptr;
+		ofn.lpstrCustomFilter = nullptr;
+		ofn.lpstrDefExt = 0;
+		ofn.Flags = OFN_FILEMUSTEXIST;
+		ofn.lpstrFile = buffer;
+
+		if (!start_dir.empty())
+			ofn.lpstrInitialDir = start_dir.c_str();
+
+		GetOpenFileName(&ofn);
+		// Reset current path as file explorer changes it
+		std::filesystem::current_path(current_path);
+		return ofn.lpstrFile;
+	}
+
+
+	std::string SelectDirectoryFromExplorer(const std::string& start_dir) {
+		if (!start_dir.empty() && !std::filesystem::exists(start_dir)) {
+			SNK_CORE_ERROR("SelectDirectoryFromExplorer failed, start_dir '{}' doesn't exist", start_dir);
+			return "";
+		}
+
+		BROWSEINFO bi{};
+		char buffer[MAX_PATH];
+		ZeroMemory(buffer, sizeof(buffer));
+
+		bi.ulFlags = BIF_RETURNONLYFSDIRS | BIF_NEWDIALOGSTYLE;
+		bi.hwndOwner = GetFocus();
+		bi.lpszTitle = "Select a directory";
+		bi.pszDisplayName = buffer;
+
+		if (!start_dir.empty()) {
+			bi.lpfn = [](HWND hwnd, UINT uMsg, LPARAM lParam, LPARAM lpData) -> int {
+				if (uMsg == BFFM_INITIALIZED) {
+					SendMessage(hwnd, BFFM_SETSELECTION, TRUE, lpData);
+				}
+				return 0;
+				};
+			bi.lParam = (LPARAM)start_dir.c_str();
+		}
+
+		PIDLIST_ABSOLUTE pidl = SHBrowseForFolder(&bi);
+		if (pidl) {
+			SHGetPathFromIDList(pidl, buffer);
+			CoTaskMemFree(pidl);  // Free the memory allocated for the PIDL
+			return std::string(buffer);
+		}
+		return "";
+	}
 
 
 	std::string GetFileDirectory(const std::string& filepath) {

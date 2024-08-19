@@ -29,8 +29,12 @@ namespace SNAKE {
 	private:
 		void RenderDialogBoxes();
 
+		bool CreateEntityPopup(bool open_condition);
+		bool ModifyEntityPopup(bool open_condition, Entity* p_ent);
+
 		void LoadProject(const std::string& project_path);
 		void LoadProjectSettings(const std::string& settings_file);
+		void SaveProject();
 
 		void ToolbarGUI();
 		
@@ -38,11 +42,14 @@ namespace SNAKE {
 		void CreateProject(const std::string& directory, const std::string& project_name);
 
 		std::string active_project_path;
+		std::string editor_executable_dir;
+		bool unsaved_changes = false;
 
 		Scene scene;
-		Entity* p_cam_ent = nullptr;
+		std::unique_ptr<Entity> p_cam_ent = nullptr;
 
-		std::vector<DialogBox> dialog_boxes;
+		std::vector<std::unique_ptr<DialogBox>> dialog_boxes;
+		std::vector<std::unique_ptr<DialogBox>> new_dialog_boxes_to_sort;
 
 		// Entities which nodes have been opened in the entity viewer panel, revealing their children
 		std::unordered_set<Entity*> open_entity_nodes;
@@ -50,6 +57,8 @@ namespace SNAKE {
 		EntityEditor ent_editor;
 
 		VkSceneRenderer renderer;
+
+		EventListener entity_deletion_listener;
 
 		Window* p_window = nullptr;
 

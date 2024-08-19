@@ -3,6 +3,7 @@
 #include "imgui.h"
 #include "backends/imgui_impl_vulkan.h"
 #include "backends/imgui_impl_glfw.h"
+#include "textures/Textures.h"
 
 using namespace SNAKE;
 
@@ -29,7 +30,7 @@ void VkRenderer::InitImpl() {
 }
 
 
-void VkRenderer::RenderImGuiAndPresentImpl(Window& window, Image2D& render_image, glm::vec2 render_dimensions) {
+void VkRenderer::RenderImGuiAndPresentImpl(Window& window, Image2D& render_image) {
 	auto cmd_buf = *imgui_cmd_buffers[VulkanContext::GetCurrentFIF()].buf;
 	cmd_buf.reset();
 	vk::CommandBufferBeginInfo begin_info{};
@@ -45,7 +46,7 @@ void VkRenderer::RenderImGuiAndPresentImpl(Window& window, Image2D& render_image
 	rendering_info.colorAttachmentCount = 1;
 	rendering_info.pColorAttachments = &colour_info;
 	rendering_info.layerCount = 1;
-	rendering_info.renderArea.extent = vk::Extent2D(render_dimensions.x, render_dimensions.y);
+	rendering_info.renderArea.extent = vk::Extent2D(render_image.GetSpec().size.x, render_image.GetSpec().size.y);
 	cmd_buf.beginRendering(rendering_info);
 	ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd_buf);
 	cmd_buf.endRendering();

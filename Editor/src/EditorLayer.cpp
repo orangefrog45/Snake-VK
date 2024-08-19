@@ -20,7 +20,6 @@ void CreateLargeEntity(Scene& scene) {
 			p_current.AddComponent<StaticMeshComponent>();
 			p_current.GetComponent<TransformComponent>()->SetPosition(rand() % 300, rand() % 300, rand() % 300);
 			p_current.SetParent(child);
-
 		}
 	}
 }
@@ -35,14 +34,24 @@ void EditorLayer::CreateProject(const std::string& directory, const std::string&
 	std::string project_dir = directory + "/" + project_name;
 
 	files::Create_Directory(project_dir);
-	files::Create_Directory(project_dir + "/res");
-	files::Create_Directory(project_dir + "/res/meshes");
-	files::Create_Directory(project_dir + "/res/textures");
-	files::Create_Directory(project_dir + "/res/materials");
-	std::ofstream scene_json(project_dir + "/scene.json");
-	scene_json.close();
-	std::ofstream project_json(project_dir + "/project.json");
-	project_json.close();
+	files::FileCopy(editor_executable_dir + "/res/project-template/", project_dir + "/", true);
+
+	auto* p_box = CreateDialogBox();
+	p_box->name = "New project";
+	p_box->imgui_render_cb = [this, p_box, project_dir] {
+		ImGui::Text("Project created");
+		ImGui::Text(std::format("Make active? {}", unsaved_changes ? "There are currently unsaved changes" : "").c_str());
+
+		if (ImGui::Button("Yes")) {
+			LoadProject(project_dir);
+			p_box->close = true;
+		}
+
+		ImGui::SameLine();
+
+		if (ImGui::Button("No"))
+			p_box->close = true;
+	};
 }
 
 struct NewProjectData {
@@ -52,22 +61,26 @@ struct NewProjectData {
 };
 
 void EditorLayer::PromptCreateNewProject() {
-	auto& box = *CreateDialogBox();
-	box.name = "New project";
-	box.data = std::make_shared<NewProjectData>();
+	auto* p_box = CreateDialogBox();
+	p_box->name = "New project";
+	p_box->data = std::make_shared<NewProjectData>();
 
-	box.imgui_render_cb = [&] {
+	p_box->imgui_render_cb = [this, p_box] {
 		if (ImGui::Button("X")) {
-			box.close = true;
+			p_box->close = true;
 			return;
 		}
 
-		auto project_data = std::any_cast<std::shared_ptr<NewProjectData>>(box.data);
+		auto project_data = std::any_cast<std::shared_ptr<NewProjectData>>(p_box->data);
 		auto& location_input = project_data->directory;
 		auto& name_input = project_data->name;
 
 		ImGui::TextColored({ 1, 0, 0, 1 }, project_data->err_msg.c_str());
-		ImGui::Text("Location:");  ImGui::SameLine();  ImGui::InputText("##location", &location_input);
+		ImGui::Text("Location:");  ImGui::SameLine();  ImGui::Text(location_input.c_str());
+		ImGui::SameLine();
+		if (ImGui::Button("Search"))
+			location_input = files::SelectDirectoryFromExplorer("");
+
 		ImGui::Text("Name:");  ImGui::SameLine();  ImGui::InputText("##name", &name_input);
 		if (ImGui::Button("Create")) {
 			if (location_input.empty() || name_input.empty()) {
@@ -89,37 +102,61 @@ void EditorLayer::PromptCreateNewProject() {
 			}
 
 			CreateProject(location_input, name_input);
-			box.close = true;
+			p_box->close = true;
 		}
 	};
 
 }
 
+void EditorLayer::SaveProject() {
+	nlohmann::json j;
+	j["OpenScene"] = scene.name;
+	files::WriteTextFile(active_project_path + "/project.json", j.dump(4));
+}
+
 void EditorLayer::LoadProject(const std::string& project_path) {
+	scene.ClearEntities();
+
 	std::string project_settings_path = project_path + "/project.json";
 	if (!files::PathExists(project_settings_path)) {
 		SNK_CORE_ERROR("LoadProject failed, project settings file '{}' not found", project_settings_path);
 		return;
 	}
-
+	
 	active_project_path = project_path;
 
 	try {
 		nlohmann::json j = nlohmann::json::parse(files::ReadTextFile(project_settings_path));
-		// Load settings here
+		std::string open_scene_name = j.at("OpenScene").template get<std::string>();
+
+		if (open_scene_name.empty()) {
+			SNK_CORE_WARN("Project loaded with no scene");
+		}
+
+		std::string open_scene_path = "";
+
+		for (auto& entry : std::filesystem::directory_iterator(active_project_path + "/res/scenes")) {
+			if (entry.path().string().ends_with(open_scene_name + ".json")) {
+				open_scene_path = entry.path().string();
+				break;
+			}
+		}
+
+		if (open_scene_path.empty()) {
+			SNK_CORE_ERROR("LoadProject failed, tried to open scene '{}' which was not found", open_scene_name);
+			return;
+		}
+
+		SceneSerializer::DeserializeScene(open_scene_path, scene);
+
 	}
 	catch (std::exception& e) {
 		SNK_CORE_ERROR("Error loading project settings: '{}'", e.what());
 		return;
 	}
 
-	std::string project_scene_path = project_path + "/scene.json";
-	if (!files::PathExists(project_scene_path)) {
-		SNK_CORE_ERROR("LoadProject failed, project scene file '{}' not found", project_scene_path);
-		return;
-	}
 
-	SceneSerializer::DeserializeScene(project_scene_path, scene);
+
 }
 
 void EditorLayer::ToolbarGUI() {
@@ -140,23 +177,23 @@ void EditorLayer::ToolbarGUI() {
 }
 
 void EditorLayer::OnInit() {
+	editor_executable_dir = std::filesystem::current_path().string();
 	renderer.Init(*p_window);
 
-	scene.AddDefaultSystems();
-	scene.CreateEntity().AddComponent<StaticMeshComponent>();
+	entity_deletion_listener.callback = [&](Event const* _event) {
+		auto* p_casted = dynamic_cast<EntityDeleteEvent const*>(_event);
+		ent_editor.DeselectEntity(p_casted->p_ent);
+	};
+	EventManagerG::RegisterListener<EntityDeleteEvent>(entity_deletion_listener);
 
-	p_cam_ent = &scene.CreateEntity();
+	scene.AddDefaultSystems();
+
+	p_cam_ent = std::make_unique<Entity>(&scene, scene.GetRegistry().create(), &scene.GetRegistry(), 0);
+	p_cam_ent->AddComponent<TransformComponent>();
+	p_cam_ent->AddComponent<RelationshipComponent>();
 	p_cam_ent->AddComponent<CameraComponent>()->MakeActive();
 
-	//SceneSerializer::DeserializeScene("scene.json", scene);
-
-	auto& box = *CreateDialogBox();
-	box.imgui_render_cb = [&] {
-		if (ImGui::Button("Close"))
-			box.close = true;
-	};
-
-	LoadProject("C:\\Users\\Sam\\Documents\\e");
+	//LoadProject("./");
 }
 
 
@@ -238,18 +275,25 @@ std::string GetEntityPadding(unsigned tree_depth) {
 }
 
 DialogBox* EditorLayer::CreateDialogBox() {
-	return &dialog_boxes.emplace_back();
+	new_dialog_boxes_to_sort.push_back(std::make_unique<DialogBox>());
+	return &*new_dialog_boxes_to_sort[new_dialog_boxes_to_sort.size() - 1];
 }
 
 void EditorLayer::RenderDialogBoxes() {
+	// Dialog boxes sorted like this in case a dialog box creates another dialog box in its imgui callback (causes issues in loop)
+	for (auto& p_box : new_dialog_boxes_to_sort) {
+		dialog_boxes.push_back(std::move(p_box));
+	}
+	new_dialog_boxes_to_sort.clear();
+
 	for (size_t i = 0; i < dialog_boxes.size(); i++) {
-		if (dialog_boxes[i].close) {
+		if (dialog_boxes[i]->close) {
 			dialog_boxes.erase(dialog_boxes.begin() + i);
 			i--;
 			continue;
 		}
 
-		auto& box = dialog_boxes[i];
+		auto& box = *dialog_boxes[i];
 		ImGui::PushID(&box);
 
 
@@ -275,14 +319,80 @@ void EditorLayer::RenderDialogBoxes() {
 	}
 }
 
+bool EditorLayer::ModifyEntityPopup(bool open_condition, Entity* p_ent) {
+	if (open_condition) {
+		ImGui::OpenPopup("create entity popup");
+	}
+
+	auto options = util::array("Delete");
+	static int selected = -1;
+
+	if (ImGui::BeginPopup("create entity popup")) {
+		for (size_t i = 0; i < options.size(); i++) {
+			if (ImGui::Selectable(options[i]))
+				selected = i;
+		}
+		ImGui::EndPopup();
+	}
+
+	switch (selected) {
+	case 0:
+		
+		scene.DeleteEntity(p_ent);
+		break;
+	}
+}
+
+bool EditorLayer::CreateEntityPopup(bool open_condition) {
+	if (open_condition) {
+		ImGui::OpenPopup("create entity popup");
+	}
+
+	auto options = util::array("Empty", "Mesh", "Pointlight", "Spotlight");
+	static int selected = -1;
+
+	if (ImGui::BeginPopup("create entity popup")) {
+		for (size_t i = 0; i < options.size(); i++) {
+			if (ImGui::Selectable(options[i]))
+				selected = i;
+		}
+		ImGui::EndPopup();
+	}
+
+	if (selected != -1) {
+		Entity& new_ent = scene.CreateEntity();
+		switch (selected) {
+		case 0:
+			break;
+		case 1:
+			new_ent.AddComponent<StaticMeshComponent>();
+			break;
+		case 2:
+			new_ent.AddComponent<PointlightComponent>();
+			break;
+		case 3:
+			new_ent.AddComponent<SpotlightComponent>();
+			break;
+		}
+	}
+
+	bool was_selected = selected != -1;
+	selected = -1;
+	return was_selected;
+}
+
 void EditorLayer::OnImGuiRender() {
 	ImGui::ShowDemoWindow();
 	RenderDialogBoxes();
 	ToolbarGUI();
 
+
 	std::vector<EntityNode> entity_hierarchy = CreateLinearEntityHierarchy(&scene);
 
 	if (ImGui::Begin("Entities")) {
+
+		Entity* p_right_clicked_entity = nullptr;
+
 		for (auto entity_node : entity_hierarchy) {
 			auto& ent = *entity_node.p_ent;
 
@@ -293,8 +403,10 @@ void EditorLayer::OnImGuiRender() {
 			ImGui::PushID(&ent);
 		
 			ImGui::Text(std::format("{}{}", GetEntityPadding(entity_node.tree_depth), ent.GetComponent<TagComponent>()->name).c_str());
-			if (ImGui::IsItemClicked()) {
+			if (ImGui::IsItemClicked(1))
+				p_right_clicked_entity = entity_node.p_ent;
 
+			if (ImGui::IsItemClicked()) {
 				if (open_entity_nodes.contains(&ent))
 					open_entity_nodes.erase(&ent);
 				else if (ent.HasChildren())
@@ -305,9 +417,12 @@ void EditorLayer::OnImGuiRender() {
 
 			ImGui::PopID();
 		}
+
+		unsaved_changes |= CreateEntityPopup(!p_right_clicked_entity && ImGui::IsWindowHovered() && ImGui::IsMouseClicked(1));
 	}
 
-	ent_editor.RenderImGui();
+
+	unsaved_changes |= ent_editor.RenderImGui();
 
 	ImGui::End();
 }

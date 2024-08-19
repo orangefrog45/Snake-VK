@@ -123,11 +123,19 @@ void Window::Shutdown() {
 }
 
 void Window::CreateSwapchain() {
+	int width = 0, height = 0;
+	glfwGetFramebufferSize(p_window, &width, &height);
+	while (width == 0 || height == 0) {
+		glfwGetFramebufferSize(p_window, &width, &height);
+		glfwWaitEvents();
+	}
+
 	SwapChainSupportDetails swapchain_support = QuerySwapChainSupport(VulkanContext::GetPhysicalDevice().device, *m_vk_context.surface);
 
 	vk::SurfaceFormatKHR surface_format = ChooseSwapSurfaceFormat(swapchain_support.formats);
 	vk::PresentModeKHR present_mode = ChooseSwapPresentMode(swapchain_support.present_modes);
 	vk::Extent2D extent = ChooseSwapExtent(swapchain_support.capabilities);
+
 
 	uint32_t image_count = swapchain_support.capabilities.minImageCount + 1; // Add extra image to prevent having to wait on driver before acquiring another image
 

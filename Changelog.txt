@@ -1,3 +1,10 @@
+19/8/24:
+-File explorer utilities
+-Improved project creation, added template project
+-More editor stuff
+-Fixed crash on window minimize
+-Fixed dialog box bug
+
 18/8/24:
 -JSON entity/scene serialization
 -Editor project creation skeleton

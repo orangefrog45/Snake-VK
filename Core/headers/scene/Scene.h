@@ -8,7 +8,13 @@ namespace SNAKE {
 	class Scene {
 	public:
 		Scene() = default;
-		~Scene() { Clear(); };
+		~Scene() { 
+			ClearEntities();
+			for (auto [uuid, system] : m_systems) {
+				delete system;
+			}
+			m_systems.clear();
+		};
 
 		entt::registry& GetRegistry() {
 			return m_registry;
@@ -61,13 +67,9 @@ namespace SNAKE {
 			}
 		}
 
-		void Clear() {
+		void ClearEntities() {
 			while (!m_entities.empty()) {
 				DeleteEntity(m_entities[0]);
-			}
-			while (!m_systems.empty()) {
-				delete m_systems.begin()->second;
-				m_systems.erase(m_systems.begin());
 			}
 		}
 
@@ -80,6 +82,8 @@ namespace SNAKE {
 		Entity* GetEntity(uint64_t uuid);
 
 		void DeleteEntity(Entity* p_ent) {
+			EventManagerG::DispatchEvent(EntityDeleteEvent(p_ent));
+
 			m_registry.destroy(p_ent->m_entt_handle);
 			auto it = std::ranges::find(m_entities, p_ent);
 			SNK_ASSERT(it != m_entities.end());
@@ -91,6 +95,9 @@ namespace SNAKE {
 
 		void AddDefaultSystems();
 
+		std::string name;
+		UUID<uint64_t> uuid;
+
 		DirectionalLight directional_light;
 	private:
 		entt::registry m_registry;
@@ -100,5 +107,7 @@ namespace SNAKE {
 		std::unordered_map<uint64_t, Entity*> m_uuid_entity_lookup;
 
 		std::unordered_map<util::TypeID, System*> m_systems;
+
+		friend class SceneSerializer;
 	};
 }

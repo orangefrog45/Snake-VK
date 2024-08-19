@@ -27,6 +27,10 @@ namespace SNAKE {
 
 		bool WriteTextFile(const std::string& filepath, const std::string& content);
 
+		std::string SelectFileFromExplorer(const std::string& start_dir = "");
+
+		std::string SelectDirectoryFromExplorer(const std::string& start_dir = "");
+
 		// Returns filepath with modified extension, "new_extension" should include the '.', e.g ".png", ".jpg"
 		std::string ReplaceFileExtension(const std::string& filepath, const std::string& new_extension);
 	}

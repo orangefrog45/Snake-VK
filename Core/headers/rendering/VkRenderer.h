@@ -38,8 +38,8 @@ namespace SNAKE {
 
 		// render_image should be in layout "ColorAttachmentOptimal" and have an image view
 		// This function also triggers the frame fence and so should always be called last after all renderpasses
-		static void RenderImGuiAndPresent(Window& window, Image2D& render_image, glm::vec2 render_dimensions) {
-			Get().RenderImGuiAndPresentImpl(window, render_image, render_dimensions);
+		static void RenderImGuiAndPresent(Window& window, Image2D& render_image) {
+			Get().RenderImGuiAndPresentImpl(window, render_image);
 		}
 
 
@@ -49,7 +49,7 @@ namespace SNAKE {
 
 		void InitImpl();
 
-		void RenderImGuiAndPresentImpl(Window& window, Image2D& render_image, glm::vec2 render_dimensions);
+		void RenderImGuiAndPresentImpl(Window& window, Image2D& render_image);
 
 		vk::Semaphore AcquireNextSwapchainImageImpl(Window& window, uint32_t& image_index);
 

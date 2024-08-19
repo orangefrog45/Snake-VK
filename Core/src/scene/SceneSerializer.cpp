@@ -17,6 +17,15 @@ namespace glm {
 		j.at(1).get_to(v.y);
 		j.at(2).get_to(v.z);
 	}
+
+	void to_json(json& j, const glm::vec2& v) {
+		j = json::array({ v.x, v.y });
+	}
+
+	void from_json(const json& j, glm::vec2& v) {
+		j.at(0).get_to(v.x);
+		j.at(1).get_to(v.y);
+	}
 }
 
 #define tget(node, type)node.template get<type>()
@@ -42,6 +51,7 @@ json SceneSerializer::SerializeEntity(Entity& ent, Scene& scene) {
 	if (auto* p_mesh = ent.GetComponent<StaticMeshComponent>()) {
 		j["StaticMesh"]["AssetUUID"] = p_mesh->mesh_asset->uuid();
 	}
+
 	
 	return j;
 }
@@ -60,27 +70,36 @@ void SceneSerializer::DeserializeEntity(Entity& ent, json& j) {
 			ent.SetParent(*p_parent);
 	}
 
-	auto* p_transform = ent.GetComponent<TransformComponent>();
-	auto& t_node = j.at("Transform");
-	t_node.at("Abs").get_to(p_transform->m_is_absolute);
-	t_node.at("P").get_to(p_transform->m_pos);
-	t_node.at("S").get_to(p_transform->m_scale);
-	t_node.at("O").get_to(p_transform->m_orientation);
-	p_transform->RebuildMatrix(TransformComponent::ALL);
+	{
+		auto* p_transform = ent.GetComponent<TransformComponent>();
+		auto& t_node = j.at("Transform");
+		t_node.at("Abs").get_to(p_transform->m_is_absolute);
+		t_node.at("P").get_to(p_transform->m_pos);
+		t_node.at("S").get_to(p_transform->m_scale);
+		t_node.at("O").get_to(p_transform->m_orientation);
+		p_transform->RebuildMatrix(TransformComponent::ALL);
+	}
 
 	if (j.contains("StaticMesh")) {
 		auto& m = j["StaticMesh"];
 		ent.AddComponent<StaticMeshComponent>()->mesh_asset = AssetManager::GetAsset<StaticMeshAsset>(tget(m["AssetUUID"], uint64_t));
 	}
+	
 }
 
 
 void SceneSerializer::SerializeScene(const std::string& output_filepath, Scene& scene) {
 	json j;
 
+	j["SceneUUID"] = scene.uuid();
 	j["Entities"] = json::array();
 	for (auto* p_ent : scene.GetEntities()) {
 		j["Entities"].push_back(SerializeEntity(*p_ent, scene));
+	}
+
+	{
+		j["DirLight"]["Colour"] = scene.directional_light.colour;
+		j["DirLight"]["SphericalCoords"] = scene.directional_light.spherical_coords;
 	}
 
 	files::WriteTextFile(output_filepath, j.dump(4));
@@ -90,13 +109,17 @@ void SceneSerializer::DeserializeScene(const std::string& input_filepath, Scene&
 	std::string content = files::ReadTextFile(input_filepath);
 	json j = json::parse(content);
 
+	scene.uuid = UUID<uint64_t>(tget(j.at("SceneUUID"), uint64_t));
+
 	// First create all entities with UUIDS
 	for (auto& ent_node : j.at("Entities")) {
 		auto& ent = scene.CreateEntity(tget(ent_node.at("UUID"), uint64_t));
 	}
 
 	for (auto& ent_node : j.at("Entities")) {
-
 		DeserializeEntity(*scene.GetEntity(tget(ent_node.at("UUID"), uint64_t)), ent_node);
 	}
+
+	j.at("DirLight").at("Colour").get_to(scene.directional_light.colour);
+	j.at("DirLight").at("SphericalCoords").get_to(scene.directional_light.spherical_coords);
 }
