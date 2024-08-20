@@ -30,8 +30,8 @@ namespace SNAKE {
 
 	struct Vertex {
 		// Struct which describes how to move through the data provided
-		[[nodiscard]] constexpr inline static std::array<vk::VertexInputBindingDescription, 3> GetBindingDescription() {
-			std::array<vk::VertexInputBindingDescription, 3> descs{};
+		[[nodiscard]] constexpr inline static std::array<vk::VertexInputBindingDescription, 4> GetBindingDescription() {
+			std::array<vk::VertexInputBindingDescription, 4> descs{};
 
 			descs[0].binding = 0;
 			descs[0].stride = sizeof(glm::vec3);
@@ -45,12 +45,16 @@ namespace SNAKE {
 			descs[2].stride = sizeof(glm::vec2);
 			descs[2].inputRate = vk::VertexInputRate::eVertex;
 
+			descs[3].binding = 3;
+			descs[3].stride = sizeof(glm::vec3);
+			descs[3].inputRate = vk::VertexInputRate::eVertex;
+
 			return descs;
 		}
 
 		// Struct which describes vertex attribute access in shaders
-		[[nodiscard]] constexpr inline static std::array<vk::VertexInputAttributeDescription, 3> GetAttributeDescriptions() {
-			std::array<vk::VertexInputAttributeDescription, 3> descs{};
+		[[nodiscard]] constexpr inline static std::array<vk::VertexInputAttributeDescription, 4> GetAttributeDescriptions() {
+			std::array<vk::VertexInputAttributeDescription, 4> descs{};
 			// Positions
 			descs[0].binding = 0;
 			descs[0].location = 0;
@@ -68,6 +72,12 @@ namespace SNAKE {
 			descs[2].location = 2;
 			descs[2].format = vk::Format::eR32G32Sfloat;
 			descs[2].offset = 0;
+
+			// Tangents
+			descs[3].binding = 3;
+			descs[3].location = 3;
+			descs[3].format = vk::Format::eR32G32B32Sfloat;
+			descs[3].offset = 0;
 
 			return descs;
 		}

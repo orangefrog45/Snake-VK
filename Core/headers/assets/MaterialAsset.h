@@ -9,6 +9,14 @@ namespace SNAKE {
 			MaterialAsset* p_material = nullptr;
 		};
 
+		enum MaterialFlags {
+			SAMPLED_ALBEDO = 1 << 0,
+			SAMPLED_NORMAL = 1 << 1,
+			SAMPLED_ROUGHNESS = 1 << 2,
+			SAMPLED_METALLIC = 1 << 3,
+			SAMPLED_AO = 1 << 4,
+		};
+
 		uint16_t GetGlobalBufferIndex() {
 			return m_global_buffer_index;
 		}

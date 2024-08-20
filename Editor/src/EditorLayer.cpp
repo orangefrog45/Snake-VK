@@ -346,7 +346,7 @@ void EditorLayer::OnImGuiRender() {
 	RenderDialogBoxes();
 	ToolbarGUI();
 
-	asset_editor.RenderImGui();
+	unsaved_changes |= asset_editor.RenderImGui();
 
 	std::vector<EntityNode> entity_hierarchy = CreateLinearEntityHierarchy(&scene);
 

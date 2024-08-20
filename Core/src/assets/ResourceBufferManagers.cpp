@@ -11,7 +11,7 @@ void GlobalMaterialBufferManager::Init(const std::array<std::shared_ptr<Descript
 			VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT);
 
 		auto info = m_material_ubos[i].CreateDescriptorGetInfo();
-		descriptor_buffers[i]->LinkResource(info.first, 0, 0);
+		descriptor_buffers[i]->LinkResource(&info.first, 0, 0);
 	}
 
 	m_material_update_event_listener.callback = [this](Event const* p_event) {
@@ -46,18 +46,43 @@ void GlobalMaterialBufferManager::UpdateMaterialUBO() {
 	for (auto& mat_ref : m_materials_to_update[frame_in_flight_idx]) {
 		SNK_ASSERT(mat_ref->GetGlobalBufferIndex() != MaterialAsset::INVALID_GLOBAL_INDEX);
 
-		std::array<uint32_t, 5> texture_indices = { Texture2DAsset::INVALID_GLOBAL_INDEX };
+		std::array<std::byte, material_size> data;
 
-		if (mat_ref->albedo_tex) texture_indices[0] = mat_ref->albedo_tex->GetGlobalIndex();
-		if (mat_ref->normal_tex) texture_indices[1] = mat_ref->normal_tex->GetGlobalIndex();
-		if (mat_ref->roughness_tex) texture_indices[2] = mat_ref->roughness_tex->GetGlobalIndex();
-		if (mat_ref->metallic_tex) texture_indices[3] = mat_ref->metallic_tex->GetGlobalIndex();
-		if (mat_ref->ao_tex) texture_indices[4] = mat_ref->ao_tex->GetGlobalIndex();
+
+		uint32_t flags = 0;
+		unsigned idx = 0;
+
+		if (mat_ref->albedo_tex) {
+			idx = mat_ref->albedo_tex->GetGlobalIndex();
+			memcpy(data.data(), &idx, sizeof(unsigned));
+			flags |= MaterialAsset::SAMPLED_ALBEDO;
+		}
+		if (mat_ref->normal_tex) {
+			idx = mat_ref->normal_tex->GetGlobalIndex();
+			memcpy(data.data() + sizeof(unsigned), &idx, sizeof(unsigned));
+			flags |= MaterialAsset::SAMPLED_NORMAL;
+		}
+		if (mat_ref->roughness_tex) {
+			idx = mat_ref->roughness_tex->GetGlobalIndex();
+			memcpy(data.data() + sizeof(unsigned) * 2, &idx, sizeof(unsigned));
+			flags |= MaterialAsset::SAMPLED_ROUGHNESS;
+		}
+		if (mat_ref->metallic_tex) {
+			idx = mat_ref->metallic_tex->GetGlobalIndex();
+			memcpy(data.data() + sizeof(unsigned) * 3, &idx, sizeof(unsigned));
+			flags |= MaterialAsset::SAMPLED_METALLIC;
+		}
+		if (mat_ref->ao_tex) {
+			idx = mat_ref->ao_tex->GetGlobalIndex();
+			memcpy(data.data() + sizeof(unsigned) * 4, &idx, sizeof(unsigned));
+			flags |= MaterialAsset::SAMPLED_AO;
+		}
 
 		std::array<float, 7> params = { mat_ref->roughness, mat_ref->metallic, mat_ref->ao, mat_ref->albedo.r, mat_ref->albedo.g, mat_ref->albedo.b, 1.f };
+		memcpy(data.data() + sizeof(unsigned) * 5, &params, sizeof(float) * 7);
+		memcpy(data.data() + sizeof(unsigned) * 5 + sizeof(float) * 7, &flags, sizeof(unsigned));
 
-		memcpy(p_data + mat_ref->GetGlobalBufferIndex() * material_size, texture_indices.data(), texture_indices.size() * sizeof(uint32_t));
-		memcpy(p_data + mat_ref->GetGlobalBufferIndex() * material_size + texture_indices.size() * sizeof(uint32_t), params.data(), params.size() * sizeof(float));
+		memcpy(p_data + mat_ref->GetGlobalBufferIndex() * material_size, data.data(), data.size());
 	}
 
 	m_materials_to_update[frame_in_flight_idx].clear();
@@ -83,11 +108,11 @@ void GlobalTextureBufferManager::RegisterTexture(AssetRef<Texture2DAsset> tex) {
 
 void GlobalTextureBufferManager::RegisterTexturesInternal() {
 	auto frame_in_flight_idx = VulkanContext::GetCurrentFIF();
-	for (auto& tex : m_textures_to_register[frame_in_flight_idx]) {
-		auto& buffer_properties = VulkanContext::GetPhysicalDevice().buffer_properties;
 
+	for (auto& tex : m_textures_to_register[frame_in_flight_idx]) {
 		auto info = tex->image.CreateDescriptorGetInfo(vk::ImageLayout::eShaderReadOnlyOptimal);
-		descriptor_buffers[frame_in_flight_idx]->LinkResource(info.first, 1, tex->GetGlobalIndex());
+		descriptor_buffers[frame_in_flight_idx]->LinkResource(&info.first, 1, 0, tex->GetGlobalIndex());
+		
 	}
 
 	m_textures_to_register[frame_in_flight_idx].clear();

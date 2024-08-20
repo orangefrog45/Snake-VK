@@ -39,10 +39,11 @@ void AssetEditor::RenderAssetEntry(const AssetEntry& entry) {
 }
 
 
-void AssetEditor::RenderBaseAssetEditor(const AssetEntry& entry) {
+bool AssetEditor::RenderBaseAssetEditor(const AssetEntry& entry) {
 	if (!p_selected_asset)
-		return;
+		return false;
 
+	bool ret = false;
 	ImGui::PushID(&entry);
 
 	ImGui::SetNextWindowSize({ 500, 500 });
@@ -51,15 +52,91 @@ void AssetEditor::RenderBaseAssetEditor(const AssetEntry& entry) {
 		ImGui::Text("Name: "); ImGui::InputText("##name", &entry.p_asset->name);
 		ImGui::Text(std::format("Filepath: {}", entry.p_asset->filepath).c_str());
 		ImGui::ImageButton(entry.image, { 150, 150 });
+
+		if (dynamic_cast<MaterialAsset*>(p_selected_asset)) {
+			ret |= RenderMaterialEditor();
+		}
 	}
 	ImGui::End();
 
 	ImGui::PopID();
+
+	return ret;
 }
 
-void AssetEditor::RenderMaterialEditor() {
+bool AssetEditor::RenderMaterialEditor() {
+	bool ret = false;
+	auto* p_mat = dynamic_cast<MaterialAsset*>(p_selected_asset);
 
+	ret |= ImGui::InputFloat3("Albedo", &p_mat->albedo.r);
+	ret |= ImGui::InputFloat("Roughness", &p_mat->roughness);
+	ret |= ImGui::InputFloat("Metallic", &p_mat->metallic);
+	ret |= ImGui::InputFloat("AO", &p_mat->ao);
+
+	if (ImGui::BeginTable("##material-table", 5)) {
+		ImGui::TableNextColumn();
+		ImGui::Text("Albedo");
+		if (auto new_tex = RenderMaterialTexture(p_mat->albedo_tex.get()); new_tex.has_value())
+		{
+			ret = true;
+			p_mat->albedo_tex = new_tex.value();
+		};
+		ImGui::TableNextColumn();
+		ImGui::Text("Normal");
+		if (auto new_tex = RenderMaterialTexture(p_mat->normal_tex.get()); new_tex.has_value())
+		{
+			ret = true;
+			p_mat->normal_tex = new_tex.value();
+		};
+		ImGui::TableNextColumn();
+		ImGui::Text("Roughness");
+		if (auto new_tex = RenderMaterialTexture(p_mat->roughness_tex.get()); new_tex.has_value())
+		{
+			ret = true;
+			p_mat->roughness_tex = new_tex.value();
+		};
+		ImGui::TableNextColumn();
+		ImGui::Text("Metallic");
+		if (auto new_tex = RenderMaterialTexture(p_mat->metallic_tex.get()); new_tex.has_value())
+		{
+			ret = true;
+			p_mat->metallic_tex = new_tex.value();
+		};
+		ImGui::TableNextColumn();
+		ImGui::Text("AO");  
+		if ( auto new_tex = RenderMaterialTexture(p_mat->ao_tex.get()); new_tex.has_value()) 
+		{ 
+			ret = true; 
+			p_mat->ao_tex = new_tex.value();
+		};
+		ImGui::EndTable();
+	}
+
+	if (ret) p_mat->DispatchUpdateEvent();
+	return ret;
 }
+
+std::optional<Texture2DAsset*> AssetEditor::RenderMaterialTexture(Texture2DAsset* p_tex) {
+	if (!p_tex)
+		ImGui::ImageButton(GetOrCreateAssetImage(AssetManager::GetAsset<Texture2DAsset>(AssetManager::CoreAssetIDs::TEXTURE).get()), {100, 100});
+	else
+		ImGui::ImageButton(GetOrCreateAssetImage(p_tex), { 100, 100 });
+
+	if (ImGui::IsItemClicked(1)) {
+		return nullptr;
+	}
+
+	if (ImGui::BeginDragDropTarget()) {
+		if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("TEXTURE2D")) {
+			auto id = *reinterpret_cast<uint64_t*>(payload->Data);
+			return AssetManager::GetAsset<Texture2DAsset>(id).get();
+		}
+		ImGui::EndDragDropTarget();
+	}
+
+	return std::nullopt;
+}
+
 
 void AssetEditor::RenderMeshes() {
 	auto meshes = AssetManager::GetView<StaticMeshAsset>();
@@ -99,11 +176,13 @@ void AssetEditor::RenderTextures() {
 	}
 }
 
-void AssetEditor::RenderImGui() {
+bool AssetEditor::RenderImGui() {
+	bool ret = false;
+
 	AssetEntry entry;
 	entry.image = set;
 	entry.p_asset = p_selected_asset;
-	RenderBaseAssetEditor(entry);
+	ret |= RenderBaseAssetEditor(entry);
 
 	constexpr unsigned ASSET_WINDOW_HEIGHT = 200;
 
@@ -147,4 +226,6 @@ void AssetEditor::RenderImGui() {
 
 		ImGui::End();
 	}
+
+	return ret;
 }

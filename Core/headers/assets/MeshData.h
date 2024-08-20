@@ -27,8 +27,9 @@ namespace SNAKE {
 
 		S_VkBuffer position_buf;
 		S_VkBuffer normal_buf;
-		S_VkBuffer index_buf;
 		S_VkBuffer tex_coord_buf;
+		S_VkBuffer tangent_buf;
+		S_VkBuffer index_buf;
 	};
 
 	class StaticMeshAsset : public Asset {

@@ -25,7 +25,7 @@ namespace SNAKE {
 			m_main_pass_descriptor_buffers[i].CreateBuffer(1);
 
 			auto shadow_map_info = p_shadowmap_image->CreateDescriptorGetInfo(vk::ImageLayout::eShaderReadOnlyOptimal);
-			m_main_pass_descriptor_buffers[i].LinkResource(shadow_map_info.first, 0, 0);
+			m_main_pass_descriptor_buffers[i].LinkResource(&shadow_map_info.first, 0, 0);
 
 		}
 
@@ -39,6 +39,7 @@ namespace SNAKE {
 			.AddVertexBinding(attribute_desc[0], binding_desc[0])
 			.AddVertexBinding(attribute_desc[1], binding_desc[1])
 			.AddVertexBinding(attribute_desc[2], binding_desc[2])
+			.AddVertexBinding(attribute_desc[3], binding_desc[3])
 			.AddColourAttachment(p_window->GetVkContext().swapchain_format)
 			.AddDepthAttachment(FindDepthFormat())
 			.Build();
@@ -136,10 +137,14 @@ namespace SNAKE {
 		cmd_buffer.setDescriptorBufferOffsetsEXT(vk::PipelineBindPoint::eGraphics, m_graphics_pipeline.pipeline_layout.GetPipelineLayout(), 0, buffer_indices, buffer_offsets);
 		for (auto [entity, mesh, transform] : scene.GetRegistry().view<StaticMeshComponent, TransformComponent>().each()) {
 			if (last_bound_data_uuid != mesh.mesh_asset->data->uuid()) {
-				std::vector<vk::Buffer> vert_buffers = { mesh.mesh_asset->data->position_buf.buffer, mesh.mesh_asset->data->normal_buf.buffer, mesh.mesh_asset->data->tex_coord_buf.buffer };
+
+				std::vector<vk::Buffer> vert_buffers = { mesh.mesh_asset->data->position_buf.buffer, 
+					mesh.mesh_asset->data->normal_buf.buffer, mesh.mesh_asset->data->tex_coord_buf.buffer, mesh.mesh_asset->data->tangent_buf.buffer };
+
 				std::vector<vk::Buffer> index_buffers = { mesh.mesh_asset->data->index_buf.buffer };
-				std::vector<vk::DeviceSize> offsets = { 0, 0, 0 };
-				cmd_buffer.bindVertexBuffers(0, 3, vert_buffers.data(), offsets.data());
+				std::vector<vk::DeviceSize> offsets = { 0, 0, 0, 0 };
+
+				cmd_buffer.bindVertexBuffers(0, 4, vert_buffers.data(), offsets.data());
 				cmd_buffer.bindIndexBuffer(mesh.mesh_asset->data->index_buf.buffer, 0, vk::IndexType::eUint32);
 				last_bound_data_uuid = mesh.mesh_asset->data->uuid();
 			}

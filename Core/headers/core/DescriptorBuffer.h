@@ -58,7 +58,7 @@ namespace SNAKE {
 
 		void CreateBuffer(uint32_t num_sets);
 
-		void LinkResource(vk::DescriptorGetInfoEXT resource_info, unsigned binding_idx, unsigned set_buffer_idx);
+		void LinkResource(vk::DescriptorGetInfoEXT* resource_info, unsigned binding_idx, unsigned set_buffer_idx, uint32_t array_index = 0 );
 
 		vk::DescriptorBufferBindingInfoEXT GetBindingInfo();
 

@@ -37,6 +37,10 @@ namespace SNAKE {
 		auto tex = CreateAsset<Texture2DAsset>(CoreAssetIDs::TEXTURE);
 		tex->LoadFromFile("res/textures/metalgrid1_basecolor.png");
 
+		auto normal_tex = CreateAsset<Texture2DAsset>();
+		normal_tex->name = "NORMAL MAP";
+		normal_tex->LoadFromFile("res/textures/metalgrid1_normal-ogl.png");
+
 		auto mesh = CreateAsset<StaticMeshAsset>(CoreAssetIDs::SPHERE_MESH);
 		mesh->data = CreateAsset<StaticMeshDataAsset>();
 		mesh->data->filepath = "res/meshes/sphere.glb";
@@ -44,6 +48,7 @@ namespace SNAKE {
 
 		auto material = CreateAsset<MaterialAsset>(CoreAssetIDs::MATERIAL);
 		material->albedo_tex = tex;
+		material->normal_tex = normal_tex;
 		material->name = "Default material";
 		material->DispatchUpdateEvent();
 
@@ -72,7 +77,7 @@ namespace SNAKE {
 	}
 
 	AssetRef<Texture2DAsset> AssetManager::CreateOrGetTextureFromMaterial(const std::string& dir, aiTextureType type, aiMaterial* p_material) {
-		AssetRef<Texture2DAsset> tex = AssetManager::GetAsset<Texture2DAsset>(CoreAssetIDs::TEXTURE);
+		AssetRef<Texture2DAsset> tex = nullptr;
 
 		if (p_material->GetTextureCount(type) > 0) {
 			aiString path;
@@ -94,7 +99,7 @@ namespace SNAKE {
 
 				if (!files::PathExists(full_path)) {
 					SNK_CORE_ERROR("CreateOrGetTextureFromMaterial failed, invalid path '{}'", full_path);
-					return AssetManager::GetAsset<Texture2DAsset>(CoreAssetIDs::TEXTURE);
+					return nullptr;
 				}
 
 				tex = CreateAsset<Texture2DAsset>();
@@ -145,7 +150,8 @@ namespace SNAKE {
 	bool AssetManager::LoadMeshFromFile(AssetRef<StaticMeshDataAsset> mesh_data_asset) {
 		Assimp::Importer importer;
 
-		const aiScene* p_scene = importer.ReadFile(mesh_data_asset->filepath, aiProcess_Triangulate | aiProcess_JoinIdenticalVertices | aiProcess_SortByPType);
+		const aiScene* p_scene = importer.ReadFile(mesh_data_asset->filepath, 
+			aiProcess_Triangulate | aiProcess_JoinIdenticalVertices | aiProcess_SortByPType | aiProcess_CalcTangentSpace);
 
 		if (!p_scene) {
 			SNK_CORE_ERROR("Failed to import mesh from filepath '{}' : '{}'", mesh_data_asset->filepath, importer.GetErrorString());
@@ -181,6 +187,9 @@ namespace SNAKE {
 		mesh_data_asset->tex_coord_buf.CreateBuffer(num_vertices * sizeof(aiVector2D),
 			vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eTransferDst);
 
+		mesh_data_asset->tangent_buf.CreateBuffer(num_vertices * sizeof(aiVector3D),
+			vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eTransferDst);
+
 		S_VkBuffer staging_buf_pos;
 		staging_buf_pos.CreateBuffer(num_vertices * sizeof(aiVector3D),
 			vk::BufferUsageFlagBits::eTransferSrc, VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT);
@@ -197,10 +206,15 @@ namespace SNAKE {
 		staging_buf_tex_coord.CreateBuffer(num_vertices * sizeof(aiVector2D),
 			vk::BufferUsageFlagBits::eTransferSrc, VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT);
 
+		S_VkBuffer staging_buf_tangent;
+		staging_buf_tangent.CreateBuffer(num_vertices * sizeof(aiVector3D),
+			vk::BufferUsageFlagBits::eTransferSrc, VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT);
+
 		std::byte* p_data_pos = reinterpret_cast<std::byte*>(staging_buf_pos.Map());
 		std::byte* p_data_norm = reinterpret_cast<std::byte*>(staging_buf_norm.Map());
 		std::byte* p_data_index = reinterpret_cast<std::byte*>(staging_buf_index.Map());
 		std::byte* p_data_tex_coord = reinterpret_cast<std::byte*>(staging_buf_tex_coord.Map());
+		std::byte* p_data_tangent = reinterpret_cast<std::byte*>(staging_buf_tangent.Map());
 
 		size_t current_vert_offset = 0;
 
@@ -208,6 +222,7 @@ namespace SNAKE {
 			auto& submesh = *p_scene->mMeshes[i];
 			memcpy(p_data_pos + current_vert_offset * sizeof(aiVector3D), submesh.mVertices, submesh.mNumVertices * sizeof(aiVector3D));
 			memcpy(p_data_norm + current_vert_offset * sizeof(aiVector3D), submesh.mNormals, submesh.mNumVertices * sizeof(aiVector3D));
+			memcpy(p_data_tangent + current_vert_offset * sizeof(aiVector3D), submesh.mTangents, submesh.mNumVertices * sizeof(aiVector3D));
 			current_vert_offset += submesh.mNumVertices;
 		}
 
@@ -238,11 +253,13 @@ namespace SNAKE {
 		CopyBuffer(staging_buf_norm.buffer, mesh_data_asset->normal_buf.buffer, num_vertices * sizeof(aiVector3D));
 		CopyBuffer(staging_buf_index.buffer, mesh_data_asset->index_buf.buffer, num_indices * sizeof(unsigned));
 		CopyBuffer(staging_buf_tex_coord.buffer, mesh_data_asset->tex_coord_buf.buffer, num_vertices * sizeof(aiVector2D));
+		CopyBuffer(staging_buf_tangent.buffer, mesh_data_asset->tangent_buf.buffer, num_vertices * sizeof(aiVector3D));
 
 		staging_buf_pos.Unmap();
 		staging_buf_index.Unmap();
 		staging_buf_norm.Unmap();
 		staging_buf_tex_coord.Unmap();
+		staging_buf_tangent.Unmap();
 
 		mesh_data_asset->materials.resize(p_scene->mNumMaterials, nullptr);
 

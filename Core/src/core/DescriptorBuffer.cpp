@@ -20,7 +20,7 @@ void DescriptorBuffer::CreateBuffer(uint32_t num_sets) {
 		m_usage_flags | vk::BufferUsageFlagBits::eShaderDeviceAddress, VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT);
 }
 
-void DescriptorBuffer::LinkResource(vk::DescriptorGetInfoEXT resource_info, unsigned binding_idx, unsigned set_buffer_idx) {
+void DescriptorBuffer::LinkResource(vk::DescriptorGetInfoEXT* resource_info, unsigned binding_idx, unsigned set_buffer_idx, uint32_t array_index) {
 	auto& descriptor_buffer_properties = VulkanContext::GetPhysicalDevice().buffer_properties;
 
 	size_t size = 0;
@@ -42,7 +42,7 @@ void DescriptorBuffer::LinkResource(vk::DescriptorGetInfoEXT resource_info, unsi
 	}
 
 	VulkanContext::GetLogicalDevice().device->getDescriptorEXT(resource_info, size,
-		reinterpret_cast<std::byte*>(descriptor_buffer.Map()) + mp_descriptor_spec->GetBindingOffset(binding_idx) + mp_descriptor_spec->m_aligned_size * set_buffer_idx);
+		reinterpret_cast<std::byte*>(descriptor_buffer.Map()) + mp_descriptor_spec->GetBindingOffset(binding_idx) + size * array_index + mp_descriptor_spec->m_aligned_size * set_buffer_idx);
 }
 
 vk::DescriptorBufferBindingInfoEXT DescriptorBuffer::GetBindingInfo() {

@@ -7,6 +7,7 @@ layout(location = 0) in vec3 vs_col;
 layout(location = 1) in vec2 vs_tex_coord;
 layout(location = 2) in vec3 vs_normal;
 layout(location = 3) in vec3 vs_world_pos;
+layout(location = 4) in vec3 vs_tangent;
 
 #include "CommonUBO.glsl"
 #include "LightBuffers.glsl"
@@ -16,6 +17,18 @@ layout(push_constant) uniform pc {
     mat4 transform;
     uint material_idx;
 } push;
+
+mat3 CalculateTbnMatrix() {
+	vec3 t = normalize(vec3(mat3(push.transform) * vs_tangent));
+	vec3 n = normalize(vec3(mat3(push.transform) * vs_normal));
+
+	t = normalize(t - dot(t, n) * n);
+	vec3 b = cross(n, t);
+
+	mat3 tbn = mat3(t, b, n);
+
+	return tbn;
+}
 
 
 float CalcShadow() {
@@ -37,26 +50,36 @@ float CalcShadow() {
 }
 
 void main() {
-    vec3 n = normalize(vs_normal);
+    Material material = material_ubo.materials[push.material_idx];
+    vec3 n;
+
+    if ((material.flags & MAT_FLAG_SAMPLED_NORMAL) != 0) {
+        n = normalize(CalculateTbnMatrix() * (texture(textures[material.normal_tex_idx], vs_tex_coord).xyz * 2.0 - 1.0));
+    } else {
+        n = normalize(vs_normal);
+    }
+
 	vec3 v = normalize(common_ubo.cam_pos.xyz - vs_world_pos);
 	vec3 r = reflect(-v, n);
 	float n_dot_v = max(dot(n, v), 0.0);
 
-	//reflection amount
-	vec3 f0 = vec3(0.04); // TODO: Support different values for more metallic objects
-	//f0 = mix(f0, sampled_albedo.xyz, metallic);
+    vec3 albedo = material.albedo.rgb;
 
-    vec3 light = CalcDirectionalLight(v, f0, n, 0.5, 0.0, vec3(1)) * (1.0 - CalcShadow());
+    if ((material.flags & MAT_FLAG_SAMPLED_ALBEDO) != 0)
+        albedo *= texture(textures[material.albedo_tex_idx], vs_tex_coord).rgb;
+
+	vec3 f0 = vec3(0.04); // TODO: Support different values for more metallic objects
+	f0 = mix(f0, albedo, material.metallic);
+
+    vec3 light = CalcDirectionalLight(v, f0, n, material.roughness, material.metallic, albedo.rgb) * (1.0 - CalcShadow());
     //out_colour = vec4(vec3(texture(depth_tex, vs_tex_coord).r), 1);
     for (uint i = 0; i < ssbo_light_data.num_pointlights; i++) {
-        light += CalcPointlight(ssbo_light_data.pointlights[i], v, f0, vs_world_pos, n, 0.1, 0.0, vec3(1));
+        light += CalcPointlight(ssbo_light_data.pointlights[i], v, f0, vs_world_pos, n, material.roughness, material.metallic, albedo.rgb);
     }
 
     for (uint i = 0; i < ssbo_light_data.num_pointlights; i++) {
-        light += CalcSpotlight(ssbo_light_data.spotlights[i], v, f0, vs_world_pos, n, 0.1, 0.0, vec3(1));
+        light += CalcSpotlight(ssbo_light_data.spotlights[i], v, f0, vs_world_pos, n, material.roughness, material.metallic, albedo.rgb);
     }
 
-    Material material = material_ubo.materials[push.material_idx];
-    vec3 albedo = texture(textures[material.albedo_tex_idx], vs_tex_coord).rgb * material.albedo.rgb;
-    out_colour = vec4(light * albedo, 1);
+    out_colour = vec4(light, 1);
 }

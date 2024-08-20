@@ -34,7 +34,6 @@ namespace SNAKE {
 		bool ModifyEntityPopup(bool open_condition, Entity* p_ent);
 
 		void LoadProject(const std::string& project_path);
-		void LoadProjectSettings(const std::string& settings_file);
 		void SaveProject();
 
 		void ToolbarGUI();

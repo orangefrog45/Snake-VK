@@ -1,4 +1,7 @@
 20/8/24:
+-Fixed descriptor buffer indexing for textures
+-Normal mapping
+----
 -Basic asset editor
 -Mesh component editor
 -Connected tex/material system to shaders/render pipeline
