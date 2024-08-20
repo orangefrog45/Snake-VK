@@ -5,6 +5,7 @@
 #include "misc/cpp/imgui_stdlib.h"
 #include "util/FileUtil.h"
 #include "scene/SceneSerializer.h"
+#include "util/UI.h"
 
 using namespace SNAKE;
 
@@ -170,6 +171,7 @@ void EditorLayer::ToolbarGUI() {
 				}
 				ImGui::EndMenu();
 			}
+			ImGui::EndMenuBar();
 		}
 	}
 
@@ -179,6 +181,8 @@ void EditorLayer::ToolbarGUI() {
 void EditorLayer::OnInit() {
 	editor_executable_dir = std::filesystem::current_path().string();
 	renderer.Init(*p_window);
+	ent_editor.Init(&asset_editor);
+	asset_editor.Init();
 
 	entity_deletion_listener.callback = [&](Event const* _event) {
 		auto* p_casted = dynamic_cast<EntityDeleteEvent const*>(_event);
@@ -296,7 +300,6 @@ void EditorLayer::RenderDialogBoxes() {
 		auto& box = *dialog_boxes[i];
 		ImGui::PushID(&box);
 
-
 		auto pos = (glm::vec2(p_window->GetWidth(), p_window->GetHeight()) - glm::vec2(box.dimensions)) * 0.5f;
 		ImGui::SetNextWindowSize({ (float)box.dimensions.x, (float)box.dimensions.y });
 		ImGui::SetNextWindowPos({ pos.x, pos.y });
@@ -320,65 +323,22 @@ void EditorLayer::RenderDialogBoxes() {
 }
 
 bool EditorLayer::ModifyEntityPopup(bool open_condition, Entity* p_ent) {
-	if (open_condition) {
-		ImGui::OpenPopup("create entity popup");
-	}
-
-	auto options = util::array("Delete");
-	static int selected = -1;
-
-	if (ImGui::BeginPopup("create entity popup")) {
-		for (size_t i = 0; i < options.size(); i++) {
-			if (ImGui::Selectable(options[i]))
-				selected = i;
-		}
-		ImGui::EndPopup();
-	}
-
-	switch (selected) {
-	case 0:
-		
-		scene.DeleteEntity(p_ent);
-		break;
-	}
+	return ImGuiUtil::Popup("Modify entity",
+		{
+			{"Delete", [&] {scene.DeleteEntity(p_ent); }}
+		}, open_condition
+	);
 }
 
 bool EditorLayer::CreateEntityPopup(bool open_condition) {
-	if (open_condition) {
-		ImGui::OpenPopup("create entity popup");
-	}
-
-	auto options = util::array("Empty", "Mesh", "Pointlight", "Spotlight");
-	static int selected = -1;
-
-	if (ImGui::BeginPopup("create entity popup")) {
-		for (size_t i = 0; i < options.size(); i++) {
-			if (ImGui::Selectable(options[i]))
-				selected = i;
-		}
-		ImGui::EndPopup();
-	}
-
-	if (selected != -1) {
-		Entity& new_ent = scene.CreateEntity();
-		switch (selected) {
-		case 0:
-			break;
-		case 1:
-			new_ent.AddComponent<StaticMeshComponent>();
-			break;
-		case 2:
-			new_ent.AddComponent<PointlightComponent>();
-			break;
-		case 3:
-			new_ent.AddComponent<SpotlightComponent>();
-			break;
-		}
-	}
-
-	bool was_selected = selected != -1;
-	selected = -1;
-	return was_selected;
+	return ImGuiUtil::Popup("Create entity",
+		{
+			{"Empty", [&] {scene.CreateEntity(); }},
+			{"Mesh", [&] {scene.CreateEntity().AddComponent<StaticMeshComponent>(); }},
+			{"Pointlight", [&] {scene.CreateEntity().AddComponent<PointlightComponent>(); }},
+			{"Spotlight", [&] {scene.CreateEntity().AddComponent<SpotlightComponent>(); }},
+		}, open_condition
+	);
 }
 
 void EditorLayer::OnImGuiRender() {
@@ -386,6 +346,7 @@ void EditorLayer::OnImGuiRender() {
 	RenderDialogBoxes();
 	ToolbarGUI();
 
+	asset_editor.RenderImGui();
 
 	std::vector<EntityNode> entity_hierarchy = CreateLinearEntityHierarchy(&scene);
 

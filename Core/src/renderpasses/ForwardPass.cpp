@@ -131,21 +131,30 @@ namespace SNAKE {
 		std::array<uint32_t, 4> buffer_indices = { 0, 1, 2, 3 };
 		std::array<vk::DeviceSize, 4> buffer_offsets = { 0, 0, 0, 0 };
 
-		StaticMeshDataAsset* p_last_bound_data = nullptr;
+		uint64_t last_bound_data_uuid = 0;
 
 		cmd_buffer.setDescriptorBufferOffsetsEXT(vk::PipelineBindPoint::eGraphics, m_graphics_pipeline.pipeline_layout.GetPipelineLayout(), 0, buffer_indices, buffer_offsets);
 		for (auto [entity, mesh, transform] : scene.GetRegistry().view<StaticMeshComponent, TransformComponent>().each()) {
-			if (p_last_bound_data != mesh.mesh_asset->data.get()) {
+			if (last_bound_data_uuid != mesh.mesh_asset->data->uuid()) {
 				std::vector<vk::Buffer> vert_buffers = { mesh.mesh_asset->data->position_buf.buffer, mesh.mesh_asset->data->normal_buf.buffer, mesh.mesh_asset->data->tex_coord_buf.buffer };
 				std::vector<vk::Buffer> index_buffers = { mesh.mesh_asset->data->index_buf.buffer };
 				std::vector<vk::DeviceSize> offsets = { 0, 0, 0 };
 				cmd_buffer.bindVertexBuffers(0, 3, vert_buffers.data(), offsets.data());
 				cmd_buffer.bindIndexBuffer(mesh.mesh_asset->data->index_buf.buffer, 0, vk::IndexType::eUint32);
-				p_last_bound_data = mesh.mesh_asset->data.get();
+				last_bound_data_uuid = mesh.mesh_asset->data->uuid();
 			}
 
-			cmd_buffer.pushConstants(m_graphics_pipeline.pipeline_layout.GetPipelineLayout(), vk::ShaderStageFlagBits::eAllGraphics, 0, sizeof(glm::mat4), &transform.GetMatrix()[0][0]);
-			cmd_buffer.drawIndexed((uint32_t)mesh.mesh_asset->data->index_buf.alloc_info.size / sizeof(uint32_t), 1, 0, 0, 0);
+			std::array<std::byte, sizeof(glm::mat4) + sizeof(unsigned)> push_constant_data;
+			std::byte* p_byte = push_constant_data.data();
+			util::ConvertToBytes(p_byte, transform.GetMatrix());
+
+			for (auto& submesh : mesh.mesh_asset->data->submeshes) {
+				unsigned mat_index = mesh.materials[submesh.material_index]->GetGlobalBufferIndex();
+				memcpy(p_byte, &mat_index, sizeof(unsigned));
+				cmd_buffer.pushConstants(m_graphics_pipeline.pipeline_layout.GetPipelineLayout(), vk::ShaderStageFlagBits::eAllGraphics, 0, push_constant_data.size(), push_constant_data.data());
+				cmd_buffer.drawIndexed(submesh.num_indices, 1, submesh.base_index, submesh.base_vertex, 0);
+			}
+
 		}
 
 		cmd_buffer.endRenderingKHR();

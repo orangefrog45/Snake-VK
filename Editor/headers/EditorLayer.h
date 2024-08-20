@@ -3,6 +3,7 @@
 #include "layers/LayerManager.h"
 #include "rendering/VkSceneRenderer.h"
 #include "scene/Scene.h"
+#include "AssetEditor.h"
 
 namespace SNAKE {
 	class Window;
@@ -18,7 +19,7 @@ namespace SNAKE {
 
 	class EditorLayer : public Layer {
 	public:
-		EditorLayer(Window* _window) : p_window(_window), ent_editor(&scene) {};
+		EditorLayer(Window* _window) : p_window(_window), ent_editor(&scene), asset_editor(p_window) {};
 		void OnInit() override;
 		void OnUpdate() override;
 		void OnRender() override;
@@ -41,6 +42,10 @@ namespace SNAKE {
 		void PromptCreateNewProject();
 		void CreateProject(const std::string& directory, const std::string& project_name);
 
+		Window* p_window = nullptr;
+
+		AssetEditor asset_editor;
+
 		std::string active_project_path;
 		std::string editor_executable_dir;
 		bool unsaved_changes = false;
@@ -59,8 +64,6 @@ namespace SNAKE {
 		VkSceneRenderer renderer;
 
 		EventListener entity_deletion_listener;
-
-		Window* p_window = nullptr;
 
 	};
 }

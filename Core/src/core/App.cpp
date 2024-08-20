@@ -48,8 +48,6 @@ void App::Init(const char* app_name) {
 	window.CreateSwapchain();
 	VulkanContext::CreateCommandPool(&window);
 
-	
-
 	AssetManager::Init(VulkanContext::GetCommandPool());
 	VkRenderer::Init();
 

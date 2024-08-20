@@ -9,8 +9,10 @@ namespace SNAKE {
 	public:
 		StaticMeshComponent(class Entity* p_entity) : Component(p_entity) {
 			mesh_asset = AssetManager::GetAsset<StaticMeshAsset>(AssetManager::SPHERE_MESH);
+			materials = mesh_asset->data->materials;
 		};
 
 		AssetRef<StaticMeshAsset> mesh_asset{ nullptr };
+		std::vector<AssetRef<MaterialAsset>> materials;
 	};
 }

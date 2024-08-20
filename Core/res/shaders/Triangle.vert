@@ -13,6 +13,7 @@ layout(location = 3) out vec3 vs_world_pos;
 
 layout(push_constant) uniform pc {
     mat4 transform;
+    uint material_idx;
 } push;
 
 

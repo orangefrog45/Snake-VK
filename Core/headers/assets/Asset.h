@@ -16,7 +16,7 @@ namespace SNAKE {
 
 		std::string filepath;
 
-		std::string name;
+		std::string name = "Unnamed asset";
 
 	private:
 		// Number of AssetRef objects referencing this asset
@@ -39,6 +39,7 @@ namespace SNAKE {
 			if (this == &other)
 				return *this;
 
+			if (p_asset) p_asset->ref_count--;
 			p_asset = other.p_asset;
 			if (p_asset) p_asset->ref_count++;
 			return *this;
@@ -52,8 +53,16 @@ namespace SNAKE {
 			_asset->ref_count++;
 		}
 
+		AssetT* get() {
+			return p_asset;
+		}
+
 		AssetT* operator->() const {
 			return p_asset;
+		}
+		
+		explicit operator bool() const {
+			return p_asset != nullptr;
 		}
 
 	private:

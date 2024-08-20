@@ -1,47 +1,12 @@
 #include "core/S_VkBuffer.h"
 #include "core/VkCommon.h"
 #include "core/VkContext.h"
+#include "images/Images.h"
 #include "rendering/VkRenderer.h"
-#include "textures/Textures.h"
-#include "util/Logger.h"
 #include "util/util.h"
-
-#include "stb_image.h"
-
 
 using namespace SNAKE;
 
-void Texture2D::LoadFromFile(const std::string& filepath) {
-	int width, height, channels;
-	// Force 4 channels as most GPUs only support these as samplers
-	stbi_uc* pixels = stbi_load(filepath.c_str(), &width, &height, &channels, 4);
-	vk::DeviceSize image_size = width * height * 4;
-	SNK_ASSERT(pixels);
-
-	S_VkBuffer staging_buffer{};
-	staging_buffer.CreateBuffer(image_size, vk::BufferUsageFlagBits::eTransferSrc, VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT);
-	void* p_data = staging_buffer.Map();
-	memcpy(p_data, pixels, (size_t)image_size);
-	staging_buffer.Unmap();
-
-	stbi_image_free(pixels);
-
-	m_spec.format = vk::Format::eR8G8B8A8Srgb;
-	m_spec.usage = vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled;
-	m_spec.size.x = width;
-	m_spec.size.y = height;
-	m_spec.tiling = vk::ImageTiling::eOptimal;
-	m_spec.aspect_flags = vk::ImageAspectFlagBits::eColor;
-
-	CreateImage();
-
-	TransitionImageLayout(vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal);
-	CopyBufferToImage(staging_buffer.buffer, m_image, width, height);
-	TransitionImageLayout(vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal);
-
-	CreateImageView();
-	CreateSampler();
-}
 
 Image2D::Image2D(const Image2DSpec& spec) {
 	SetSpec(spec);

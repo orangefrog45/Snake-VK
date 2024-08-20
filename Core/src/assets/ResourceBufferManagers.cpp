@@ -7,24 +7,11 @@ void GlobalMaterialBufferManager::Init(const std::array<std::shared_ptr<Descript
 	descriptor_buffers = buffers;
 	for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
 		m_material_ubos[i].CreateBuffer(4096 * material_size,
-			vk::BufferUsageFlagBits::eUniformBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress,
+			vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress,
 			VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT);
 
-		// Get address + size of uniform buffer
-		vk::DescriptorAddressInfoEXT addr_info{};
-		addr_info.address = m_material_ubos[i].GetDeviceAddress();
-		addr_info.range = m_material_ubos[i].alloc_info.size;
-
-		// Use above address + size data to connect the descriptor at the offset provided to this specific UBO
-		vk::DescriptorGetInfoEXT buffer_descriptor_info{};
-		buffer_descriptor_info.type = vk::DescriptorType::eUniformBuffer;
-		buffer_descriptor_info.data.pUniformBuffer = &addr_info;
-
-		VulkanContext::GetLogicalDevice().device->getDescriptorEXT(
-			buffer_descriptor_info,
-			VulkanContext::GetPhysicalDevice().buffer_properties.uniformBufferDescriptorSize,
-			reinterpret_cast<std::byte*>(descriptor_buffers[i]->descriptor_buffer.Map()) +
-			descriptor_buffers[i]->GetDescriptorSpec()->GetBindingOffset(0));
+		auto info = m_material_ubos[i].CreateDescriptorGetInfo();
+		descriptor_buffers[i]->LinkResource(info.first, 0, 0);
 	}
 
 	m_material_update_event_listener.callback = [this](Event const* p_event) {
@@ -59,15 +46,15 @@ void GlobalMaterialBufferManager::UpdateMaterialUBO() {
 	for (auto& mat_ref : m_materials_to_update[frame_in_flight_idx]) {
 		SNK_ASSERT(mat_ref->GetGlobalBufferIndex() != MaterialAsset::INVALID_GLOBAL_INDEX);
 
-		std::array<uint32_t, 5> texture_indices = { Texture2D::INVALID_GLOBAL_INDEX };
+		std::array<uint32_t, 5> texture_indices = { Texture2DAsset::INVALID_GLOBAL_INDEX };
 
-		if (mat_ref->p_albedo_tex) texture_indices[0] = mat_ref->p_albedo_tex->GetGlobalIndex();
-		if (mat_ref->p_normal_tex) texture_indices[1] = mat_ref->p_normal_tex->GetGlobalIndex();
-		if (mat_ref->p_roughness_tex) texture_indices[2] = mat_ref->p_roughness_tex->GetGlobalIndex();
-		if (mat_ref->p_metallic_tex) texture_indices[3] = mat_ref->p_metallic_tex->GetGlobalIndex();
-		if (mat_ref->p_ao_tex) texture_indices[4] = mat_ref->p_ao_tex->GetGlobalIndex();
+		if (mat_ref->albedo_tex) texture_indices[0] = mat_ref->albedo_tex->GetGlobalIndex();
+		if (mat_ref->normal_tex) texture_indices[1] = mat_ref->normal_tex->GetGlobalIndex();
+		if (mat_ref->roughness_tex) texture_indices[2] = mat_ref->roughness_tex->GetGlobalIndex();
+		if (mat_ref->metallic_tex) texture_indices[3] = mat_ref->metallic_tex->GetGlobalIndex();
+		if (mat_ref->ao_tex) texture_indices[4] = mat_ref->ao_tex->GetGlobalIndex();
 
-		std::array<float, 3> params = { mat_ref->roughness, mat_ref->metallic, mat_ref->ao };
+		std::array<float, 7> params = { mat_ref->roughness, mat_ref->metallic, mat_ref->ao, mat_ref->albedo.r, mat_ref->albedo.g, mat_ref->albedo.b, 1.f };
 
 		memcpy(p_data + mat_ref->GetGlobalBufferIndex() * material_size, texture_indices.data(), texture_indices.size() * sizeof(uint32_t));
 		memcpy(p_data + mat_ref->GetGlobalBufferIndex() * material_size + texture_indices.size() * sizeof(uint32_t), params.data(), params.size() * sizeof(float));
@@ -87,32 +74,20 @@ void GlobalTextureBufferManager::Init(const std::array<std::shared_ptr<Descripto
 	EventManagerG::RegisterListener<FrameStartEvent>(m_frame_start_listener);
 }
 
-void GlobalTextureBufferManager::RegisterTexture(Texture2D& tex) {
+void GlobalTextureBufferManager::RegisterTexture(AssetRef<Texture2DAsset> tex) {
 	for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-		m_textures_to_register[i].push_back(&tex);
+		m_textures_to_register[i].push_back(tex);
 	}
-	tex.m_global_index = m_current_index++;
+	tex->m_global_index = m_current_index++;
 }
 
 void GlobalTextureBufferManager::RegisterTexturesInternal() {
 	auto frame_in_flight_idx = VulkanContext::GetCurrentFIF();
-	for (auto* p_tex : m_textures_to_register[frame_in_flight_idx]) {
+	for (auto& tex : m_textures_to_register[frame_in_flight_idx]) {
 		auto& buffer_properties = VulkanContext::GetPhysicalDevice().buffer_properties;
 
-		vk::DescriptorImageInfo image_descriptor{};
-		image_descriptor.imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
-		image_descriptor.imageView = p_tex->GetImageView();
-		image_descriptor.sampler = p_tex->GetSampler();
-
-		// Use above image data to connect the descriptor at the offset provided to this specific image
-		vk::DescriptorGetInfoEXT image_desc_info{};
-		image_desc_info.type = vk::DescriptorType::eCombinedImageSampler;
-		image_desc_info.data.pCombinedImageSampler = &image_descriptor;
-		VulkanContext::GetLogicalDevice().device->getDescriptorEXT(image_desc_info,
-			buffer_properties.combinedImageSamplerDescriptorSize,
-			reinterpret_cast<std::byte*>(descriptor_buffers[frame_in_flight_idx]->descriptor_buffer.Map()) + p_tex->GetGlobalIndex() *
-			buffer_properties.combinedImageSamplerDescriptorSize + descriptor_buffers[frame_in_flight_idx]->GetDescriptorSpec()->GetBindingOffset(1));
-
+		auto info = tex->image.CreateDescriptorGetInfo(vk::ImageLayout::eShaderReadOnlyOptimal);
+		descriptor_buffers[frame_in_flight_idx]->LinkResource(info.first, 1, tex->GetGlobalIndex());
 	}
 
 	m_textures_to_register[frame_in_flight_idx].clear();

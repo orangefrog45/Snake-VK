@@ -24,9 +24,17 @@ namespace SNAKE {
 			if constexpr (std::is_same_v<AssetT, StaticMeshDataAsset>) {
 				// TODO: add multithreaded loading logic
 			}
+			else if constexpr (std::is_same_v<AssetT, Texture2DAsset>) {
+				//m_global_tex_buffer_manager
+			}
+			else if constexpr (std::is_same_v<AssetT, MaterialAsset>) {
+				m_global_material_buffer_manager.RegisterMaterial(asset);
+			}
 		}
 
 		bool LoadMeshFromFile(AssetRef<StaticMeshDataAsset> mesh_data_asset);
+
+		static void LoadTextureFromFile(AssetRef<Texture2DAsset> tex, const std::string& filepath);
 
 		template<std::derived_from<Asset> AssetT, typename... Args>
 		static AssetRef<AssetT> CreateAsset(uint64_t uuid = 0, Args&&... args) {
@@ -41,14 +49,18 @@ namespace SNAKE {
 			auto* p_asset = new AssetT(uuid, std::forward<Args>(args)...);
 			Get().m_assets[uuid] = p_asset;
 
+			Get().OnAssetAdd(AssetRef(p_asset));
+
 			return AssetRef<AssetT>(*p_asset);
 		}
 
 		enum CoreAssetIDs {
 			SPHERE_MESH = 1,
+			MATERIAL,
+			TEXTURE,
 		};
 
-		template<typename T>
+		template<std::derived_from<Asset> T>
 		static AssetRef<T> GetAsset(uint64_t uuid) {
 			if (!Get().m_assets.contains(uuid)) {
 				SNK_CORE_ERROR("AssetManager::GetAsset failed, UUID '{}' doesn't exist in AssetManager", uuid);
@@ -63,16 +75,45 @@ namespace SNAKE {
 			return AssetRef<T>{	p_asset };
 		}
 
+		template<std::derived_from<Asset> T>
+		static AssetRef<T> GetAsset(const std::string& filepath) {
+			for (auto& [uuid, p_asset] : Get().m_assets) {
+				if (std::filesystem::equivalent(p_asset->filepath, filepath)) {
+					if (auto* p_casted = dynamic_cast<T*>(p_asset)) {
+						return AssetRef<T>(p_casted);
+					}
+					else {
+						SNK_CORE_ERROR("AssetManager::GetAsset failed '{}', wrong asset type", p_asset->filepath);
+					}
+				}
+			}
+
+			SNK_CORE_ERROR("AssetManager::GetAsset failed, filepath '{}' doesn't exist in AssetManager", filepath);
+			return nullptr;
+		}
+
+		template<std::derived_from<Asset> T>
+		static std::vector<T*> GetView() {
+			std::vector<T*> ret;
+			for (auto& [uuid, p_asset] : Get().m_assets) {
+				if (auto* p_casted = dynamic_cast<T*>(p_asset))
+					ret.push_back(p_casted);
+			}
+			return ret;
+		}
+
 		static vk::DeviceAddress GetGlobalTexMatBufDeviceAddress(uint32_t current_frame) {
 			return Get().m_global_tex_buffer_manager.descriptor_buffers[current_frame]->descriptor_buffer.GetDeviceAddress();
 		}
 
 		static vk::DescriptorBufferBindingInfoEXT GetGlobalTexMatBufBindingInfo(uint32_t current_frame) {
-			return Get().m_global_tex_buffer_manager.descriptor_buffers[current_frame]->GetBindingInfo();
+			return Get().m_global_material_buffer_manager.descriptor_buffers[current_frame]->GetBindingInfo();
 		}
 
 
 	private:
+		AssetRef<Texture2DAsset> CreateOrGetTextureFromMaterial(const std::string& dir, aiTextureType type, aiMaterial* p_material);
+
 		void LoadCoreAssets(vk::CommandPool pool);
 		void I_Init(vk::CommandPool pool);
 

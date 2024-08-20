@@ -1,3 +1,9 @@
+20/8/24:
+-Basic asset editor
+-Mesh component editor
+-Connected tex/material system to shaders/render pipeline
+-Editor improvements
+
 19/8/24:
 -File explorer utilities
 -Improved project creation, added template project

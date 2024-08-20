@@ -12,11 +12,11 @@ layout(location = 3) in vec3 vs_world_pos;
 #include "LightBuffers.glsl"
 #include "TexMatBuffers.glsl"
 
-const mat4 bias = mat4( 
-  0.5, 0.0, 0.0, 0.0,
-  0.0, 0.5, 0.0, 0.0,
-  0.0, 0.0, 1.0, 0.0,
-  0.5, 0.5, 0.0, 1.0 );
+layout(push_constant) uniform pc {
+    mat4 transform;
+    uint material_idx;
+} push;
+
 
 float CalcShadow() {
     vec4 frag_pos_light_space = ssbo_light_data.dir_light.light_transform * vec4(vs_world_pos, 1.0);
@@ -56,6 +56,7 @@ void main() {
         light += CalcSpotlight(ssbo_light_data.spotlights[i], v, f0, vs_world_pos, n, 0.1, 0.0, vec3(1));
     }
 
-
-    out_colour = vec4(light, 1);
+    Material material = material_ubo.materials[push.material_idx];
+    vec3 albedo = texture(textures[material.albedo_tex_idx], vs_tex_coord).rgb * material.albedo.rgb;
+    out_colour = vec4(light * albedo, 1);
 }

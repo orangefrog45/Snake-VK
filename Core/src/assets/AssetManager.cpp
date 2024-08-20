@@ -2,9 +2,10 @@
 #include "assets/AssetManager.h"
 #include "util/util.h"
 #include "assets/MeshData.h"
+#include "util/FileUtil.h"
+#include <stb_image.h>
 
 namespace SNAKE {
-
 	void AssetManager::I_Init(vk::CommandPool pool) {
 		InitGlobalBufferManagers();
 		LoadCoreAssets(pool);
@@ -19,8 +20,8 @@ namespace SNAKE {
 			auto p_descriptor_spec = std::make_shared<DescriptorSetSpec>();
 			descriptor_buffers[i]->SetDescriptorSpec(p_descriptor_spec);
 
-			p_descriptor_spec->AddDescriptor(0, vk::DescriptorType::eUniformBuffer,
-				vk::ShaderStageFlagBits::eAllGraphics, 64)
+			p_descriptor_spec->AddDescriptor(0, vk::DescriptorType::eStorageBuffer,
+				vk::ShaderStageFlagBits::eAllGraphics, 1)
 				.AddDescriptor(1, vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eAllGraphics, 4096);
 
 			p_descriptor_spec->GenDescriptorLayout();
@@ -33,9 +34,19 @@ namespace SNAKE {
 	}
 
 	void AssetManager::LoadCoreAssets(vk::CommandPool pool) {
+		auto tex = CreateAsset<Texture2DAsset>(CoreAssetIDs::TEXTURE);
+		tex->LoadFromFile("res/textures/metalgrid1_basecolor.png");
+
 		auto mesh = CreateAsset<StaticMeshAsset>(CoreAssetIDs::SPHERE_MESH);
-		mesh->data = std::make_shared<StaticMeshDataAsset>();
-		mesh->data->ImportFile("res/meshes/sphere.glb");
+		mesh->data = CreateAsset<StaticMeshDataAsset>();
+		mesh->data->filepath = "res/meshes/sphere.glb";
+		LoadMeshFromFile(mesh->data);
+
+		auto material = CreateAsset<MaterialAsset>(CoreAssetIDs::MATERIAL);
+		material->albedo_tex = tex;
+		material->name = "Default material";
+		material->DispatchUpdateEvent();
+
 	}
 
 	void AssetManager::Shutdown() {
@@ -60,6 +71,76 @@ namespace SNAKE {
 		delete Get().m_assets[asset->uuid()];
 	}
 
+	AssetRef<Texture2DAsset> AssetManager::CreateOrGetTextureFromMaterial(const std::string& dir, aiTextureType type, aiMaterial* p_material) {
+		AssetRef<Texture2DAsset> tex = AssetManager::GetAsset<Texture2DAsset>(CoreAssetIDs::TEXTURE);
+
+		if (p_material->GetTextureCount(type) > 0) {
+			aiString path;
+
+			if (p_material->GetTexture(type, 0, &path, NULL, NULL, NULL, NULL, NULL) == aiReturn_SUCCESS) {
+				std::string p(path.data);
+				std::string full_path;
+
+				if (p.starts_with(".\\"))
+					p = p.substr(2, p.size() - 2);
+
+				full_path = dir + "\\" + p;
+
+				if (auto existing = GetAsset<Texture2DAsset>(full_path)) {
+					return existing;
+				}
+
+				tex = AssetManager::CreateAsset<Texture2DAsset>();
+
+				if (!files::PathExists(full_path)) {
+					SNK_CORE_ERROR("CreateOrGetTextureFromMaterial failed, invalid path '{}'", full_path);
+					return AssetManager::GetAsset<Texture2DAsset>(CoreAssetIDs::TEXTURE);
+				}
+
+				tex = CreateAsset<Texture2DAsset>();
+				tex->LoadFromFile(full_path);
+			}
+		}
+
+		return tex;
+	}
+
+	void AssetManager::LoadTextureFromFile(AssetRef<Texture2DAsset> tex, const std::string& filepath) {
+		int width, height, channels;
+		// Force 4 channels as most GPUs only support these as samplers
+		stbi_uc* pixels = stbi_load(filepath.c_str(), &width, &height, &channels, 4);
+		vk::DeviceSize image_size = width * height * 4;
+		SNK_ASSERT(pixels);
+
+		S_VkBuffer staging_buffer{};
+		staging_buffer.CreateBuffer(image_size, vk::BufferUsageFlagBits::eTransferSrc, VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT);
+		void* p_data = staging_buffer.Map();
+		memcpy(p_data, pixels, (size_t)image_size);
+		staging_buffer.Unmap();
+
+		stbi_image_free(pixels);
+
+		Image2DSpec spec;
+		spec.format = vk::Format::eR8G8B8A8Srgb;
+		spec.usage = vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled;
+		spec.size.x = width;
+		spec.size.y = height;
+		spec.tiling = vk::ImageTiling::eOptimal;
+		spec.aspect_flags = vk::ImageAspectFlagBits::eColor;
+
+		tex->image.SetSpec(spec);
+		tex->image.CreateImage();
+
+		tex->image.TransitionImageLayout(vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal);
+		CopyBufferToImage(staging_buffer.buffer, tex->image.GetImage(), width, height);
+		tex->image.TransitionImageLayout(vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal);
+
+		tex->image.CreateImageView();
+		tex->image.CreateSampler();
+
+		Get().m_global_tex_buffer_manager.RegisterTexture(tex);
+	}
+
 
 	bool AssetManager::LoadMeshFromFile(AssetRef<StaticMeshDataAsset> mesh_data_asset) {
 		Assimp::Importer importer;
@@ -76,6 +157,14 @@ namespace SNAKE {
 
 		for (size_t i = 0; i < p_scene->mNumMeshes; i++) {
 			auto* p_submesh = p_scene->mMeshes[i];
+
+			Submesh sm;
+			sm.base_index = num_indices;
+			sm.base_vertex = num_vertices;
+			sm.num_indices = p_submesh->mNumFaces * 3;
+			sm.material_index = p_submesh->mMaterialIndex;
+			mesh_data_asset->submeshes.push_back(sm);
+
 			num_vertices += p_submesh->mNumVertices;
 			num_indices += p_submesh->mNumFaces * 3;
 		}
@@ -154,6 +243,51 @@ namespace SNAKE {
 		staging_buf_index.Unmap();
 		staging_buf_norm.Unmap();
 		staging_buf_tex_coord.Unmap();
+
+		mesh_data_asset->materials.resize(p_scene->mNumMaterials, nullptr);
+
+		if (mesh_data_asset->materials.empty()) {
+			mesh_data_asset->materials.push_back(GetAsset<MaterialAsset>(CoreAssetIDs::MATERIAL));
+		}
+
+		auto dir = files::GetFileDirectory(mesh_data_asset->filepath);
+
+		for (size_t i = 0; i < p_scene->mNumMaterials; i++) {
+			aiMaterial* p_material = p_scene->mMaterials[i];
+			AssetRef<MaterialAsset> material_asset = CreateAsset<MaterialAsset>();
+			bool material_properties_set = false;
+
+			material_asset->albedo_tex = CreateOrGetTextureFromMaterial(dir, aiTextureType_BASE_COLOR, p_material);
+			material_asset->normal_tex = CreateOrGetTextureFromMaterial(dir, aiTextureType_NORMALS, p_material);
+			material_asset->roughness_tex = CreateOrGetTextureFromMaterial(dir, aiTextureType_DIFFUSE_ROUGHNESS, p_material);
+			material_asset->metallic_tex = CreateOrGetTextureFromMaterial(dir, aiTextureType_METALNESS, p_material);
+			material_asset->ao_tex = CreateOrGetTextureFromMaterial(dir, aiTextureType_AMBIENT_OCCLUSION, p_material);
+
+			aiColor3D base_col(1.f, 1.f, 1.f);
+			if (p_material->Get(AI_MATKEY_BASE_COLOR, base_col) == aiReturn_SUCCESS) {
+				material_asset->albedo = { base_col.r, base_col.g, base_col.b };
+				material_properties_set = true;
+			}
+
+			float roughness;
+			float metallic;
+			if (p_material->Get(AI_MATKEY_ROUGHNESS_FACTOR, roughness) == aiReturn_SUCCESS) {
+				material_asset->roughness = roughness;
+				material_properties_set = true;
+			}
+
+			if (p_material->Get(AI_MATKEY_METALLIC_FACTOR, metallic) == aiReturn_SUCCESS) {
+				material_asset->metallic = metallic;
+				material_properties_set = true;
+			}
+
+			if (!material_properties_set) {
+				material_asset = GetAsset<MaterialAsset>(CoreAssetIDs::MATERIAL);
+				AssetManager::DeleteAsset(material_asset->uuid());
+			} 
+
+			mesh_data_asset->materials[i] = material_asset;
+		}
 
 		return true;
 	}

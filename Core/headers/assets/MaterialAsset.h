@@ -1,6 +1,5 @@
 #pragma once
-#include "Asset.h"
-#include "textures/Textures.h"
+#include "assets/TextureAssets.h"
 
 namespace SNAKE {
 	class MaterialAsset : public Asset {
@@ -19,12 +18,14 @@ namespace SNAKE {
 			EventManagerG::DispatchEvent(MaterialUpdateEvent(this));
 		}
 
-		Texture2D* p_albedo_tex = nullptr;
-		Texture2D* p_normal_tex = nullptr;
-		Texture2D* p_roughness_tex = nullptr;
-		Texture2D* p_metallic_tex = nullptr;
-		Texture2D* p_ao_tex = nullptr;
+		AssetRef<Texture2DAsset> albedo_tex = nullptr;
+		AssetRef<Texture2DAsset> normal_tex = nullptr;
+		AssetRef<Texture2DAsset> roughness_tex = nullptr;
+		AssetRef<Texture2DAsset> metallic_tex = nullptr;
+		AssetRef<Texture2DAsset> ao_tex = nullptr;
 
+		glm::vec3 albedo{ 1, 1, 1 };
+		float emissive = 0.f;
 		float roughness = 0.5f;
 		float metallic = 0.f;
 		float ao = 0.2f;

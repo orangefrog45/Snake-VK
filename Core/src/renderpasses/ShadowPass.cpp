@@ -103,20 +103,22 @@ namespace SNAKE {
 
 		cmd.setDescriptorBufferOffsetsEXT(vk::PipelineBindPoint::eGraphics, m_pipeline.pipeline_layout.GetPipelineLayout(), (uint32_t)DescriptorSetIndices::LIGHTS, buffer_indices, buffer_offsets);
 
-		StaticMeshDataAsset* p_last_bound_data = nullptr;
+		uint64_t last_bound_data_uuid = 0;
 
 		for (auto [entity, mesh, transform] : scene->GetRegistry().view<StaticMeshComponent, TransformComponent>().each()) {
-			if (p_last_bound_data != mesh.mesh_asset->data.get()) {
+			if (last_bound_data_uuid != mesh.mesh_asset->data->uuid()) {
 				std::vector<vk::Buffer> vert_buffers = { mesh.mesh_asset->data->position_buf.buffer, mesh.mesh_asset->data->normal_buf.buffer, mesh.mesh_asset->data->tex_coord_buf.buffer };
 				std::vector<vk::Buffer> index_buffers = { mesh.mesh_asset->data->index_buf.buffer };
 				std::vector<vk::DeviceSize> offsets = { 0, 0, 0 };
 				cmd.bindVertexBuffers(0, 3, vert_buffers.data(), offsets.data());
 				cmd.bindIndexBuffer(mesh.mesh_asset->data->index_buf.buffer, 0, vk::IndexType::eUint32);
-				p_last_bound_data = mesh.mesh_asset->data.get();
+				last_bound_data_uuid = mesh.mesh_asset->data->uuid();
 			}
 
-			cmd.pushConstants(m_pipeline.pipeline_layout.GetPipelineLayout(), vk::ShaderStageFlagBits::eAllGraphics, 0, sizeof(glm::mat4), &transform.GetMatrix()[0][0]);
-			cmd.drawIndexed((uint32_t)mesh.mesh_asset->data->index_buf.alloc_info.size / sizeof(uint32_t), 1, 0, 0, 0);
+			for (auto& submesh : mesh.mesh_asset->data->submeshes) {
+				cmd.pushConstants(m_pipeline.pipeline_layout.GetPipelineLayout(), vk::ShaderStageFlagBits::eAllGraphics, 0, sizeof(glm::mat4), &transform.GetMatrix()[0][0]);
+				cmd.drawIndexed(submesh.num_indices, 1, submesh.base_index, submesh.base_vertex, 0);
+			}
 		}
 
 		cmd.endRenderingKHR();

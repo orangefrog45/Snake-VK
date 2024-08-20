@@ -1,7 +1,7 @@
 #pragma once
 #include "core/VkCommon.h"
 #include "core/VkContext.h"
-#include "textures/Textures.h"
+#include "assets/TextureAssets.h"
 #include "assets/MaterialAsset.h"
 #include "core/DescriptorBuffer.h"
 
@@ -39,7 +39,7 @@ namespace SNAKE {
 	public:
 		void Init(const std::array<std::shared_ptr<DescriptorBuffer>, MAX_FRAMES_IN_FLIGHT>& buffers);
 
-		void RegisterTexture(Texture2D& tex);
+		void RegisterTexture(AssetRef<Texture2DAsset> tex);
 
 		std::array<std::shared_ptr<DescriptorBuffer>, MAX_FRAMES_IN_FLIGHT> descriptor_buffers{};
 	private:
@@ -49,6 +49,6 @@ namespace SNAKE {
 
 		EventListener m_frame_start_listener;
 
-		std::unordered_map<FrameInFlightIndex, std::vector<Texture2D*>> m_textures_to_register;
+		std::unordered_map<FrameInFlightIndex, std::vector<AssetRef<Texture2DAsset>>> m_textures_to_register;
 	};
 }

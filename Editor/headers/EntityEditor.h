@@ -7,6 +7,10 @@ namespace SNAKE {
 	public:
 		EntityEditor(Scene* _scene) : p_scene(_scene) {}
 
+		void Init(class AssetEditor* _asset_editor) {
+			p_asset_editor = _asset_editor;
+		}
+
 		// Returns true if any entity/component has been modified
 		bool RenderImGui();
 
@@ -21,6 +25,8 @@ namespace SNAKE {
 		void DestroyEntity(Entity* p_ent);
 		
 		Scene* p_scene = nullptr;
+
+		class AssetEditor* p_asset_editor = nullptr;
 	private:
 		Entity* mp_active_entity = nullptr;
 

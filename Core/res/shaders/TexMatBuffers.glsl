@@ -9,11 +9,12 @@ struct Material {
     float metallic;
     float ao;
 
-    vec4 padding[2];
+    vec4 albedo;
+    vec4 padding;
 };
 
-layout(set = 1, binding = 0) uniform MaterialUBO {
+layout(set = 1, binding = 0) buffer MaterialUBO {
     Material materials[4096];
 } material_ubo;
 
-layout(set = 1, binding = 0) uniform sampler2D textures[4096];
+layout(set = 1, binding = 1) uniform sampler2D textures[4096];

@@ -3,7 +3,7 @@
 #include "imgui.h"
 #include "backends/imgui_impl_vulkan.h"
 #include "backends/imgui_impl_glfw.h"
-#include "textures/Textures.h"
+#include "images/Images.h"
 
 using namespace SNAKE;
 

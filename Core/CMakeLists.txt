@@ -68,8 +68,8 @@ add_library(SNAKE_VK_CORE
  "src/core/VkContext.cpp" 
  "headers/core/VkIncl.h" 
  "src/misc/stb.cpp" 
- "headers/textures/Textures.h" 
- "src/textures/Textures.cpp" 
+ "headers/images/Images.h" 
+ "src/images/Images.cpp" 
  "src/misc/vma.cpp"
  "src/assets/MeshData.cpp" 
  "headers/assets/MeshData.h" 
@@ -115,7 +115,7 @@ add_library(SNAKE_VK_CORE
  "headers/assets/MaterialAsset.h" 
  "src/core/DescriptorBuffer.cpp" 
  "src/core/App.cpp"
- "src/scene/Scene.cpp" "headers/components/Components.h" "src/rendering/VkRenderer.cpp" "headers/layers/ImGuiLayer.h" "src/layers/LayerManager.cpp" "src/layers/ImGuiLayer.cpp" "src/scene/Entity.cpp" "src/scene/TransformSystem.cpp" "headers/scene/TransformSystem.h" "headers/scene/SceneSerializer.h" "src/scene/SceneSerializer.cpp")
+ "src/scene/Scene.cpp" "headers/components/Components.h" "src/rendering/VkRenderer.cpp" "headers/layers/ImGuiLayer.h" "src/layers/LayerManager.cpp" "src/layers/ImGuiLayer.cpp" "src/scene/Entity.cpp" "src/scene/TransformSystem.cpp" "headers/scene/TransformSystem.h" "headers/scene/SceneSerializer.h" "src/scene/SceneSerializer.cpp" "src/assets/TextureAssets.cpp" "src/util/UI.cpp" "headers/util/UI.h")
 
 
 target_link_options(SNAKE_VK_CORE PRIVATE -INCREMENTAL -ZI)

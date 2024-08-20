@@ -14,6 +14,7 @@ namespace SNAKE {
 		explicit operator T() const { return m_uuid; }
 		T operator() () const { return m_uuid; };
 
+		static constexpr T INVALID_UUID = 0;
 
 	private:
 		T m_uuid;

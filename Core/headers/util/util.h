@@ -30,7 +30,10 @@
 #define SNK_ASSERT(x) if (!(x)) {SNK_BREAK("Assertion failed");}
 #define SNK_ASSERT_ARG(x, ...) if (!(x)) {SNK_BREAK("Assertion failed: '{0}'", __VA_ARGS__);}
 
+
 namespace SNAKE {
+	constexpr uint64_t INVALID_UUID = 0;
+
 	namespace detail {
 		template<typename T>
 		concept HasConvertToBytesOverride = requires(T t) {

@@ -1,10 +1,8 @@
 #pragma once
 #include "core/S_VkBuffer.h"
-#include "textures/Textures.h"
 #include "events/EventManager.h"
 #include "events/EventsCommon.h"
 #include "assets/Asset.h"
-#include <iostream>
 namespace SNAKE {
 
 	class DescriptorSetSpec {

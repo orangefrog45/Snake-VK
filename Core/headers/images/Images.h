@@ -97,18 +97,5 @@ namespace SNAKE {
 		EventListener m_swapchain_invalidate_listener;
 	};
 
-	class Texture2D : public Image2D {
-	public:
-		inline uint16_t GetGlobalIndex() const { return m_global_index; };
 
-		void LoadFromFile(const std::string& filepath);
-
-		inline static constexpr uint16_t INVALID_GLOBAL_INDEX = std::numeric_limits<uint16_t>::max();
-	private:
-
-		// Index into the global texture descriptor buffer
-		uint16_t m_global_index = INVALID_GLOBAL_INDEX;
-
-		friend class GlobalTextureBufferManager;
-	};
 }
