@@ -7,6 +7,7 @@
 namespace SNAKE {
 	class ForwardPass {
 	public:
+
 		void Init(Window* p_window, Image2D* p_shadowmap_image);
 
 		void RecordCommandBuffer(Image2D& output_image, class Scene& scene);

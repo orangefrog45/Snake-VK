@@ -18,7 +18,7 @@ namespace SNAKE {
 	struct SpotlightComponent : public Component {
 		SpotlightComponent(Entity* p_ent) : Component(p_ent) { };
 
-		glm::vec3 colour{ 1, 1, 1 };
+		glm::vec3 colour{ 1, 0, 0 };
 		float aperture = 0.15f;
 		LightAttenuation attenuation{};
 	};

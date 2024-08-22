@@ -39,10 +39,10 @@ namespace SNAKE {
 
 		auto normal_tex = CreateAsset<Texture2DAsset>();
 		normal_tex->name = "NORMAL MAP";
-		normal_tex->LoadFromFile("res/textures/metalgrid1_normal-ogl.png");
+		normal_tex->LoadFromFile("res/textures/metalgrid1_normal-dx.png");
 
 		auto mesh = CreateAsset<StaticMeshAsset>(CoreAssetIDs::SPHERE_MESH);
-		mesh->data = CreateAsset<StaticMeshDataAsset>();
+		mesh->data = CreateAsset<MeshDataAsset>();
 		mesh->data->filepath = "res/meshes/sphere.glb";
 		LoadMeshFromFile(mesh->data);
 
@@ -73,7 +73,8 @@ namespace SNAKE {
 			SNK_CORE_WARN("Deleting asset '[{}, {}]' which still has {} references", asset->uuid(), asset->filepath, ref_count);
 		}
 
-		delete Get().m_assets[asset->uuid()];
+		Get().m_assets.erase(asset->uuid());
+		delete asset;
 	}
 
 	AssetRef<Texture2DAsset> AssetManager::CreateOrGetTextureFromMaterial(const std::string& dir, aiTextureType type, aiMaterial* p_material) {
@@ -95,7 +96,7 @@ namespace SNAKE {
 					return existing;
 				}
 
-				tex = AssetManager::CreateAsset<Texture2DAsset>();
+				tex = CreateAsset<Texture2DAsset>();
 
 				if (!files::PathExists(full_path)) {
 					SNK_CORE_ERROR("CreateOrGetTextureFromMaterial failed, invalid path '{}'", full_path);
@@ -110,12 +111,14 @@ namespace SNAKE {
 		return tex;
 	}
 
-	void AssetManager::LoadTextureFromFile(AssetRef<Texture2DAsset> tex, const std::string& filepath) {
+	bool AssetManager::LoadTextureFromFile(AssetRef<Texture2DAsset> tex) {
 		int width, height, channels;
 		// Force 4 channels as most GPUs only support these as samplers
-		stbi_uc* pixels = stbi_load(filepath.c_str(), &width, &height, &channels, 4);
+		stbi_uc* pixels = stbi_load(tex->filepath.c_str(), &width, &height, &channels, 4);
+		if (!pixels) {
+			return false;
+		}
 		vk::DeviceSize image_size = width * height * 4;
-		SNK_ASSERT(pixels);
 
 		S_VkBuffer staging_buffer{};
 		staging_buffer.CreateBuffer(image_size, vk::BufferUsageFlagBits::eTransferSrc, VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT);
@@ -144,10 +147,12 @@ namespace SNAKE {
 		tex->image.CreateSampler();
 
 		Get().m_global_tex_buffer_manager.RegisterTexture(tex);
+
+		return true;
 	}
 
 
-	bool AssetManager::LoadMeshFromFile(AssetRef<StaticMeshDataAsset> mesh_data_asset) {
+	bool AssetManager::LoadMeshFromFile(AssetRef<MeshDataAsset> mesh_data_asset) {
 		Assimp::Importer importer;
 
 		const aiScene* p_scene = importer.ReadFile(mesh_data_asset->filepath, 

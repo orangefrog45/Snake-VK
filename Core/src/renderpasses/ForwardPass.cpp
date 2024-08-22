@@ -40,7 +40,7 @@ namespace SNAKE {
 			.AddVertexBinding(attribute_desc[1], binding_desc[1])
 			.AddVertexBinding(attribute_desc[2], binding_desc[2])
 			.AddVertexBinding(attribute_desc[3], binding_desc[3])
-			.AddColourAttachment(p_window->GetVkContext().swapchain_format)
+			.AddColourAttachment(vk::Format::eR8G8B8A8Srgb)
 			.AddDepthAttachment(FindDepthFormat())
 			.Build();
 

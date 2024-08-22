@@ -53,11 +53,13 @@ void main() {
     Material material = material_ubo.materials[push.material_idx];
     vec3 n;
 
-    if ((material.flags & MAT_FLAG_SAMPLED_NORMAL) != 0) {
-        n = normalize(CalculateTbnMatrix() * (texture(textures[material.normal_tex_idx], vs_tex_coord).xyz * 2.0 - 1.0));
+    if (material.normal_tex_idx != INVALID_GLOBAL_INDEX) {
+        n = normalize(CalculateTbnMatrix() * normalize(texture(textures[material.normal_tex_idx], vs_tex_coord).xyz * 2.0 - 1.0));
     } else {
         n = normalize(vs_normal);
     }
+    out_colour = vec4(n, 1);
+    return;
 
 	vec3 v = normalize(common_ubo.cam_pos.xyz - vs_world_pos);
 	vec3 r = reflect(-v, n);
@@ -65,7 +67,7 @@ void main() {
 
     vec3 albedo = material.albedo.rgb;
 
-    if ((material.flags & MAT_FLAG_SAMPLED_ALBEDO) != 0)
+    if (material.albedo_tex_idx != INVALID_GLOBAL_INDEX)
         albedo *= texture(textures[material.albedo_tex_idx], vs_tex_coord).rgb;
 
 	vec3 f0 = vec3(0.04); // TODO: Support different values for more metallic objects
@@ -77,7 +79,7 @@ void main() {
         light += CalcPointlight(ssbo_light_data.pointlights[i], v, f0, vs_world_pos, n, material.roughness, material.metallic, albedo.rgb);
     }
 
-    for (uint i = 0; i < ssbo_light_data.num_pointlights; i++) {
+    for (uint i = 0; i < ssbo_light_data.num_spotlights; i++) {
         light += CalcSpotlight(ssbo_light_data.spotlights[i], v, f0, vs_world_pos, n, material.roughness, material.metallic, albedo.rgb);
     }
 

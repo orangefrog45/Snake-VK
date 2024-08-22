@@ -48,39 +48,21 @@ void GlobalMaterialBufferManager::UpdateMaterialUBO() {
 
 		std::array<std::byte, material_size> data;
 
-
-		uint32_t flags = 0;
 		unsigned idx = 0;
 
-		if (mat_ref->albedo_tex) {
-			idx = mat_ref->albedo_tex->GetGlobalIndex();
-			memcpy(data.data(), &idx, sizeof(unsigned));
-			flags |= MaterialAsset::SAMPLED_ALBEDO;
-		}
-		if (mat_ref->normal_tex) {
-			idx = mat_ref->normal_tex->GetGlobalIndex();
-			memcpy(data.data() + sizeof(unsigned), &idx, sizeof(unsigned));
-			flags |= MaterialAsset::SAMPLED_NORMAL;
-		}
-		if (mat_ref->roughness_tex) {
-			idx = mat_ref->roughness_tex->GetGlobalIndex();
-			memcpy(data.data() + sizeof(unsigned) * 2, &idx, sizeof(unsigned));
-			flags |= MaterialAsset::SAMPLED_ROUGHNESS;
-		}
-		if (mat_ref->metallic_tex) {
-			idx = mat_ref->metallic_tex->GetGlobalIndex();
-			memcpy(data.data() + sizeof(unsigned) * 3, &idx, sizeof(unsigned));
-			flags |= MaterialAsset::SAMPLED_METALLIC;
-		}
-		if (mat_ref->ao_tex) {
-			idx = mat_ref->ao_tex->GetGlobalIndex();
-			memcpy(data.data() + sizeof(unsigned) * 4, &idx, sizeof(unsigned));
-			flags |= MaterialAsset::SAMPLED_AO;
-		}
+		idx = mat_ref->albedo_tex ? mat_ref->albedo_tex->GetGlobalIndex() : Texture2DAsset::INVALID_GLOBAL_INDEX;
+		memcpy(data.data(), &idx, sizeof(unsigned));
+		idx = mat_ref->normal_tex ? mat_ref->normal_tex->GetGlobalIndex() : Texture2DAsset::INVALID_GLOBAL_INDEX;
+		memcpy(data.data() + sizeof(unsigned), &idx, sizeof(unsigned));
+		idx = mat_ref->roughness_tex ? mat_ref->roughness_tex->GetGlobalIndex() : Texture2DAsset::INVALID_GLOBAL_INDEX;
+		memcpy(data.data() + sizeof(unsigned) * 2, &idx, sizeof(unsigned));
+		idx = mat_ref->metallic_tex ? mat_ref->metallic_tex->GetGlobalIndex() : Texture2DAsset::INVALID_GLOBAL_INDEX;
+		memcpy(data.data() + sizeof(unsigned) * 3, &idx, sizeof(unsigned));
+		idx = mat_ref->ao_tex ? mat_ref->ao_tex->GetGlobalIndex() : Texture2DAsset::INVALID_GLOBAL_INDEX;
+		memcpy(data.data() + sizeof(unsigned) * 4, &idx, sizeof(unsigned));
 
 		std::array<float, 7> params = { mat_ref->roughness, mat_ref->metallic, mat_ref->ao, mat_ref->albedo.r, mat_ref->albedo.g, mat_ref->albedo.b, 1.f };
 		memcpy(data.data() + sizeof(unsigned) * 5, &params, sizeof(float) * 7);
-		memcpy(data.data() + sizeof(unsigned) * 5 + sizeof(float) * 7, &flags, sizeof(unsigned));
 
 		memcpy(p_data + mat_ref->GetGlobalBufferIndex() * material_size, data.data(), data.size());
 	}

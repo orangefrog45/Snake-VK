@@ -17,7 +17,8 @@ namespace SNAKE {
 		~S_VkBuffer() {
 			if (p_data) Unmap();
 
-			vmaDestroyBuffer(VulkanContext::GetAllocator(), buffer, allocation);
+			if (buffer)
+				vmaDestroyBuffer(VulkanContext::GetAllocator(), buffer, allocation);
 		}
 
 		void CreateBuffer(vk::DeviceSize size, vk::BufferUsageFlags usage, VmaAllocationCreateFlags flags = 0);
@@ -44,7 +45,7 @@ namespace SNAKE {
 
 		VmaAllocation allocation;
 		VmaAllocationInfo alloc_info;
-		vk::Buffer buffer;
+		vk::Buffer buffer = VK_NULL_HANDLE;
 
 	private:
 		vk::BufferUsageFlags m_usage;

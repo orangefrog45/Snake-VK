@@ -56,6 +56,9 @@ namespace SNAKE {
 			m_sampler.release();
 		}
 
+		void BlitTo(Image2D& dst, vk::ImageLayout start_src_layout, vk::ImageLayout start_dst_layout, 
+			vk::ImageLayout final_src_layout, vk::ImageLayout final_dst_layout, std::optional<vk::Semaphore> wait_semaphore = std::nullopt);
+
 		void CreateSampler();
 
 		std::pair<vk::DescriptorGetInfoEXT, std::shared_ptr<vk::DescriptorImageInfo>> CreateDescriptorGetInfo(vk::ImageLayout layout) const;

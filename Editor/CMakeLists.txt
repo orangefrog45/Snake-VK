@@ -4,7 +4,7 @@ project(SNAKE_VK_EDITOR)
 
 add_executable(SNAKE_VK_EDITOR
 "src/main.cpp"
- "src/EditorLayer.cpp" "headers/EntityEditor.h" "src/EntityEditor.cpp" "headers/AssetEditor.h" "src/AssetEditor.cpp")
+ "src/EditorLayer.cpp" "headers/EntityEditor.h" "src/EntityEditor.cpp" "headers/AssetEditor.h" "src/AssetEditor.cpp" )
 
 target_link_libraries(SNAKE_VK_EDITOR PUBLIC SNAKE_VK_CORE)
 

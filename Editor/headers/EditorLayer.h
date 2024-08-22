@@ -17,9 +17,10 @@ namespace SNAKE {
 		bool block_other_window_input = true;
 	};
 
+
 	class EditorLayer : public Layer {
 	public:
-		EditorLayer(Window* _window) : p_window(_window), ent_editor(&scene), asset_editor(p_window) {};
+		EditorLayer(Window* _window) : p_window(_window), ent_editor(&scene), asset_editor(p_window, this) {};
 		void OnInit() override;
 		void OnUpdate() override;
 		void OnRender() override;
@@ -27,6 +28,10 @@ namespace SNAKE {
 		void OnShutdown() override;
 
 		[[nodiscard]] DialogBox* CreateDialogBox();
+		void ErrorMessagePopup(const std::string& err);
+
+		Scene scene;
+		FullscreenImage2D render_image;
 	private:
 		void RenderDialogBoxes();
 
@@ -49,7 +54,6 @@ namespace SNAKE {
 		std::string editor_executable_dir;
 		bool unsaved_changes = false;
 
-		Scene scene;
 		std::unique_ptr<Entity> p_cam_ent = nullptr;
 
 		std::vector<std::unique_ptr<DialogBox>> dialog_boxes;
@@ -63,6 +67,5 @@ namespace SNAKE {
 		VkSceneRenderer renderer;
 
 		EventListener entity_deletion_listener;
-
 	};
 }

@@ -21,7 +21,7 @@ namespace SNAKE {
 
 		template<std::derived_from<Asset> AssetT>
 		void OnAssetAdd(AssetRef<AssetT> asset) {
-			if constexpr (std::is_same_v<AssetT, StaticMeshDataAsset>) {
+			if constexpr (std::is_same_v<AssetT, MeshDataAsset>) {
 				// TODO: add multithreaded loading logic
 			}
 			else if constexpr (std::is_same_v<AssetT, Texture2DAsset>) {
@@ -32,9 +32,9 @@ namespace SNAKE {
 			}
 		}
 
-		bool LoadMeshFromFile(AssetRef<StaticMeshDataAsset> mesh_data_asset);
+		static bool LoadMeshFromFile(AssetRef<MeshDataAsset> mesh_data_asset);
 
-		static void LoadTextureFromFile(AssetRef<Texture2DAsset> tex, const std::string& filepath);
+		static bool LoadTextureFromFile(AssetRef<Texture2DAsset> tex);
 
 		template<std::derived_from<Asset> AssetT, typename... Args>
 		static AssetRef<AssetT> CreateAsset(uint64_t uuid = 0, Args&&... args) {
@@ -61,10 +61,10 @@ namespace SNAKE {
 		};
 
 		template<std::derived_from<Asset> T>
-		static AssetRef<T> GetAsset(uint64_t uuid) {
+		static T* GetAssetRaw(uint64_t uuid) {
 			if (!Get().m_assets.contains(uuid)) {
 				SNK_CORE_ERROR("AssetManager::GetAsset failed, UUID '{}' doesn't exist in AssetManager", uuid);
-				return AssetRef<T>{ nullptr };
+				return nullptr;
 			}
 
 			auto* p_asset = dynamic_cast<T*>(Get().m_assets[uuid]);
@@ -72,7 +72,12 @@ namespace SNAKE {
 				SNK_CORE_ERROR("AssetManager::GetAsset failed '{}', wrong asset type", uuid);
 			}
 
-			return AssetRef<T>{	p_asset };
+			return p_asset;
+		}
+
+		template<std::derived_from<Asset> T>
+		static AssetRef<T> GetAsset(uint64_t uuid) {
+			return AssetRef<T>{	GetAssetRaw<T>(uuid) };
 		}
 
 		template<std::derived_from<Asset> T>
@@ -112,7 +117,7 @@ namespace SNAKE {
 
 
 	private:
-		AssetRef<Texture2DAsset> CreateOrGetTextureFromMaterial(const std::string& dir, aiTextureType type, aiMaterial* p_material);
+		static AssetRef<Texture2DAsset> CreateOrGetTextureFromMaterial(const std::string& dir, aiTextureType type, aiMaterial* p_material);
 
 		void LoadCoreAssets(vk::CommandPool pool);
 		void I_Init(vk::CommandPool pool);

@@ -17,8 +17,8 @@ namespace SNAKE {
 		unsigned int material_index;
 	};
 
-	struct StaticMeshDataAsset : public Asset {
-		StaticMeshDataAsset(uint64_t uuid = 0) : Asset(uuid) {};
+	struct MeshDataAsset : public Asset {
+		MeshDataAsset(uint64_t uuid = 0) : Asset(uuid) {};
 
 		// Materials that were loaded with the mesh - if deleted these are reset to the default material asset
 		std::vector<AssetRef<MaterialAsset>> materials;
@@ -34,7 +34,7 @@ namespace SNAKE {
 
 	class StaticMeshAsset : public Asset {
 	public:
-		AssetRef<StaticMeshDataAsset> data{ nullptr };
+		AssetRef<MeshDataAsset> data{ nullptr };
 	private:
 		StaticMeshAsset(uint64_t uuid) : Asset(uuid) {};
 		friend class AssetManager;

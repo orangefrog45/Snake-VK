@@ -7,16 +7,16 @@ namespace SNAKE {
 	public:
 		Texture2DAsset(uint64_t uuid = 0) : Asset(uuid) {};
 
-		inline uint16_t GetGlobalIndex() const { return m_global_index; };
+		inline uint32_t GetGlobalIndex() const { return m_global_index; };
 
 		void LoadFromFile(const std::string& filepath);
 
-		inline static constexpr uint16_t INVALID_GLOBAL_INDEX = std::numeric_limits<uint16_t>::max();
+		inline static constexpr uint32_t INVALID_GLOBAL_INDEX = std::numeric_limits<uint32_t>::max();
 
 		Image2D image;
 	private:
 		// Index into the global texture descriptor buffer
-		uint16_t m_global_index = INVALID_GLOBAL_INDEX;
+		uint32_t m_global_index = INVALID_GLOBAL_INDEX;
 
 		friend class GlobalTextureBufferManager;
 		friend class AssetManager;

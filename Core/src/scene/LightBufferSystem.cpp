@@ -99,9 +99,9 @@ namespace SNAKE {
 			auto& transform = p_scene->GetRegistry().get<TransformComponent>(entity);
 			util::ConvertToBytes(p_light_vec, glm::vec4(transform.GetAbsPosition(), 1.f));
 			util::ConvertToBytes(p_light_vec, glm::vec4(transform.forward, 1.f));
-			util::ConvertToBytes(p_light_vec, glm::vec4(spotlight.attenuation.exp, spotlight.attenuation.linear, spotlight.attenuation.constant, 1.f));
+			util::ConvertToBytes(p_light_vec, glm::vec4(spotlight.attenuation.exp, spotlight.attenuation.linear, spotlight.attenuation.constant, spotlight.aperture));
 		}
-		memcpy(p_data, light_data_vec.data(), light_data_vec.size());
+		memcpy(p_data + current_shader_offset, light_data_vec.data(), light_data_vec.size());
 
 	
 	}

@@ -35,6 +35,39 @@ void Image2D::CreateSampler() {
 	m_sampler = std::move(sampler);
 }
 
+void Image2D::BlitTo(Image2D& dst, vk::ImageLayout start_src_layout, vk::ImageLayout start_dst_layout,
+	vk::ImageLayout final_src_layout, vk::ImageLayout final_dst_layout, std::optional<vk::Semaphore> wait_semaphore) {
+	auto cmd = BeginSingleTimeCommands();
+	vk::ImageBlit blits;
+	auto offsets = util::array(vk::Offset3D{ 0, 0, 0 }, vk::Offset3D{ (int32_t)dst.GetSpec().size.x, (int32_t)dst.GetSpec().size.y, 1 });
+	vk::ImageSubresourceLayers layers;
+	layers.aspectMask = vk::ImageAspectFlagBits::eColor;
+	layers.baseArrayLayer = 0;
+	layers.layerCount = 1;
+	layers.mipLevel = 0;
+
+	blits.dstOffsets = offsets;
+	blits.srcOffsets = offsets;
+	blits.dstSubresource = layers;
+	blits.srcSubresource = layers;
+
+	TransitionImageLayout(start_src_layout, vk::ImageLayout::eTransferSrcOptimal, vk::AccessFlagBits::eColorAttachmentWrite, vk::AccessFlagBits::eTransferRead,
+		vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eTransfer, *cmd);
+
+	TransitionImageLayout(start_dst_layout, vk::ImageLayout::eTransferDstOptimal, vk::AccessFlagBits::eTransferWrite, vk::AccessFlagBits::eMemoryRead,
+		vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eTransfer, *cmd);
+
+	cmd->blitImage(m_image, vk::ImageLayout::eTransferSrcOptimal, dst.m_image,
+		vk::ImageLayout::eTransferDstOptimal, blits, vk::Filter::eNearest);
+
+	TransitionImageLayout(vk::ImageLayout::eTransferSrcOptimal, final_src_layout, vk::AccessFlagBits::eTransferWrite, vk::AccessFlagBits::eNone,
+		vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eBottomOfPipe, *cmd);
+
+	TransitionImageLayout(vk::ImageLayout::eTransferDstOptimal, final_dst_layout, vk::AccessFlagBits::eTransferWrite, vk::AccessFlagBits::eColorAttachmentWrite,
+		vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eColorAttachmentOutput, *cmd);
+
+	EndSingleTimeCommands(*cmd, wait_semaphore);
+}
 
 void Image2D::CreateImage(VmaAllocationCreateFlags flags) {
 	vk::ImageCreateInfo image_info{};

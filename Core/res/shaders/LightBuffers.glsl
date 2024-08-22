@@ -146,7 +146,7 @@ vec3 CalcSpotlight(Spotlight light, vec3 v, vec3 f0, vec3 world_pos, vec3 n, flo
 		light.atten_linear * distance +
 		light.atten_exp * pow(distance, 2);
 
-		if (attenuation > 5000)
+	if (attenuation > 5000)
 		return vec3(0);
 
 	vec3 l = normalize(frag_to_light);

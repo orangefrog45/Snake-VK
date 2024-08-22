@@ -29,7 +29,7 @@ namespace SNAKE {
 		return std::move(cmd_buf);
 	}
 
-	void EndSingleTimeCommands(vk::CommandBuffer& cmd_buf) {
+	void EndSingleTimeCommands(vk::CommandBuffer& cmd_buf, std::optional<vk::Semaphore> wait_semaphore) {
 		// Stop recording
 		SNK_CHECK_VK_RESULT(
 			cmd_buf.end()
@@ -38,6 +38,10 @@ namespace SNAKE {
 		vk::SubmitInfo submit_info{};
 		submit_info.commandBufferCount = 1;
 		submit_info.pCommandBuffers = &cmd_buf;
+		if (wait_semaphore.has_value()) {
+			submit_info.pWaitSemaphores = &wait_semaphore.value();
+			submit_info.waitSemaphoreCount = 1;
+		}
 
 		auto& device = VulkanContext::GetLogicalDevice();
 

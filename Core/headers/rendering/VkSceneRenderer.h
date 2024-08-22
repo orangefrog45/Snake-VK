@@ -11,8 +11,7 @@ namespace SNAKE {
 
 		}
 
-		// Returns semaphore to wait on before presenting image
-		void RenderScene(class Scene* p_scene, Image2D& output_image, vk::Semaphore forward_wait_semaphore) {
+		void RenderScene(class Scene* p_scene, Image2D& output_image, std::optional<vk::Semaphore> forward_wait_semaphore = std::nullopt) {
 			m_shadow_pass.RecordCommandBuffers(p_scene);
 			m_forward_pass.RecordCommandBuffer(output_image, *p_scene);
 
@@ -29,8 +28,11 @@ namespace SNAKE {
 			auto wait_stages = util::array<vk::PipelineStageFlags>(vk::PipelineStageFlagBits::eColorAttachmentOutput);
 			auto forward_cmd_buf = m_forward_pass.GetCommandBuffer();
 
-			submit_info.waitSemaphoreCount = 1;
-			submit_info.pWaitSemaphores = &forward_wait_semaphore;
+			if (forward_wait_semaphore.has_value()) {
+				submit_info.waitSemaphoreCount = 1;
+				submit_info.pWaitSemaphores = &forward_wait_semaphore.value();
+			}
+
 			submit_info.pWaitDstStageMask = wait_stages.data();
 			submit_info.commandBufferCount = 1;
 			submit_info.pCommandBuffers = &forward_cmd_buf;
@@ -45,6 +47,5 @@ namespace SNAKE {
 	private:
 		ForwardPass m_forward_pass;
 		ShadowPass m_shadow_pass;
-
 	};
 }

@@ -45,7 +45,7 @@ bool EntityEditor::StaticMeshCompEditor(StaticMeshComponent* p_comp) {
 			ImGui::PushID(&mat);
 
 			AssetEntry entry;
-			entry.image = p_asset_editor->set;
+			entry.image = p_asset_editor->GetOrCreateAssetImage(mat.get());
 			entry.p_asset = mat.get();
 			entry.popup_settings = {};
 

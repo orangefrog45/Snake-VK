@@ -23,6 +23,10 @@ namespace SNAKE {
 		void DeselectEntity(Entity* p_ent);
 
 		void DestroyEntity(Entity* p_ent);
+
+		Entity* GetSelectedEntity() {
+			return mp_active_entity;
+		}
 		
 		Scene* p_scene = nullptr;
 

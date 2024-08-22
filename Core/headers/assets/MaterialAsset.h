@@ -10,14 +10,10 @@ namespace SNAKE {
 		};
 
 		enum MaterialFlags {
-			SAMPLED_ALBEDO = 1 << 0,
-			SAMPLED_NORMAL = 1 << 1,
-			SAMPLED_ROUGHNESS = 1 << 2,
-			SAMPLED_METALLIC = 1 << 3,
-			SAMPLED_AO = 1 << 4,
+	
 		};
 
-		uint16_t GetGlobalBufferIndex() {
+		uint32_t GetGlobalBufferIndex() {
 			return m_global_buffer_index;
 		}
 
@@ -40,9 +36,9 @@ namespace SNAKE {
 	private:
 		MaterialAsset(uint64_t uuid = 0) : Asset(uuid) {};
 
-		inline static constexpr uint16_t INVALID_GLOBAL_INDEX = std::numeric_limits<uint16_t>::max();
+		inline static constexpr uint32_t INVALID_GLOBAL_INDEX = std::numeric_limits<uint32_t>::max();
 
-		uint16_t m_global_buffer_index = INVALID_GLOBAL_INDEX;
+		uint32_t m_global_buffer_index = INVALID_GLOBAL_INDEX;
 
 		friend class GlobalMaterialBufferManager;
 		friend class AssetManager;

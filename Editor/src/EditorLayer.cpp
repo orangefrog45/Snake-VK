@@ -184,6 +184,17 @@ void EditorLayer::OnInit() {
 	ent_editor.Init(&asset_editor);
 	asset_editor.Init();
 
+	Image2DSpec spec;
+	spec.aspect_flags = vk::ImageAspectFlagBits::eColor;
+	spec.format = vk::Format::eR8G8B8A8Srgb;
+	spec.size = { p_window->GetWidth(), p_window->GetHeight() };
+	spec.tiling = vk::ImageTiling::eOptimal;
+	spec.usage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eTransferDst;
+
+	render_image.SetSpec(spec);
+	render_image.CreateImage();
+	render_image.CreateImageView();
+
 	entity_deletion_listener.callback = [&](Event const* _event) {
 		auto* p_casted = dynamic_cast<EntityDeleteEvent const*>(_event);
 		ent_editor.DeselectEntity(p_casted->p_ent);
@@ -231,7 +242,12 @@ void EditorLayer::OnUpdate() {
 void EditorLayer::OnRender() {
 	uint32_t image_index;
 	vk::Semaphore image_avail_semaphore = VkRenderer::AcquireNextSwapchainImage(*p_window, image_index);
-	renderer.RenderScene(&scene, *p_window->GetVkContext().swapchain_images[image_index], image_avail_semaphore);
+	auto& swapchain_image = p_window->GetVkContext().swapchain_images[image_index];
+	renderer.RenderScene(&scene, render_image);
+	render_image.BlitTo(*swapchain_image, vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eUndefined,
+		vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eColorAttachmentOptimal, image_avail_semaphore);
+	
+	asset_editor.Render();
 }
 
 struct EntityNode {
@@ -281,6 +297,21 @@ std::string GetEntityPadding(unsigned tree_depth) {
 DialogBox* EditorLayer::CreateDialogBox() {
 	new_dialog_boxes_to_sort.push_back(std::make_unique<DialogBox>());
 	return &*new_dialog_boxes_to_sort[new_dialog_boxes_to_sort.size() - 1];
+}
+
+void EditorLayer::ErrorMessagePopup(const std::string& err) {
+	auto* p_box = CreateDialogBox();
+	p_box->block_other_window_input = true;
+	p_box->imgui_render_cb = [err, p_box] {
+		ImGui::SameLine(ImGui::GetContentRegionAvail().x - 25);
+		if (ImGui::Button("X")) {
+			p_box->close = true;
+		}
+		ImGui::PushStyleColor(ImGuiCol_Text, { 1, 0, 0, 1 });
+		ImGui::SeparatorText("Error");
+		ImGui::Text(err.c_str());
+		ImGui::PopStyleColor();
+	};
 }
 
 void EditorLayer::RenderDialogBoxes() {
@@ -363,7 +394,7 @@ void EditorLayer::OnImGuiRender() {
 
 			ImGui::PushID(&ent);
 		
-			ImGui::Text(std::format("{}{}", GetEntityPadding(entity_node.tree_depth), ent.GetComponent<TagComponent>()->name).c_str());
+			ImGui::Selectable(std::format("{}{}", GetEntityPadding(entity_node.tree_depth), ent.GetComponent<TagComponent>()->name).c_str(), ent_editor.GetSelectedEntity() == &ent);
 			if (ImGui::IsItemClicked(1))
 				p_right_clicked_entity = entity_node.p_ent;
 

@@ -170,6 +170,7 @@ void Window::CreateSwapchain() {
 	create_info.preTransform = swapchain_support.capabilities.currentTransform;
 	create_info.compositeAlpha = vk::CompositeAlphaFlagBitsKHR::eOpaque; // Don't blend with other windows in window system
 	create_info.presentMode = present_mode;
+	create_info.imageUsage |= vk::ImageUsageFlagBits::eTransferDst;
 	create_info.clipped = VK_TRUE; // Don't care about color of pixels that are obscured by other windows
 	create_info.oldSwapchain = VK_NULL_HANDLE;
 

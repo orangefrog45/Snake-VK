@@ -102,7 +102,7 @@ namespace SNAKE {
 
 	vk::UniqueCommandBuffer BeginSingleTimeCommands();
 
-	void EndSingleTimeCommands(vk::CommandBuffer& cmd_buf);
+	void EndSingleTimeCommands(vk::CommandBuffer& cmd_buf, std::optional<vk::Semaphore> wait_semaphore = std::nullopt);
 
 	void CopyBuffer(vk::Buffer src, vk::Buffer dst, vk::DeviceSize size);
 
