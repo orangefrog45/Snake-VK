@@ -14,7 +14,7 @@ void VkRenderer::InitImpl() {
 	fence_info.flags = vk::FenceCreateFlagBits::eSignaled; // Create in initially signalled state so execution begins immediately
 	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
 		m_image_avail_semaphores.push_back(std::move(VulkanContext::GetLogicalDevice().device->createSemaphoreUnique(semaphore_info).value));
-		imgui_cmd_buffers[i].Init();
+		imgui_cmd_buffers[i].Init(vk::CommandBufferLevel::ePrimary);
 		m_render_finished_semaphores[i] = std::move(VulkanContext::GetLogicalDevice().device->createSemaphoreUnique(semaphore_info).value);
 		m_in_flight_fences[i] = std::move(VulkanContext::GetLogicalDevice().device->createFenceUnique(fence_info).value);
 
@@ -32,7 +32,7 @@ void VkRenderer::InitImpl() {
 
 void VkRenderer::RenderImGuiAndPresentImpl(Window& window, Image2D& render_image) {
 	auto cmd_buf = *imgui_cmd_buffers[VulkanContext::GetCurrentFIF()].buf;
-	cmd_buf.reset();
+	VulkanContext::GetLogicalDevice().device->resetCommandPool(VulkanContext::GetCommandPool());
 	vk::CommandBufferBeginInfo begin_info{};
 	cmd_buf.begin(begin_info);
 

@@ -1,12 +1,12 @@
-#include "events/EventManager.h"
-#include "events/EventsCommon.h"
-#include "util/util.h"
+#include "assets/AssetManager.h"
 #include "core/VkContext.h"
 #include "core/VkCommon.h"
-
-#include "assets/AssetManager.h"
+#include "core/JobSystem.h"
 #include "core/App.h"
+#include "events/EventManager.h"
+#include "events/EventsCommon.h"
 #include "rendering/VkRenderer.h"
+#include "util/util.h"
 
 #define IMGUI_IMPL_VULKAN_HAS_DYNAMIC_RENDERING
 #include "imgui.h"
@@ -20,6 +20,8 @@ using namespace SNAKE;
 
 
 void App::Init(const char* app_name) {
+	JobSystem::Init();
+
 	Logger::Init();
 
 	Window::InitGLFW();
@@ -58,18 +60,22 @@ void App::Init(const char* app_name) {
 void App::MainLoop() {
 	while (!glfwWindowShouldClose(window.GetGLFWwindow())) {
 		glfwPollEvents();
-
-		window.OnUpdate();
-		layers.OnUpdate();
-		EventManagerG::DispatchEvent(EngineUpdateEvent{ });
-
 		EventManagerG::DispatchEvent(FrameSyncFenceEvent{ });
 
 		EventManagerG::DispatchEvent(FrameStartEvent{ });
 
-		layers.OnRender();
+		window.OnUpdate();
+		Job* update_job = JobSystem::CreateJob();
+		update_job->func = [this]([[maybe_unused]] Job const* job) {layers.OnUpdate(); };
+		JobSystem::Execute(update_job);
+		EventManagerG::DispatchEvent(EngineUpdateEvent{ });
+
+		Job* render_job = JobSystem::CreateJob();
+		render_job->func = [this]([[maybe_unused]] Job const* job) {layers.OnRender(); };
+		JobSystem::Execute(render_job);
 		EventManagerG::DispatchEvent(EngineRenderEvent{ });
 
+		JobSystem::Wait();
 		layers.OnImGuiRender();
 
 		VulkanContext::Get().m_current_frame = (VulkanContext::Get().m_current_frame + 1) % MAX_FRAMES_IN_FLIGHT;
@@ -77,15 +83,14 @@ void App::MainLoop() {
 
 	VulkanContext::GetLogicalDevice().device->waitIdle();
 	VkRenderer::Shutdown();
-	layers.ShutdownLayers();
 	EventManagerG::DispatchEvent(EngineShutdownEvent{ });
+	layers.ShutdownLayers();
 	window.Shutdown();
 	AssetManager::Shutdown();
-	
-
 	glfwTerminate();
 	VulkanContext::GetLogicalDevice().device->waitIdle();
 
+	JobSystem::Shutdown();
 }
 
 App::~App() {

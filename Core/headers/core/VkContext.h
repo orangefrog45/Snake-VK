@@ -1,11 +1,12 @@
 #pragma once
 #include "util/util.h"
+#include "core/VkIncl.h"
 #include "vk_mem_alloc.h"
-#include <core/VkIncl.h>
 
 
 namespace SNAKE {
 	using FrameInFlightIndex = uint8_t;
+	constexpr FrameInFlightIndex MAX_FRAMES_IN_FLIGHT = 2;
 
 	struct LogicalDevice {
 		vk::UniqueDevice device;
@@ -43,7 +44,7 @@ namespace SNAKE {
 		}
 
 		static vk::CommandPool GetCommandPool() {
-			return *Get().m_cmd_pool;
+			return *Get().m_cmd_pools[std::this_thread::get_id()][GetCurrentFIF()];
 		}
 
 		static FrameInFlightIndex GetCurrentFIF() {
@@ -78,7 +79,13 @@ namespace SNAKE {
 
 		~VulkanContext() {
 			vmaDestroyAllocator(m_allocator);
-			m_cmd_pool.release();
+
+			for (auto& [thread_id, cmd_pools] : m_cmd_pools) {
+				for (FrameInFlightIndex i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+					cmd_pools[i].release();
+				}
+			}
+
 			m_instance.release();
 			m_device.device.release();
 		}
@@ -108,8 +115,7 @@ namespace SNAKE {
 		PhysicalDevice m_physical_device;
 		LogicalDevice m_device;
 
-		vk::UniqueCommandPool m_cmd_pool;
-
+		std::unordered_map<std::thread::id, std::array<vk::UniqueCommandPool, MAX_FRAMES_IN_FLIGHT>> m_cmd_pools;
 		VmaAllocator m_allocator{};
 
 		friend class App;

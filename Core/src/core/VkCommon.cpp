@@ -29,7 +29,7 @@ namespace SNAKE {
 		return std::move(cmd_buf);
 	}
 
-	void EndSingleTimeCommands(vk::CommandBuffer& cmd_buf, std::optional<vk::Semaphore> wait_semaphore) {
+	void EndSingleTimeCommands(vk::CommandBuffer& cmd_buf, std::optional<std::pair<vk::Semaphore, vk::PipelineStageFlags>> wait_semaphore_stage) {
 		// Stop recording
 		SNK_CHECK_VK_RESULT(
 			cmd_buf.end()
@@ -38,9 +38,10 @@ namespace SNAKE {
 		vk::SubmitInfo submit_info{};
 		submit_info.commandBufferCount = 1;
 		submit_info.pCommandBuffers = &cmd_buf;
-		if (wait_semaphore.has_value()) {
-			submit_info.pWaitSemaphores = &wait_semaphore.value();
+		if (wait_semaphore_stage.has_value()) {
+			submit_info.pWaitSemaphores = &wait_semaphore_stage.value().first;
 			submit_info.waitSemaphoreCount = 1;
+			submit_info.pWaitDstStageMask = &wait_semaphore_stage.value().second;
 		}
 
 		auto& device = VulkanContext::GetLogicalDevice();
@@ -180,5 +181,20 @@ namespace SNAKE {
 		cmd_buf->copyBuffer(src, dst, copy_region);
 
 		EndSingleTimeCommands(*cmd_buf);
+	}
+
+	vk::Format FindSupportedFormat(const std::vector<vk::Format>& candidates, vk::ImageTiling tiling, vk::FormatFeatureFlags features) {
+		for (auto format : candidates) {
+			vk::FormatProperties properties = VulkanContext::GetPhysicalDevice().device.getFormatProperties(format);
+			if (tiling == vk::ImageTiling::eLinear && (properties.linearTilingFeatures & features) == features) {
+				return format;
+			}
+			else if (tiling == vk::ImageTiling::eOptimal && (properties.optimalTilingFeatures & features) == features) {
+				return format;
+			}
+		}
+
+		SNK_BREAK("No supported format found");
+		return vk::Format::eUndefined;
 	}
 }

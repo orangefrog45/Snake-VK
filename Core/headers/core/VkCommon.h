@@ -1,11 +1,9 @@
 #pragma once
 #include "core/VkIncl.h"
-#include "core/VkContext.h"
+#include "util/util.h"
 #include <vk_mem_alloc.h>
-#include <optional>
 
 namespace SNAKE {
-	constexpr FrameInFlightIndex MAX_FRAMES_IN_FLIGHT = 2;
 
 	struct QueueFamilyIndices {
 		std::optional<uint32_t> graphics_family;
@@ -102,7 +100,7 @@ namespace SNAKE {
 
 	vk::UniqueCommandBuffer BeginSingleTimeCommands();
 
-	void EndSingleTimeCommands(vk::CommandBuffer& cmd_buf, std::optional<vk::Semaphore> wait_semaphore = std::nullopt);
+	void EndSingleTimeCommands(vk::CommandBuffer& cmd_buf, std::optional<std::pair<vk::Semaphore, vk::PipelineStageFlags>> wait_semaphore = std::nullopt);
 
 	void CopyBuffer(vk::Buffer src, vk::Buffer dst, vk::DeviceSize size);
 
@@ -111,20 +109,7 @@ namespace SNAKE {
 		return (value + alignment - 1) & ~(alignment - 1);
 	}
 
-	inline vk::Format FindSupportedFormat(const std::vector<vk::Format>& candidates, vk::ImageTiling tiling, vk::FormatFeatureFlags features) {
-		for (auto format : candidates) {
-			vk::FormatProperties properties = VulkanContext::GetPhysicalDevice().device.getFormatProperties(format);
-			if (tiling == vk::ImageTiling::eLinear && (properties.linearTilingFeatures & features) == features) {
-				return format;
-			}
-			else if (tiling == vk::ImageTiling::eOptimal && (properties.optimalTilingFeatures & features) == features) {
-				return format;
-			}
-		}
-
-		SNK_BREAK("No supported format found");
-		return vk::Format::eUndefined;
-	}
+	vk::Format FindSupportedFormat(const std::vector<vk::Format>& candidates, vk::ImageTiling tiling, vk::FormatFeatureFlags features);
 
 	inline bool HasStencilComponent(vk::Format format) {
 		return format == vk::Format::eD32SfloatS8Uint || format == vk::Format::eD24UnormS8Uint;

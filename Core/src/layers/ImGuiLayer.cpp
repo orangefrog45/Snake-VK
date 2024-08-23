@@ -5,6 +5,7 @@
 #include "backends/imgui_impl_glfw.h"
 #include "layers/ImGuiLayer.h"
 #include "util/util.h"
+#include "core/VkContext.h"
 
 using namespace SNAKE;
 

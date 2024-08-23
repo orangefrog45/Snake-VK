@@ -6,6 +6,7 @@
 #include "scene/CameraSystem.h"
 #include "components/CameraComponent.h"
 #include "scene/Entity.h"
+#include "core/VkContext.h"
 
 namespace SNAKE {
 

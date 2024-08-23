@@ -2,6 +2,7 @@
 #include "core/VkContext.h"
 #include "core/VkCommon.h"
 #include "core/Window.h"
+#include "core/JobSystem.h"
 #include "util/util.h"
 
 using namespace SNAKE;
@@ -39,12 +40,20 @@ void VulkanContext::IPickPhysicalDevice(vk::SurfaceKHR surface, const std::vecto
 void VulkanContext::CreateCommandPool(Window* p_window) {
 	QueueFamilyIndices qf_indices = FindQueueFamilies(VulkanContext::GetPhysicalDevice().device, *p_window->GetVkContext().surface);
 
-	vk::CommandPoolCreateInfo pool_info{};
-	pool_info.flags = vk::CommandPoolCreateFlagBits::eResetCommandBuffer; // allow command buffers under this pool to be rerecorded individually instead of having to be reset together
-	pool_info.queueFamilyIndex = qf_indices.graphics_family.value();
+	auto num_threads = std::thread::hardware_concurrency();
+	std::vector<std::thread::id> thread_ids = JobSystem::GetThreadIDs();
 
-	Get().m_cmd_pool = VulkanContext::GetLogicalDevice().device->createCommandPoolUnique(pool_info).value;
-	SNK_ASSERT(Get().m_cmd_pool);
+	for (unsigned i = 0; i < num_threads; i++) {
+		for (FrameInFlightIndex fif = 0; fif < MAX_FRAMES_IN_FLIGHT; fif++) {
+			vk::CommandPoolCreateInfo pool_info{};
+			pool_info.queueFamilyIndex = qf_indices.graphics_family.value();
+			pool_info.flags = vk::CommandPoolCreateFlagBits::eResetCommandBuffer;
+
+			auto [res, value] = VulkanContext::GetLogicalDevice().device->createCommandPoolUnique(pool_info);
+			Get().m_cmd_pools[thread_ids[i]][fif] = std::move(value);
+			SNK_CHECK_VK_RESULT(res);
+		}
+	}
 }
 
 
@@ -117,7 +126,7 @@ void VulkanContext::ICreateLogicalDevice(vk::SurfaceKHR surface, const std::vect
 
 void VulkanContext::ICreateInstance(const char* app_name) {
 	std::vector<const char*> layers = {
-		//"VK_LAYER_KHRONOS_validation"
+		"VK_LAYER_KHRONOS_validation"
 	};
 
 	std::vector<const char*> extensions = {

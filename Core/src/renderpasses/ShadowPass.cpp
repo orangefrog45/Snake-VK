@@ -2,6 +2,7 @@
 #include "scene/Scene.h"
 #include "scene/LightBufferSystem.h"
 #include "components/MeshComponent.h"
+#include "core/JobSystem.h"
 
 namespace SNAKE {
 	void ShadowPass::Init() {
@@ -40,17 +41,21 @@ namespace SNAKE {
 
 		m_pipeline.Init(builder);
 
-		for (auto& buf : m_cmd_buffers) {
-			buf.Init();
-		}
+		auto alloc_cmd_bufs_job = JobSystem::CreateWaitedOnJob();
+		alloc_cmd_bufs_job->func = [&](Job const*) {
+			for (auto& buf : m_cmd_buffers) {
+				buf.Init(vk::CommandBufferLevel::ePrimary);
+			}
+		};
+		JobSystem::Execute(alloc_cmd_bufs_job);
+		JobSystem::WaitOn(alloc_cmd_bufs_job);
 	}
 
-	void ShadowPass::RecordCommandBuffers(Scene* scene) {
+	void ShadowPass::RecordCommandBuffers(Scene& scene, const SceneSnapshotData& snapshot) {
 		auto frame_idx = VulkanContext::GetCurrentFIF();
 
-		m_cmd_buffers[frame_idx].buf->reset();
-
 		auto cmd = *m_cmd_buffers[frame_idx].buf;
+		SNK_CHECK_VK_RESULT(cmd.reset());
 		vk::CommandBufferBeginInfo begin_info{};
 		SNK_CHECK_VK_RESULT(cmd.begin(&begin_info));
 
@@ -94,7 +99,7 @@ namespace SNAKE {
 		cmd.setScissor(0, 1, &scissor);
 
 		vk::DescriptorBufferBindingInfoEXT light_buffer_binding_info{};
-		light_buffer_binding_info.address = scene->GetSystem<LightBufferSystem>()->light_descriptor_buffers[frame_idx].descriptor_buffer.GetDeviceAddress();
+		light_buffer_binding_info.address = scene.GetSystem<LightBufferSystem>()->light_descriptor_buffers[frame_idx].descriptor_buffer.GetDeviceAddress();
 		light_buffer_binding_info.usage = vk::BufferUsageFlagBits::eResourceDescriptorBufferEXT;
 
 		cmd.bindDescriptorBuffersEXT(light_buffer_binding_info);
@@ -103,24 +108,22 @@ namespace SNAKE {
 
 		cmd.setDescriptorBufferOffsetsEXT(vk::PipelineBindPoint::eGraphics, m_pipeline.pipeline_layout.GetPipelineLayout(), (uint32_t)DescriptorSetIndices::LIGHTS, buffer_indices, buffer_offsets);
 
-		uint64_t last_bound_data_uuid = 0;
+		for (auto& range : snapshot.mesh_ranges) {
+			auto mesh_asset = AssetManager::GetAsset<StaticMeshAsset>(range.mesh_uuid);
+			std::vector<vk::Buffer> vert_buffers = { mesh_asset->data->position_buf.buffer, mesh_asset->data->normal_buf.buffer, mesh_asset->data->tex_coord_buf.buffer };
+			std::vector<vk::Buffer> index_buffers = { mesh_asset->data->index_buf.buffer };
+			std::vector<vk::DeviceSize> offsets = { 0, 0, 0 };
+			cmd.bindVertexBuffers(0, 3, vert_buffers.data(), offsets.data());
+			cmd.bindIndexBuffer(mesh_asset->data->index_buf.buffer, 0, vk::IndexType::eUint32);
 
-		for (auto [entity, mesh, transform] : scene->GetRegistry().view<StaticMeshComponent, TransformComponent>().each()) {
-			if (last_bound_data_uuid != mesh.mesh_asset->data->uuid()) {
-				std::vector<vk::Buffer> vert_buffers = { mesh.mesh_asset->data->position_buf.buffer, mesh.mesh_asset->data->normal_buf.buffer, mesh.mesh_asset->data->tex_coord_buf.buffer };
-				std::vector<vk::Buffer> index_buffers = { mesh.mesh_asset->data->index_buf.buffer };
-				std::vector<vk::DeviceSize> offsets = { 0, 0, 0 };
-				cmd.bindVertexBuffers(0, 3, vert_buffers.data(), offsets.data());
-				cmd.bindIndexBuffer(mesh.mesh_asset->data->index_buf.buffer, 0, vk::IndexType::eUint32);
-				last_bound_data_uuid = mesh.mesh_asset->data->uuid();
-			}
-
-			for (auto& submesh : mesh.mesh_asset->data->submeshes) {
-				cmd.pushConstants(m_pipeline.pipeline_layout.GetPipelineLayout(), vk::ShaderStageFlagBits::eAllGraphics, 0, sizeof(glm::mat4), &transform.GetMatrix()[0][0]);
-				cmd.drawIndexed(submesh.num_indices, 1, submesh.base_index, submesh.base_vertex, 0);
+			for (uint32_t i = range.start_idx; i < range.start_idx + range.count; i++) {
+				cmd.pushConstants(m_pipeline.pipeline_layout.GetPipelineLayout(), vk::ShaderStageFlagBits::eAllGraphics, 0, sizeof(glm::mat4), &snapshot.static_mesh_data[i].transform);
+				for (auto& submesh : mesh_asset->data->submeshes) {
+					cmd.drawIndexed(submesh.num_indices, 1, submesh.base_index, submesh.base_vertex, 0);
+				}
 			}
 		}
-
+	
 		cmd.endRenderingKHR();
 
 		m_dir_light_shadow_map.TransitionImageLayout(vk::ImageLayout::eDepthAttachmentOptimal,
@@ -128,5 +131,6 @@ namespace SNAKE {
 			vk::AccessFlagBits::eNone, vk::PipelineStageFlagBits::eLateFragmentTests, vk::PipelineStageFlagBits::eLateFragmentTests | vk::PipelineStageFlagBits::eEarlyFragmentTests, cmd);
 
 		SNK_CHECK_VK_RESULT(cmd.end());
+
 	}
 }

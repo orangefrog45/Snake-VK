@@ -5,6 +5,7 @@
 #include "core/Pipelines.h"
 #include "assets/MeshData.h"
 #include "components/Component.h"
+#include "rendering/RenderCommon.h"
 
 namespace SNAKE {
 	struct RenderableComponent : Component {
@@ -14,7 +15,7 @@ namespace SNAKE {
 	public:
 		void Init();
 
-		void RecordCommandBuffers(class Scene* p_scene);
+		void RecordCommandBuffers(class Scene& scene, const SceneSnapshotData& data);
 
 		vk::CommandBuffer GetCommandBuffer() { return *m_cmd_buffers[VulkanContext::GetCurrentFIF()].buf; }
 

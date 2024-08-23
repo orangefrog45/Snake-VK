@@ -54,7 +54,7 @@ void Image2D::BlitTo(Image2D& dst, vk::ImageLayout start_src_layout, vk::ImageLa
 	TransitionImageLayout(start_src_layout, vk::ImageLayout::eTransferSrcOptimal, vk::AccessFlagBits::eColorAttachmentWrite, vk::AccessFlagBits::eTransferRead,
 		vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eTransfer, *cmd);
 
-	TransitionImageLayout(start_dst_layout, vk::ImageLayout::eTransferDstOptimal, vk::AccessFlagBits::eTransferWrite, vk::AccessFlagBits::eMemoryRead,
+	dst.TransitionImageLayout(start_dst_layout, vk::ImageLayout::eTransferDstOptimal, vk::AccessFlagBits::eTransferWrite, vk::AccessFlagBits::eMemoryRead,
 		vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eTransfer, *cmd);
 
 	cmd->blitImage(m_image, vk::ImageLayout::eTransferSrcOptimal, dst.m_image,
@@ -63,10 +63,13 @@ void Image2D::BlitTo(Image2D& dst, vk::ImageLayout start_src_layout, vk::ImageLa
 	TransitionImageLayout(vk::ImageLayout::eTransferSrcOptimal, final_src_layout, vk::AccessFlagBits::eTransferWrite, vk::AccessFlagBits::eNone,
 		vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eBottomOfPipe, *cmd);
 
-	TransitionImageLayout(vk::ImageLayout::eTransferDstOptimal, final_dst_layout, vk::AccessFlagBits::eTransferWrite, vk::AccessFlagBits::eColorAttachmentWrite,
+	dst.TransitionImageLayout(vk::ImageLayout::eTransferDstOptimal, final_dst_layout, vk::AccessFlagBits::eTransferWrite, vk::AccessFlagBits::eColorAttachmentWrite,
 		vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eColorAttachmentOutput, *cmd);
 
-	EndSingleTimeCommands(*cmd, wait_semaphore);
+	if (wait_semaphore.has_value())
+		EndSingleTimeCommands(*cmd, std::make_pair(wait_semaphore.value(), vk::PipelineStageFlagBits::eTransfer));
+	else
+		EndSingleTimeCommands(*cmd);
 }
 
 void Image2D::CreateImage(VmaAllocationCreateFlags flags) {

@@ -1,8 +1,10 @@
+23/8/24:
+-Added multithreaded job system and grouped frame work into jobs
+
 22/8/24:
--Rendering now done to a seperate image and blitted to swapchain image at end of frame
+-Rendering now done to a separate image and blitted to swapchain image at end of frame
 -Asset loading in gui
 -Material preview skeleton
-
 
 20/8/24:
 -Fixed descriptor buffer indexing for textures

@@ -3,6 +3,8 @@
 #include "scene/CameraSystem.h"
 #include "scene/Scene.h"
 #include "scene/SceneInfoBufferSystem.h"
+#include "core/VkContext.h"
+#include "core/VkCommon.h"
 
 namespace SNAKE {
 	void SceneInfoBufferSystem::OnSystemAdd() {

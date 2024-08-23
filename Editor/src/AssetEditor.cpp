@@ -15,7 +15,7 @@ using namespace SNAKE;
 void AssetEditor::Init() {
 	auto tex = AssetManager::GetAsset<Texture2DAsset>(AssetManager::CoreAssetIDs::TEXTURE);
 
-	renderer.Init(*p_window);
+	renderer.Init(*p_window, &p_editor->scene);
 
 	Image2DSpec spec;
 	spec.aspect_flags = vk::ImageAspectFlagBits::eColor;
@@ -87,11 +87,13 @@ bool AssetEditor::RenderBaseAssetEditor() {
 }
 
 void AssetEditor::Render() {
+	return;
+
 	render_image.TransitionImageLayout(vk::ImageLayout::eShaderReadOnlyOptimal, vk::ImageLayout::eColorAttachmentOptimal,
 		vk::AccessFlagBits::eNone, vk::AccessFlagBits::eNone, vk::PipelineStageFlagBits::eColorAttachmentOutput, 
 		vk::PipelineStageFlagBits::eBottomOfPipe);
 
-	renderer.RenderScene(&p_editor->scene, render_image);
+	renderer.RenderScene(render_image);
 	render_image.TransitionImageLayout(vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eShaderReadOnlyOptimal, vk::AccessFlagBits::eNone, vk::AccessFlagBits::eNone,
 		vk::PipelineStageFlagBits::eBottomOfPipe, vk::PipelineStageFlagBits::eFragmentShader);
 }

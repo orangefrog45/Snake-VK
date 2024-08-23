@@ -5,13 +5,14 @@
 #include "scene/LightBufferSystem.h"
 #include "scene/Scene.h"
 #include "scene/SceneInfoBufferSystem.h"
+#include "assets/MaterialAsset.h"
 
 namespace SNAKE {
 
 	void ForwardPass::Init(Window* p_window, Image2D* p_shadowmap_image) {
 		// Create command buffers
 		for (auto& buf : m_cmd_buffers) {
-			buf.Init();
+			buf.Init(vk::CommandBufferLevel::ePrimary);
 		}
 
 		CreateDepthResources({p_window->GetWidth(), p_window->GetHeight()});
@@ -65,13 +66,11 @@ namespace SNAKE {
 			(HasStencilComponent(depth_format) ? vk::ImageLayout::eDepthAttachmentOptimal : vk::ImageLayout::eDepthAttachmentOptimal));
 	}
 
-	void ForwardPass::RecordCommandBuffer(Image2D& output_image, Scene& scene) {
+	void ForwardPass::RecordCommandBuffer(Image2D& output_image, Scene& scene, const SceneSnapshotData& snapshot) {
 		auto frame_idx = VulkanContext::GetCurrentFIF();
 
-		m_cmd_buffers[frame_idx].buf->reset();
-
 		auto cmd_buffer = *m_cmd_buffers[frame_idx].buf;
-
+		SNK_CHECK_VK_RESULT(cmd_buffer.reset());
 		vk::CommandBufferBeginInfo begin_info{};
 		SNK_CHECK_VK_RESULT(
 			m_cmd_buffers[frame_idx].buf->begin(&begin_info)
@@ -132,38 +131,27 @@ namespace SNAKE {
 		std::array<uint32_t, 4> buffer_indices = { 0, 1, 2, 3 };
 		std::array<vk::DeviceSize, 4> buffer_offsets = { 0, 0, 0, 0 };
 
-		uint64_t last_bound_data_uuid = 0;
-
 		cmd_buffer.setDescriptorBufferOffsetsEXT(vk::PipelineBindPoint::eGraphics, m_graphics_pipeline.pipeline_layout.GetPipelineLayout(), 0, buffer_indices, buffer_offsets);
-		for (auto [entity, mesh, transform] : scene.GetRegistry().view<StaticMeshComponent, TransformComponent>().each()) {
-			if (last_bound_data_uuid != mesh.mesh_asset->data->uuid()) {
 
-				std::vector<vk::Buffer> vert_buffers = { mesh.mesh_asset->data->position_buf.buffer, 
-					mesh.mesh_asset->data->normal_buf.buffer, mesh.mesh_asset->data->tex_coord_buf.buffer, mesh.mesh_asset->data->tangent_buf.buffer };
+		for (auto& range : snapshot.mesh_ranges) {
+			auto mesh_asset = AssetManager::GetAssetRaw<StaticMeshAsset>(range.mesh_uuid);
+			std::vector<vk::Buffer> vert_buffers = { mesh_asset->data->position_buf.buffer, mesh_asset->data->normal_buf.buffer, mesh_asset->data->tex_coord_buf.buffer, mesh_asset->data->tangent_buf.buffer };
+			std::vector<vk::Buffer> index_buffers = { mesh_asset->data->index_buf.buffer };
+			std::vector<vk::DeviceSize> offsets = { 0, 0, 0, 0 };
+			cmd_buffer.bindVertexBuffers(0, 4, vert_buffers.data(), offsets.data());
+			cmd_buffer.bindIndexBuffer(mesh_asset->data->index_buf.buffer, 0, vk::IndexType::eUint32);
 
-				std::vector<vk::Buffer> index_buffers = { mesh.mesh_asset->data->index_buf.buffer };
-				std::vector<vk::DeviceSize> offsets = { 0, 0, 0, 0 };
-
-				cmd_buffer.bindVertexBuffers(0, 4, vert_buffers.data(), offsets.data());
-				cmd_buffer.bindIndexBuffer(mesh.mesh_asset->data->index_buf.buffer, 0, vk::IndexType::eUint32);
-				last_bound_data_uuid = mesh.mesh_asset->data->uuid();
+			for (uint32_t i = range.start_idx; i < range.start_idx + range.count; i++) {
+				cmd_buffer.pushConstants(m_graphics_pipeline.pipeline_layout.GetPipelineLayout(), vk::ShaderStageFlagBits::eAllGraphics, 0, sizeof(glm::mat4), &snapshot.static_mesh_data[i].transform);
+				for (auto& submesh : mesh_asset->data->submeshes) {
+					uint32_t mat_index = (*snapshot.static_mesh_data[i].material_vec)[submesh.material_index]->GetGlobalBufferIndex();
+					cmd_buffer.pushConstants(m_graphics_pipeline.pipeline_layout.GetPipelineLayout(), vk::ShaderStageFlagBits::eAllGraphics, sizeof(glm::mat4), sizeof(uint32_t), &mat_index);
+					cmd_buffer.drawIndexed(submesh.num_indices, 1, submesh.base_index, submesh.base_vertex, 0);
+				}
 			}
-
-			std::array<std::byte, sizeof(glm::mat4) + sizeof(unsigned)> push_constant_data;
-			std::byte* p_byte = push_constant_data.data();
-			util::ConvertToBytes(p_byte, transform.GetMatrix());
-
-			for (auto& submesh : mesh.mesh_asset->data->submeshes) {
-				unsigned mat_index = mesh.materials[submesh.material_index]->GetGlobalBufferIndex();
-				memcpy(p_byte, &mat_index, sizeof(unsigned));
-				cmd_buffer.pushConstants(m_graphics_pipeline.pipeline_layout.GetPipelineLayout(), vk::ShaderStageFlagBits::eAllGraphics, 0, push_constant_data.size(), push_constant_data.data());
-				cmd_buffer.drawIndexed(submesh.num_indices, 1, submesh.base_index, submesh.base_vertex, 0);
-			}
-
 		}
-
+		
 		cmd_buffer.endRenderingKHR();
-
 
 		SNK_CHECK_VK_RESULT(
 			cmd_buffer.end()

@@ -6,6 +6,7 @@
 #include "util/FileUtil.h"
 #include "scene/SceneSerializer.h"
 #include "util/UI.h"
+#include "core/JobSystem.h"
 
 using namespace SNAKE;
 
@@ -180,7 +181,7 @@ void EditorLayer::ToolbarGUI() {
 
 void EditorLayer::OnInit() {
 	editor_executable_dir = std::filesystem::current_path().string();
-	renderer.Init(*p_window);
+	renderer.Init(*p_window, &scene);
 	ent_editor.Init(&asset_editor);
 	asset_editor.Init();
 
@@ -208,6 +209,9 @@ void EditorLayer::OnInit() {
 	p_cam_ent->AddComponent<RelationshipComponent>();
 	p_cam_ent->AddComponent<CameraComponent>()->MakeActive();
 
+	for (int i = 0; i < 100; i++) {
+		CreateLargeEntity(scene);
+	}
 	//LoadProject("./");
 }
 
@@ -243,7 +247,7 @@ void EditorLayer::OnRender() {
 	uint32_t image_index;
 	vk::Semaphore image_avail_semaphore = VkRenderer::AcquireNextSwapchainImage(*p_window, image_index);
 	auto& swapchain_image = p_window->GetVkContext().swapchain_images[image_index];
-	renderer.RenderScene(&scene, render_image);
+	renderer.RenderScene(render_image);
 	render_image.BlitTo(*swapchain_image, vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eUndefined,
 		vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eColorAttachmentOptimal, image_avail_semaphore);
 	
@@ -382,7 +386,7 @@ void EditorLayer::OnImGuiRender() {
 	std::vector<EntityNode> entity_hierarchy = CreateLinearEntityHierarchy(&scene);
 
 	if (ImGui::Begin("Entities")) {
-
+		ImGui::Text(std::to_string(ImGui::GetIO().Framerate).c_str());
 		Entity* p_right_clicked_entity = nullptr;
 
 		for (auto entity_node : entity_hierarchy) {

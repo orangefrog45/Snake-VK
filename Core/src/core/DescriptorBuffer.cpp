@@ -1,5 +1,7 @@
 #include "pch/pch.h"
 #include "core/DescriptorBuffer.h"
+#include "core/VkContext.h"
+#include "core/VkCommon.h"
 
 using namespace SNAKE;
 

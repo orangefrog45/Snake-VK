@@ -30,7 +30,11 @@
 #define SNK_ASSERT(x) if (!(x)) {SNK_BREAK("Assertion failed");}
 #define SNK_ASSERT_ARG(x, ...) if (!(x)) {SNK_BREAK("Assertion failed: '{0}'", __VA_ARGS__);}
 
-
+#ifndef NDEBUG
+#define SNK_DBG_ASSERT(x) SNK_ASSERT(x)
+#else
+#define SNK_DBG_ASSERT(x)
+#endif
 namespace SNAKE {
 	constexpr uint64_t INVALID_UUID = 0;
 
