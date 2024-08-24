@@ -63,7 +63,7 @@ namespace SNAKE {
 		m_depth_image.CreateImageView() ;
 
 		m_depth_image.TransitionImageLayout(vk::ImageLayout::eUndefined,
-			(HasStencilComponent(depth_format) ? vk::ImageLayout::eDepthAttachmentOptimal : vk::ImageLayout::eDepthAttachmentOptimal));
+			(HasStencilComponent(depth_format) ? vk::ImageLayout::eDepthAttachmentOptimal : vk::ImageLayout::eDepthAttachmentOptimal), 0);
 	}
 
 	void ForwardPass::RecordCommandBuffer(Image2D& output_image, Scene& scene, const SceneSnapshotData& snapshot) {
@@ -77,7 +77,7 @@ namespace SNAKE {
 		);
 
 		output_image.TransitionImageLayout( vk::ImageLayout::eUndefined,
-			vk::ImageLayout::eColorAttachmentOptimal, *m_cmd_buffers[frame_idx].buf);
+			vk::ImageLayout::eColorAttachmentOptimal, 0, 1, *m_cmd_buffers[frame_idx].buf);
 
 		vk::RenderingAttachmentInfo colour_attachment_info{};
 		colour_attachment_info.loadOp = vk::AttachmentLoadOp::eClear; // Clear initially

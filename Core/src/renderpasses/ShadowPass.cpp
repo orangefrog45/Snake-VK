@@ -20,7 +20,7 @@ namespace SNAKE {
 
 		m_dir_light_shadow_map.TransitionImageLayout(vk::ImageLayout::eUndefined,
 			vk::ImageLayout::eShaderReadOnlyOptimal, vk::AccessFlagBits::eNone,
-			vk::AccessFlagBits::eNone, vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTopOfPipe);
+			vk::AccessFlagBits::eNone, vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTopOfPipe, 0);
 
 		PipelineLayoutBuilder layout_builder{};
 		DescriptorSetSpec spec{};
@@ -61,7 +61,7 @@ namespace SNAKE {
 
 		m_dir_light_shadow_map.TransitionImageLayout( vk::ImageLayout::eShaderReadOnlyOptimal,
 			vk::ImageLayout::eDepthAttachmentOptimal, vk::AccessFlagBits::eNone,
-			vk::AccessFlagBits::eNone, vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eEarlyFragmentTests, cmd);
+			vk::AccessFlagBits::eNone, vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eEarlyFragmentTests, 0, 1, cmd);
 
 
 		vk::RenderingAttachmentInfo depth_info;
@@ -128,7 +128,7 @@ namespace SNAKE {
 
 		m_dir_light_shadow_map.TransitionImageLayout(vk::ImageLayout::eDepthAttachmentOptimal,
 			vk::ImageLayout::eShaderReadOnlyOptimal, vk::AccessFlagBits::eNone,
-			vk::AccessFlagBits::eNone, vk::PipelineStageFlagBits::eLateFragmentTests, vk::PipelineStageFlagBits::eLateFragmentTests | vk::PipelineStageFlagBits::eEarlyFragmentTests, cmd);
+			vk::AccessFlagBits::eNone, vk::PipelineStageFlagBits::eLateFragmentTests, vk::PipelineStageFlagBits::eLateFragmentTests | vk::PipelineStageFlagBits::eEarlyFragmentTests, 0, 1, cmd);
 
 		SNK_CHECK_VK_RESULT(cmd.end());
 

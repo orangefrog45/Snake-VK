@@ -6,13 +6,14 @@
 namespace SNAKE {
 	struct Image2DSpec {
 		Image2DSpec() = default;
-		Image2DSpec(vk::Format fmt, vk::ImageUsageFlags use_flags, vk::ImageTiling _tiling, vk::ImageAspectFlags asp_flags, glm::uvec2 _size) :
-			format(fmt), usage(use_flags), tiling(_tiling), aspect_flags(asp_flags), size(_size) {}
+		Image2DSpec(vk::Format fmt, vk::ImageUsageFlags use_flags, vk::ImageTiling _tiling, vk::ImageAspectFlags asp_flags, glm::uvec2 _size, float mips) :
+			format(fmt), usage(use_flags), tiling(_tiling), aspect_flags(asp_flags), size(_size), mip_levels(mips) {}
 
 		vk::Format format = vk::Format::eUndefined;
 		vk::ImageUsageFlags usage = vk::ImageUsageFlagBits::eSampled;
 		vk::ImageTiling tiling = vk::ImageTiling::eOptimal;
 		vk::ImageAspectFlags aspect_flags = vk::ImageAspectFlagBits::eNone;
+		unsigned mip_levels = 1;
 		glm::uvec2 size{ 0, 0 };
 	};
 
@@ -52,6 +53,8 @@ namespace SNAKE {
 
 		void CreateImageView();
 
+		void GenerateMipmaps(vk::ImageLayout start_layout);
+
 		// Returns an image view created with format 'fmt' (if provided) or (if not provided) image.m_spec.format
 		[[nodiscard]] static vk::UniqueImageView CreateImageView(const Image2D& image, std::optional<vk::Format> fmt = std::nullopt);
 
@@ -63,18 +66,19 @@ namespace SNAKE {
 			m_sampler.release();
 		}
 
-		void BlitTo(Image2D& dst, vk::ImageLayout start_src_layout, vk::ImageLayout start_dst_layout, 
-			vk::ImageLayout final_src_layout, vk::ImageLayout final_dst_layout, std::optional<vk::Semaphore> wait_semaphore = std::nullopt);
+		void BlitTo(Image2D& dst, unsigned dst_mip, unsigned src_mip, vk::ImageLayout start_src_layout, vk::ImageLayout start_dst_layout,
+			vk::ImageLayout final_src_layout, vk::ImageLayout final_dst_layout, vk::Filter filter, 
+			std::optional<vk::Semaphore> wait_semaphore = std::nullopt, std::optional<vk::CommandBuffer> cmd_buf = std::nullopt);
 
 		void CreateSampler();
 
 		std::pair<vk::DescriptorGetInfoEXT, std::shared_ptr<vk::DescriptorImageInfo>> CreateDescriptorGetInfo(vk::ImageLayout layout) const;
 
-		void TransitionImageLayout(vk::ImageLayout old_layout, vk::ImageLayout new_layout, vk::CommandBuffer buf = {});
+		void TransitionImageLayout(vk::ImageLayout old_layout, vk::ImageLayout new_layout, unsigned mip_level = 0, unsigned level_count = 1, vk::CommandBuffer buf = {});
 
 		void TransitionImageLayout(vk::ImageLayout old_layout, vk::ImageLayout new_layout, 
 			vk::AccessFlags src_access, vk::AccessFlags dst_access, vk::PipelineStageFlags src_stage, vk::PipelineStageFlags dst_stage,  
-			vk::CommandBuffer buf = {});
+			unsigned mip_level = 0, unsigned level_count = 1, vk::CommandBuffer buf = {});
 
 		vk::ImageView GetImageView() const {
 			return *m_view;

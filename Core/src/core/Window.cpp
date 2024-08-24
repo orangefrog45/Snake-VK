@@ -39,12 +39,6 @@ namespace SNAKE {
 	}
 }
 
-void Window::InitGLFW() {
-	if (!glfwInit() || !glfwVulkanSupported())
-		SNK_BREAK("GLFW failed to initialize");
-
-	s_glfw_initialized = true;
-}
 
 void Window::OnUpdate() {
 	input.OnUpdate(p_window);

@@ -131,18 +131,20 @@ namespace SNAKE {
 
 		Image2DSpec spec;
 		spec.format = fmt;
-		spec.usage = vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled;
+		spec.usage = vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferSrc;
 		spec.size.x = width;
 		spec.size.y = height;
 		spec.tiling = vk::ImageTiling::eOptimal;
 		spec.aspect_flags = vk::ImageAspectFlagBits::eColor;
+		spec.mip_levels = static_cast<unsigned>(glm::floor(glm::log2(glm::max((float)spec.size.x, (float)spec.size.y)))) + 1;
 
 		tex->image.SetSpec(spec);
 		tex->image.CreateImage();
 
-		tex->image.TransitionImageLayout(vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal);
+		tex->image.TransitionImageLayout(vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal, 0, spec.mip_levels);
 		CopyBufferToImage(staging_buffer.buffer, tex->image.GetImage(), width, height);
-		tex->image.TransitionImageLayout(vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal);
+		tex->image.GenerateMipmaps(vk::ImageLayout::eTransferDstOptimal);
+		tex->image.TransitionImageLayout(vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal, 0, spec.mip_levels);
 
 		tex->image.CreateImageView();
 		tex->image.CreateSampler();

@@ -28,48 +28,65 @@ void Image2D::CreateSampler() {
 	sampler_info.mipmapMode = vk::SamplerMipmapMode::eLinear;
 	sampler_info.mipLodBias = 0.f;
 	sampler_info.minLod = 0.f;
-	sampler_info.maxLod = 0.f;
+	sampler_info.maxLod = (float)m_spec.mip_levels;
 
 	auto [res, sampler] = VulkanContext::GetLogicalDevice().device->createSamplerUnique(sampler_info);
 	SNK_CHECK_VK_RESULT(res);
 	m_sampler = std::move(sampler);
 }
 
-void Image2D::BlitTo(Image2D& dst, vk::ImageLayout start_src_layout, vk::ImageLayout start_dst_layout,
-	vk::ImageLayout final_src_layout, vk::ImageLayout final_dst_layout, std::optional<vk::Semaphore> wait_semaphore) {
-	auto cmd = BeginSingleTimeCommands();
+void Image2D::BlitTo(Image2D& dst, unsigned dst_mip, unsigned src_mip, vk::ImageLayout start_src_layout, vk::ImageLayout start_dst_layout,
+	vk::ImageLayout final_src_layout, vk::ImageLayout final_dst_layout, vk::Filter filter, std::optional<vk::Semaphore> wait_semaphore,
+	std::optional<vk::CommandBuffer> cmd_buf) {
+	vk::UniqueCommandBuffer temp;
+	vk::CommandBuffer cmd;
+	if (cmd_buf.has_value()) {
+		cmd = cmd_buf.value();
+	}
+	else {
+		temp = BeginSingleTimeCommands();
+		cmd = *temp;
+	}
+
+	float src_div = glm::pow(2.f, src_mip);
+	float dst_div = glm::pow(2.f, dst_mip);
+
 	vk::ImageBlit blits;
-	auto offsets = util::array(vk::Offset3D{ 0, 0, 0 }, vk::Offset3D{ (int32_t)dst.GetSpec().size.x, (int32_t)dst.GetSpec().size.y, 1 });
-	vk::ImageSubresourceLayers layers;
-	layers.aspectMask = vk::ImageAspectFlagBits::eColor;
-	layers.baseArrayLayer = 0;
-	layers.layerCount = 1;
-	layers.mipLevel = 0;
+	blits.srcOffsets[0] = vk::Offset3D{ 0, 0, 0 };
+	blits.srcOffsets[1] = vk::Offset3D{ glm::max((int32_t)((float)m_spec.size.x / src_div), 1), glm::max((int32_t)((float)m_spec.size.y / src_div), 1), 1 };
+	blits.srcSubresource.aspectMask = m_spec.aspect_flags;
+	blits.srcSubresource.mipLevel = src_mip;
+	blits.srcSubresource.baseArrayLayer = 0;
+	blits.srcSubresource.layerCount = 1;
+	blits.dstOffsets[0] = vk::Offset3D{ 0, 0, 0 };
+	blits.dstOffsets[1] = vk::Offset3D{ glm::max((int32_t)((float)dst.m_spec.size.x / dst_div), 1), glm::max((int32_t)((float)dst.m_spec.size.y / dst_div), 1), 1 };
+	blits.dstSubresource.aspectMask = dst.m_spec.aspect_flags;
+	blits.dstSubresource.mipLevel = dst_mip;
+	blits.dstSubresource.baseArrayLayer = 0;
+	blits.dstSubresource.layerCount = 1;
 
-	blits.dstOffsets = offsets;
-	blits.srcOffsets = offsets;
-	blits.dstSubresource = layers;
-	blits.srcSubresource = layers;
+	TransitionImageLayout(start_src_layout, vk::ImageLayout::eTransferSrcOptimal, vk::AccessFlagBits::eTransferRead, vk::AccessFlagBits::eTransferRead,
+		vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eTransfer, src_mip, 1, cmd);
 
-	TransitionImageLayout(start_src_layout, vk::ImageLayout::eTransferSrcOptimal, vk::AccessFlagBits::eColorAttachmentWrite, vk::AccessFlagBits::eTransferRead,
-		vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eTransfer, *cmd);
+	dst.TransitionImageLayout(start_dst_layout, vk::ImageLayout::eTransferDstOptimal, vk::AccessFlagBits::eTransferWrite, vk::AccessFlagBits::eTransferWrite,
+		vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eTransfer, dst_mip, 1, cmd);
 
-	dst.TransitionImageLayout(start_dst_layout, vk::ImageLayout::eTransferDstOptimal, vk::AccessFlagBits::eTransferWrite, vk::AccessFlagBits::eMemoryRead,
-		vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eTransfer, *cmd);
+	cmd.blitImage(m_image, vk::ImageLayout::eTransferSrcOptimal, dst.m_image,
+		vk::ImageLayout::eTransferDstOptimal, blits, filter);
 
-	cmd->blitImage(m_image, vk::ImageLayout::eTransferSrcOptimal, dst.m_image,
-		vk::ImageLayout::eTransferDstOptimal, blits, vk::Filter::eNearest);
+	TransitionImageLayout(vk::ImageLayout::eTransferSrcOptimal, final_src_layout, vk::AccessFlagBits::eTransferRead, vk::AccessFlagBits::eTransferRead,
+		vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eTransfer, src_mip, 1, cmd);
 
-	TransitionImageLayout(vk::ImageLayout::eTransferSrcOptimal, final_src_layout, vk::AccessFlagBits::eTransferWrite, vk::AccessFlagBits::eNone,
-		vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eBottomOfPipe, *cmd);
+	dst.TransitionImageLayout(vk::ImageLayout::eTransferDstOptimal, final_dst_layout, vk::AccessFlagBits::eTransferWrite, vk::AccessFlagBits::eTransferWrite,
+		vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eTransfer, dst_mip, 1, cmd);
 
-	dst.TransitionImageLayout(vk::ImageLayout::eTransferDstOptimal, final_dst_layout, vk::AccessFlagBits::eTransferWrite, vk::AccessFlagBits::eColorAttachmentWrite,
-		vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eColorAttachmentOutput, *cmd);
+	if (cmd_buf.has_value())
+		return;
 
 	if (wait_semaphore.has_value())
-		EndSingleTimeCommands(*cmd, std::make_pair(wait_semaphore.value(), vk::PipelineStageFlagBits::eTransfer));
+		EndSingleTimeCommands(cmd, std::make_pair(wait_semaphore.value(), vk::PipelineStageFlagBits::eTransfer));
 	else
-		EndSingleTimeCommands(*cmd);
+		EndSingleTimeCommands(cmd);
 }
 
 void Image2D::CreateImage(VmaAllocationCreateFlags flags) {
@@ -78,7 +95,7 @@ void Image2D::CreateImage(VmaAllocationCreateFlags flags) {
 	image_info.extent.width = m_spec.size.x;
 	image_info.extent.height = m_spec.size.y;
 	image_info.extent.depth = 1;
-	image_info.mipLevels = 1;
+	image_info.mipLevels = m_spec.mip_levels;
 	image_info.arrayLayers = 1;
 	image_info.format = m_spec.format;
 	image_info.tiling = m_spec.tiling;
@@ -94,6 +111,14 @@ void Image2D::CreateImage(VmaAllocationCreateFlags flags) {
 	alloc_info.flags = flags;
 
 	SNK_CHECK_VK_RESULT(vmaCreateImage(VulkanContext::GetAllocator(), &im_info, &alloc_info, reinterpret_cast<VkImage*>(&m_image), &m_allocation, nullptr));
+}
+
+void Image2D::GenerateMipmaps(vk::ImageLayout start_layout) {
+	auto cmd = BeginSingleTimeCommands();
+	for (uint32_t i = 1; i < m_spec.mip_levels; i++) {
+		BlitTo(*this, i, i - 1, start_layout, start_layout, start_layout, start_layout, vk::Filter::eLinear, std::nullopt, *cmd);
+	}
+	EndSingleTimeCommands(*cmd);
 }
 
 void Image2D::DestroyImage() {
@@ -122,7 +147,7 @@ std::pair<vk::DescriptorGetInfoEXT, std::shared_ptr<vk::DescriptorImageInfo>> Im
 
 void Image2D::TransitionImageLayout(vk::ImageLayout old_layout, vk::ImageLayout new_layout,
 	vk::AccessFlags src_access, vk::AccessFlags dst_access, vk::PipelineStageFlags src_stage, vk::PipelineStageFlags dst_stage,
-	vk::CommandBuffer buf) {
+	unsigned mip_level, unsigned level_count, vk::CommandBuffer buf) {
 	bool temporary_buf = !buf;
 	vk::UniqueCommandBuffer temp_handle;
 
@@ -140,9 +165,9 @@ void Image2D::TransitionImageLayout(vk::ImageLayout old_layout, vk::ImageLayout 
 	barrier.srcAccessMask = src_access;
 	barrier.dstAccessMask = dst_access;
 	barrier.subresourceRange.aspectMask = m_spec.aspect_flags;
-	barrier.subresourceRange.baseMipLevel = 0;
+	barrier.subresourceRange.baseMipLevel = mip_level;
 	barrier.subresourceRange.baseArrayLayer = 0;
-	barrier.subresourceRange.levelCount = 1;
+	barrier.subresourceRange.levelCount = level_count;
 	barrier.subresourceRange.layerCount = 1;
 
 	buf.pipelineBarrier(src_stage, dst_stage, {}, {}, {}, barrier);
@@ -151,7 +176,7 @@ void Image2D::TransitionImageLayout(vk::ImageLayout old_layout, vk::ImageLayout 
 		EndSingleTimeCommands(buf);
 }
 
-void Image2D::TransitionImageLayout(vk::ImageLayout old_layout, vk::ImageLayout new_layout, vk::CommandBuffer buf) {
+void Image2D::TransitionImageLayout(vk::ImageLayout old_layout, vk::ImageLayout new_layout, unsigned mip_level, unsigned level_count, vk::CommandBuffer buf) {
 	vk::PipelineStageFlags src_stage = vk::PipelineStageFlagBits::eNone;
 	vk::PipelineStageFlags dst_stage = vk::PipelineStageFlagBits::eNone;
 	vk::AccessFlags src_access;
@@ -198,7 +223,7 @@ void Image2D::TransitionImageLayout(vk::ImageLayout old_layout, vk::ImageLayout 
 		SNK_BREAK("Unsupported layout transition");
 	}
 
-	TransitionImageLayout(old_layout, new_layout, src_access, dst_access, src_stage, dst_stage, buf);
+	TransitionImageLayout(old_layout, new_layout, src_access, dst_access, src_stage, dst_stage, mip_level, level_count, buf);
 	
 }
 
@@ -210,7 +235,7 @@ vk::UniqueImageView Image2D::CreateImageView(const Image2D& image, std::optional
 	info.subresourceRange.aspectMask = image.m_spec.aspect_flags;
 	info.subresourceRange.baseMipLevel = 0;
 	info.subresourceRange.baseArrayLayer = 0;
-	info.subresourceRange.levelCount = 1;
+	info.subresourceRange.levelCount = image.m_spec.mip_levels;
 	info.subresourceRange.layerCount = 1;
 
 	auto [res, view] = VulkanContext::GetLogicalDevice().device->createImageViewUnique(info);

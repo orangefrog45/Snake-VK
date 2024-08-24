@@ -1,4 +1,6 @@
 24/8/24:
+-Mipmap generation
+----
 -Allowed texture loading with linear format
 -Fixed imgui colour space swapchain mismatch
 

@@ -37,16 +37,14 @@ void VulkanContext::IPickPhysicalDevice(vk::SurfaceKHR surface, const std::vecto
 }
 
 
-void VulkanContext::CreateCommandPool(Window* p_window) {
-	QueueFamilyIndices qf_indices = FindQueueFamilies(VulkanContext::GetPhysicalDevice().device, *p_window->GetVkContext().surface);
-
+void VulkanContext::CreateCommandPool(const QueueFamilyIndices& queue_indices) {
 	auto num_threads = std::thread::hardware_concurrency();
 	std::vector<std::thread::id> thread_ids = JobSystem::GetThreadIDs();
 
 	for (unsigned i = 0; i < num_threads; i++) {
 		for (FrameInFlightIndex fif = 0; fif < MAX_FRAMES_IN_FLIGHT; fif++) {
 			vk::CommandPoolCreateInfo pool_info{};
-			pool_info.queueFamilyIndex = qf_indices.graphics_family.value();
+			pool_info.queueFamilyIndex = queue_indices.graphics_family.value();
 			pool_info.flags = vk::CommandPoolCreateFlagBits::eResetCommandBuffer;
 
 			auto [res, value] = VulkanContext::GetLogicalDevice().device->createCommandPoolUnique(pool_info);
@@ -126,7 +124,7 @@ void VulkanContext::ICreateLogicalDevice(vk::SurfaceKHR surface, const std::vect
 
 void VulkanContext::ICreateInstance(const char* app_name) {
 	std::vector<const char*> layers = {
-		"VK_LAYER_KHRONOS_validation"
+		//"VK_LAYER_KHRONOS_validation"
 	};
 
 	std::vector<const char*> extensions = {

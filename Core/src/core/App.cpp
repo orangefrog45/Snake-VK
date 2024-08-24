@@ -21,10 +21,11 @@ using namespace SNAKE;
 
 void App::Init(const char* app_name) {
 	JobSystem::Init();
-
 	Logger::Init();
 
-	Window::InitGLFW();
+	if (!glfwInit() || !glfwVulkanSupported())
+		SNK_BREAK("GLFW failed to initialize");
+
 	window.Init(app_name, 1920, 1080, true);
 
 	VULKAN_HPP_DEFAULT_DISPATCHER.init();
@@ -33,7 +34,7 @@ void App::Init(const char* app_name) {
 	CreateDebugCallback();
 	window.CreateSurface();
 
-	std::vector<const char*> m_required_device_extensions = {
+	std::vector<const char*> required_device_extensions = {
 		VK_KHR_SWAPCHAIN_EXTENSION_NAME,
 		VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME,
 		VK_KHR_DEPTH_STENCIL_RESOLVE_EXTENSION_NAME,
@@ -46,11 +47,12 @@ void App::Init(const char* app_name) {
 		VK_KHR_IMAGE_FORMAT_LIST_EXTENSION_NAME
 	};
 
-	VulkanContext::PickPhysicalDevice(*window.GetVkContext().surface, m_required_device_extensions);
-	VulkanContext::CreateLogicalDevice(*window.GetVkContext().surface, m_required_device_extensions);
+	VulkanContext::PickPhysicalDevice(*window.GetVkContext().surface, required_device_extensions);
+	VulkanContext::CreateLogicalDevice(*window.GetVkContext().surface, required_device_extensions);
 	VulkanContext::InitVMA();
+	VulkanContext::CreateCommandPool(FindQueueFamilies(VulkanContext::GetPhysicalDevice().device, *window.GetVkContext().surface));
+
 	window.CreateSwapchain();
-	VulkanContext::CreateCommandPool(&window);
 
 	AssetManager::Init();
 	VkRenderer::Init();

@@ -91,11 +91,11 @@ void AssetEditor::Render() {
 
 	render_image.TransitionImageLayout(vk::ImageLayout::eShaderReadOnlyOptimal, vk::ImageLayout::eColorAttachmentOptimal,
 		vk::AccessFlagBits::eNone, vk::AccessFlagBits::eNone, vk::PipelineStageFlagBits::eColorAttachmentOutput, 
-		vk::PipelineStageFlagBits::eBottomOfPipe);
+		vk::PipelineStageFlagBits::eBottomOfPipe, 0);
 
 	renderer.RenderScene(render_image);
 	render_image.TransitionImageLayout(vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eShaderReadOnlyOptimal, vk::AccessFlagBits::eNone, vk::AccessFlagBits::eNone,
-		vk::PipelineStageFlagBits::eBottomOfPipe, vk::PipelineStageFlagBits::eFragmentShader);
+		vk::PipelineStageFlagBits::eBottomOfPipe, vk::PipelineStageFlagBits::eFragmentShader, 0);
 }
 
 bool AssetEditor::RenderMaterialEditor() {

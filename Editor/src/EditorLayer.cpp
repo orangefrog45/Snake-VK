@@ -248,8 +248,8 @@ void EditorLayer::OnRender() {
 	vk::Semaphore image_avail_semaphore = VkRenderer::AcquireNextSwapchainImage(*p_window, image_index);
 	auto& swapchain_image = p_window->GetVkContext().swapchain_images[image_index];
 	renderer.RenderScene(render_image);
-	render_image.BlitTo(*swapchain_image, vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eUndefined,
-		vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eColorAttachmentOptimal, image_avail_semaphore);
+	render_image.BlitTo(*swapchain_image, 0, 0, vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eUndefined,
+		vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eColorAttachmentOptimal, vk::Filter::eNearest, image_avail_semaphore);
 	
 	asset_editor.Render();
 }

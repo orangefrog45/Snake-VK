@@ -52,7 +52,7 @@ void VkRenderer::RenderImGuiAndPresentImpl(Window& window, Image2D& render_image
 	cmd_buf.endRendering();
 
 	render_image.TransitionImageLayout(vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::ePresentSrcKHR,
-		vk::AccessFlagBits::eColorAttachmentWrite, vk::AccessFlagBits::eNone, vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eBottomOfPipe, cmd_buf);
+		vk::AccessFlagBits::eColorAttachmentWrite, vk::AccessFlagBits::eNone, vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eBottomOfPipe, 0, 1, cmd_buf);
 	cmd_buf.end();
 
 	vk::SubmitInfo submit_info{};
