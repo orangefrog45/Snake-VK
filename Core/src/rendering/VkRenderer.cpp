@@ -30,7 +30,7 @@ void VkRenderer::InitImpl() {
 }
 
 
-void VkRenderer::RenderImGuiAndPresentImpl(Window& window, Image2D& render_image) {
+void VkRenderer::RenderImGuiAndPresentImpl(Window& window, Image2D& render_image, vk::ImageView render_image_view) {
 	auto cmd_buf = *imgui_cmd_buffers[VulkanContext::GetCurrentFIF()].buf;
 	VulkanContext::GetLogicalDevice().device->resetCommandPool(VulkanContext::GetCommandPool());
 	vk::CommandBufferBeginInfo begin_info{};
@@ -40,7 +40,7 @@ void VkRenderer::RenderImGuiAndPresentImpl(Window& window, Image2D& render_image
 	colour_info.imageLayout = vk::ImageLayout::eColorAttachmentOptimal;
 	colour_info.loadOp = vk::AttachmentLoadOp::eLoad;
 	colour_info.storeOp = vk::AttachmentStoreOp::eStore;
-	colour_info.imageView = render_image.GetImageView();
+	colour_info.imageView = render_image_view;
 
 	vk::RenderingInfo rendering_info{};
 	rendering_info.colorAttachmentCount = 1;

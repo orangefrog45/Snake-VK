@@ -274,9 +274,9 @@ vk::DescriptorSet AssetEditor::GetOrCreateAssetImage(Asset* _asset) {
 }
 
 
-Asset* AssetEditor::AddAssetButton() {
+bool AssetEditor::AddAssetButton() {
 	static std::unordered_map <std::string, std::function<void()>> popup_options;
-	Asset* ret = nullptr;
+	bool ret = false;
 
 	popup_options["Mesh data"] = [this, &ret] {
 		std::string filepath = files::SelectFileFromExplorer();
@@ -288,28 +288,20 @@ Asset* AssetEditor::AddAssetButton() {
 				p_editor->ErrorMessagePopup(std::format("Failed to load mesh file '{}', check logs for more info", filepath));
 			}
 			else {
-				ret = mesh_data.get();
+				ret = true;
 			}
 		}
 	};
 
 	popup_options["Texture"] = [this, &ret] {
 		std::string filepath = files::SelectFileFromExplorer();
-		if (!filepath.empty()) {
-			auto tex = AssetManager::CreateAsset<Texture2DAsset>();
-			tex->filepath = filepath;
-			if (!AssetManager::LoadTextureFromFile(tex)) {
-				AssetManager::DeleteAsset(tex.get());
-				p_editor->ErrorMessagePopup(std::format("Failed to load texture file '{}', check logs for more info", filepath));
-			}
-			else {
-				ret = tex.get();
-			}
-		}
+		OnRequestTextureAssetAddFromFile(filepath);
+		ret = true;
 	};
 
 	popup_options["Material"] = [this, &ret] {
-		ret = AssetManager::CreateAsset<MaterialAsset>().get();
+		AssetManager::CreateAsset<MaterialAsset>();
+		ret = true;
 	};
 
 	ImGui::Button("Add asset");
@@ -317,6 +309,36 @@ Asset* AssetEditor::AddAssetButton() {
 
 	return ret;
 }
+
+void AssetEditor::OnRequestTextureAssetAddFromFile(const std::string& filepath) {
+	static vk::Format load_format = vk::Format::eR8G8B8A8Srgb;
+
+	auto* p_box = p_editor->CreateDialogBox();
+	p_box->block_other_window_input = true;
+	p_box->name = "Texture settings";
+
+	p_box->imgui_render_cb = [filepath, this, p_box] {
+		bool format_is_srgb = load_format == vk::Format::eR8G8B8A8Srgb;
+		ImGui::SameLine(ImGui::GetContentRegionAvail().x - 25); if (ImGui::Button("X")) p_box->close = true;
+		ImGui::Text(std::format("Selected file: '{}'", filepath).c_str());
+		if (ImGui::Checkbox("SRGB (select for albedo textures)", &format_is_srgb))
+			load_format = format_is_srgb ? vk::Format::eR8G8B8A8Unorm : vk::Format::eR8G8B8A8Srgb;
+
+		if (ImGui::Button("Load")) {
+			if (!filepath.empty()) {
+				auto tex = AssetManager::CreateAsset<Texture2DAsset>();
+				tex->filepath = filepath;
+				if (!AssetManager::LoadTextureFromFile(tex, load_format)) {
+					AssetManager::DeleteAsset(tex.get());
+					p_editor->ErrorMessagePopup(std::format("Failed to load texture file '{}', check logs for more info", filepath));
+				}
+			}
+			p_box->close = true;
+		}
+	};
+
+}
+
 
 bool AssetEditor::RenderImGui() {
 	bool ret = false;

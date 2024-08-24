@@ -202,12 +202,12 @@ void Image2D::TransitionImageLayout(vk::ImageLayout old_layout, vk::ImageLayout 
 	
 }
 
-void Image2D::CreateImageView() {
+vk::UniqueImageView Image2D::CreateImageView(const Image2D& image, std::optional<vk::Format> fmt) {
 	vk::ImageViewCreateInfo info{};
-	info.image = m_image;
+	info.image = image.m_image;
 	info.viewType = vk::ImageViewType::e2D;
-	info.format = m_spec.format;
-	info.subresourceRange.aspectMask = m_spec.aspect_flags;
+	info.format = fmt.has_value() ? fmt.value() : image.m_spec.format;
+	info.subresourceRange.aspectMask = image.m_spec.aspect_flags;
 	info.subresourceRange.baseMipLevel = 0;
 	info.subresourceRange.baseArrayLayer = 0;
 	info.subresourceRange.levelCount = 1;
@@ -215,7 +215,12 @@ void Image2D::CreateImageView() {
 
 	auto [res, view] = VulkanContext::GetLogicalDevice().device->createImageViewUnique(info);
 	SNK_CHECK_VK_RESULT(res);
-	m_view = std::move(view);
+	return std::move(view);
+}
+
+
+void Image2D::CreateImageView() {
+	m_view = CreateImageView(*this);
 }
 
 FullscreenImage2D::FullscreenImage2D() {

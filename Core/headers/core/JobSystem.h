@@ -34,7 +34,7 @@ namespace SNAKE {
 			Get().ExecuteImpl(job);
 		}
 
-		static void Wait() {
+		static void WaitAll() {
 			Get().WaitImpl();
 		}
 
@@ -76,13 +76,13 @@ namespace SNAKE {
 		void ShutdownImpl() {
 			m_is_running = false;
 			m_wake_condition.notify_all();
-
 			for (auto& thread : m_threads) {
 				while (!thread.joinable()) {
 
 				}
 				thread.join();
 			}
+			m_thread_jobs.clear();
 		}
 
 		void WaitImpl() {

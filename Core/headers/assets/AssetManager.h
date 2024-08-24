@@ -13,7 +13,7 @@ namespace SNAKE {
 			return instance;
 		}
 
-		static void Init(vk::CommandPool pool) { Get().I_Init(pool); }
+		static void Init() { Get().I_Init(); }
 		static void Shutdown();
 
 		static void DeleteAsset(Asset* asset);
@@ -34,7 +34,7 @@ namespace SNAKE {
 
 		static bool LoadMeshFromFile(AssetRef<MeshDataAsset> mesh_data_asset);
 
-		static bool LoadTextureFromFile(AssetRef<Texture2DAsset> tex);
+		static bool LoadTextureFromFile(AssetRef<Texture2DAsset> tex, vk::Format fmt);
 
 		template<std::derived_from<Asset> AssetT, typename... Args>
 		static AssetRef<AssetT> CreateAsset(uint64_t uuid = 0, Args&&... args) {
@@ -119,8 +119,8 @@ namespace SNAKE {
 	private:
 		static AssetRef<Texture2DAsset> CreateOrGetTextureFromMaterial(const std::string& dir, aiTextureType type, aiMaterial* p_material);
 
-		void LoadCoreAssets(vk::CommandPool pool);
-		void I_Init(vk::CommandPool pool);
+		void LoadCoreAssets();
+		void I_Init();
 
 		void InitGlobalBufferManagers();
 

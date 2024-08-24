@@ -3,11 +3,12 @@
 layout(location = 0) out vec4 out_colour;
 layout(set = 3, binding = 0) uniform sampler2D depth_tex;
 
-layout(location = 0) in vec3 vs_col;
+layout(location = 5) in mat3 vs_tbn;
 layout(location = 1) in vec2 vs_tex_coord;
 layout(location = 2) in vec3 vs_normal;
 layout(location = 3) in vec3 vs_world_pos;
 layout(location = 4) in vec3 vs_tangent;
+
 
 #include "CommonUBO.glsl"
 #include "LightBuffers.glsl"
@@ -18,17 +19,6 @@ layout(push_constant) uniform pc {
     uint material_idx;
 } push;
 
-mat3 CalculateTbnMatrix() {
-	vec3 t = normalize(vec3(mat3(push.transform) * vs_tangent));
-	vec3 n = normalize(vec3(mat3(push.transform) * vs_normal));
-
-	t = normalize(t - dot(t, n) * n);
-	vec3 b = cross(n, t);
-
-	mat3 tbn = mat3(t, b, n);
-
-	return tbn;
-}
 
 
 float CalcShadow() {
@@ -51,15 +41,13 @@ float CalcShadow() {
 
 void main() {
     Material material = material_ubo.materials[push.material_idx];
-    vec3 n;
 
+    vec3 n;
     if (material.normal_tex_idx != INVALID_GLOBAL_INDEX) {
-        n = normalize(CalculateTbnMatrix() * normalize(texture(textures[material.normal_tex_idx], vs_tex_coord).xyz * 2.0 - 1.0));
+        n = normalize(vs_tbn * normalize(texture(textures[material.normal_tex_idx], vs_tex_coord).xyz * 2.0 - 1.0));
     } else {
         n = normalize(vs_normal);
     }
-    out_colour = vec4(n, 1);
-    return;
 
 	vec3 v = normalize(common_ubo.cam_pos.xyz - vs_world_pos);
 	vec3 r = reflect(-v, n);
@@ -83,5 +71,7 @@ void main() {
         light += CalcSpotlight(ssbo_light_data.spotlights[i], v, f0, vs_world_pos, n, material.roughness, material.metallic, albedo.rgb);
     }
 
+    // Ambient
+    light += vec3(0.01) * albedo;
     out_colour = vec4(light, 1);
 }

@@ -15,9 +15,9 @@ void ImGuiLayer::OnInit() {
 
 	ImGui_ImplGlfw_InitForVulkan(mp_window->GetGLFWwindow(), true);
 
-	vk::Format swapchain_format = mp_window->GetVkContext().swapchain_format;
+	vk::Format linear_format = vk::Format::eB8G8R8A8Unorm;
 	vk::PipelineRenderingCreateInfo pipeline_info{};
-	pipeline_info.pColorAttachmentFormats = &swapchain_format;
+	pipeline_info.pColorAttachmentFormats = &linear_format;
 	pipeline_info.colorAttachmentCount = 1;
 	QueueFamilyIndices indices = FindQueueFamilies(VulkanContext::GetPhysicalDevice().device, *mp_window->GetVkContext().surface);
 

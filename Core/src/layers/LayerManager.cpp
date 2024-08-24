@@ -24,6 +24,10 @@ void LayerManager::OnImGuiRender() {
 		p_layer->OnImGuiRender();
 	}
 	mp_imgui_layer->OnImGuiEndRender();
-	VkRenderer::RenderImGuiAndPresent(*mp_window, *mp_window->GetVkContext().swapchain_images[VkRenderer::GetCurrentSwapchainImageIndex()]);
+
+	VkRenderer::RenderImGuiAndPresent(*mp_window, 
+		*mp_window->GetVkContext().swapchain_images[VkRenderer::GetCurrentSwapchainImageIndex()], 
+		*mp_window->GetVkContext().swapchain_linear_image_views[VkRenderer::GetCurrentSwapchainImageIndex()]
+	);
 }
 

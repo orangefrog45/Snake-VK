@@ -6,9 +6,9 @@
 #include <stb_image.h>
 
 namespace SNAKE {
-	void AssetManager::I_Init(vk::CommandPool pool) {
+	void AssetManager::I_Init() {
 		InitGlobalBufferManagers();
-		LoadCoreAssets(pool);
+		LoadCoreAssets();
 	}
 
 	void AssetManager::InitGlobalBufferManagers() {
@@ -33,13 +33,13 @@ namespace SNAKE {
 		m_global_tex_buffer_manager.Init(descriptor_buffers);
 	}
 
-	void AssetManager::LoadCoreAssets(vk::CommandPool pool) {
+	void AssetManager::LoadCoreAssets() {
 		auto tex = CreateAsset<Texture2DAsset>(CoreAssetIDs::TEXTURE);
-		tex->LoadFromFile("res/textures/metalgrid1_basecolor.png");
+		tex->LoadFromFile("res/textures/metalgrid1_basecolor.png", vk::Format::eR8G8B8A8Srgb);
 
 		auto normal_tex = CreateAsset<Texture2DAsset>();
 		normal_tex->name = "NORMAL MAP";
-		normal_tex->LoadFromFile("res/textures/metalgrid1_normal-dx.png");
+		normal_tex->LoadFromFile("res/textures/metalgrid1_normal-ogl.png", vk::Format::eR8G8B8A8Unorm);
 
 		auto mesh = CreateAsset<StaticMeshAsset>(CoreAssetIDs::SPHERE_MESH);
 		mesh->data = CreateAsset<MeshDataAsset>();
@@ -104,14 +104,15 @@ namespace SNAKE {
 				}
 
 				tex = CreateAsset<Texture2DAsset>();
-				tex->LoadFromFile(full_path);
+				vk::Format fmt = type == aiTextureType_BASE_COLOR ? vk::Format::eR8G8B8A8Srgb : vk::Format::eR8G8B8A8Unorm;
+				tex->LoadFromFile(full_path, fmt);
 			}
 		}
 
 		return tex;
 	}
 
-	bool AssetManager::LoadTextureFromFile(AssetRef<Texture2DAsset> tex) {
+	bool AssetManager::LoadTextureFromFile(AssetRef<Texture2DAsset> tex, vk::Format fmt) {
 		int width, height, channels;
 		// Force 4 channels as most GPUs only support these as samplers
 		stbi_uc* pixels = stbi_load(tex->filepath.c_str(), &width, &height, &channels, 4);
@@ -129,7 +130,7 @@ namespace SNAKE {
 		stbi_image_free(pixels);
 
 		Image2DSpec spec;
-		spec.format = vk::Format::eR8G8B8A8Srgb;
+		spec.format = fmt;
 		spec.usage = vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled;
 		spec.size.x = width;
 		spec.size.y = height;

@@ -143,7 +143,13 @@ void Window::CreateSwapchain() {
 	if (swapchain_support.capabilities.maxImageCount > 0 && image_count > swapchain_support.capabilities.maxImageCount)
 		image_count = swapchain_support.capabilities.maxImageCount;
 
-	vk::SwapchainCreateInfoKHR create_info{ vk::SwapchainCreateFlagsKHR(0),
+	auto usage_formats = util::array(vk::Format::eB8G8R8A8Srgb, vk::Format::eB8G8R8A8Unorm);
+
+	vk::ImageFormatListCreateInfo fmt_list_info{};
+	fmt_list_info.pViewFormats = usage_formats.data();
+	fmt_list_info.viewFormatCount = 2;
+
+	vk::SwapchainCreateInfoKHR create_info{ vk::SwapchainCreateFlagBitsKHR::eMutableFormat,
 		*m_vk_context.surface,
 		image_count,
 		surface_format.format,
@@ -152,6 +158,7 @@ void Window::CreateSwapchain() {
 		1,
 		vk::ImageUsageFlagBits::eColorAttachment
 	};
+	create_info.pNext = &fmt_list_info;
 
 	QueueFamilyIndices indices = FindQueueFamilies(VulkanContext::GetPhysicalDevice().device, *m_vk_context.surface);
 	std::array<uint32_t, 2> qf_indices = { indices.graphics_family.value(), indices.present_family.value() };
@@ -200,6 +207,7 @@ void Window::CreateSwapchain() {
 	for (int i = 0; i < temp_images.size(); i++) {
 		m_vk_context.swapchain_images[i] = std::make_unique<Image2D>(temp_images[i], swapchain_spec);
 		m_vk_context.swapchain_images[i]->CreateImageView();
+		m_vk_context.swapchain_linear_image_views.push_back(Image2D::CreateImageView(*m_vk_context.swapchain_images[i], vk::Format::eB8G8R8A8Unorm));
 	}
 	m_vk_context.swapchain_format = surface_format.format;
 	m_vk_context.swapchain_extent = extent;
@@ -219,6 +227,7 @@ void Window::RecreateSwapChain() {
 
 	m_vk_context.swapchain.release();
 	m_vk_context.swapchain_images.clear();
+	m_vk_context.swapchain_linear_image_views.clear();
 
 	CreateSwapchain();
 }

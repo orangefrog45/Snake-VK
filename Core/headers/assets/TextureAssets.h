@@ -9,7 +9,7 @@ namespace SNAKE {
 
 		inline uint32_t GetGlobalIndex() const { return m_global_index; };
 
-		void LoadFromFile(const std::string& filepath);
+		void LoadFromFile(const std::string& filepath, vk::Format fmt);
 
 		inline static constexpr uint32_t INVALID_GLOBAL_INDEX = std::numeric_limits<uint32_t>::max();
 

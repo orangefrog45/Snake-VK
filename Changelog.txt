@@ -1,3 +1,7 @@
+24/8/24:
+-Allowed texture loading with linear format
+-Fixed imgui colour space swapchain mismatch
+
 23/8/24:
 -Added multithreaded job system and grouped frame work into jobs
 

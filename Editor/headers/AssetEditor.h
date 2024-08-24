@@ -28,6 +28,7 @@ namespace SNAKE {
 		void RenderAssetEntry(const AssetEntry& entry);
 		vk::DescriptorSet GetOrCreateAssetImage(Asset* _asset);
 	private:
+		void OnRequestTextureAssetAddFromFile(const std::string& filepath);
 		bool RenderMaterialEditor();
 
 		VkSceneRenderer renderer;
@@ -41,7 +42,7 @@ namespace SNAKE {
 		void RenderTextures();
 		void RenderMaterials();
 
-		Asset* AddAssetButton();
+		bool AddAssetButton();
 		bool RenderBaseAssetEditor();
 
 		std::unordered_map<Asset*, vk::DescriptorSet> asset_images;

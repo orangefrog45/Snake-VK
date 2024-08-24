@@ -42,6 +42,8 @@ void App::Init(const char* app_name) {
 		VK_EXT_DESCRIPTOR_BUFFER_EXTENSION_NAME,
 		VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME,
 		VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME,
+		VK_KHR_SWAPCHAIN_MUTABLE_FORMAT_EXTENSION_NAME,
+		VK_KHR_IMAGE_FORMAT_LIST_EXTENSION_NAME
 	};
 
 	VulkanContext::PickPhysicalDevice(*window.GetVkContext().surface, m_required_device_extensions);
@@ -50,7 +52,7 @@ void App::Init(const char* app_name) {
 	window.CreateSwapchain();
 	VulkanContext::CreateCommandPool(&window);
 
-	AssetManager::Init(VulkanContext::GetCommandPool());
+	AssetManager::Init();
 	VkRenderer::Init();
 
 	layers.InitLayers();
@@ -75,7 +77,7 @@ void App::MainLoop() {
 		JobSystem::Execute(render_job);
 		EventManagerG::DispatchEvent(EngineRenderEvent{ });
 
-		JobSystem::Wait();
+		JobSystem::WaitAll();
 		layers.OnImGuiRender();
 
 		VulkanContext::Get().m_current_frame = (VulkanContext::Get().m_current_frame + 1) % MAX_FRAMES_IN_FLIGHT;

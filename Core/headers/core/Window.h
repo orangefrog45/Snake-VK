@@ -13,6 +13,9 @@ namespace SNAKE {
 
 		std::vector<std::unique_ptr<Image2D>> swapchain_images;
 
+		// Used for ImGui
+		std::vector<vk::UniqueImageView> swapchain_linear_image_views;
+
 		vk::Format swapchain_format;
 		vk::Extent2D swapchain_extent;
 		vk::UniqueSurfaceKHR surface;

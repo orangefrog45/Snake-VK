@@ -5,6 +5,10 @@
 
 namespace SNAKE {
 	struct Image2DSpec {
+		Image2DSpec() = default;
+		Image2DSpec(vk::Format fmt, vk::ImageUsageFlags use_flags, vk::ImageTiling _tiling, vk::ImageAspectFlags asp_flags, glm::uvec2 _size) :
+			format(fmt), usage(use_flags), tiling(_tiling), aspect_flags(asp_flags), size(_size) {}
+
 		vk::Format format = vk::Format::eUndefined;
 		vk::ImageUsageFlags usage = vk::ImageUsageFlagBits::eSampled;
 		vk::ImageTiling tiling = vk::ImageTiling::eOptimal;
@@ -47,6 +51,9 @@ namespace SNAKE {
 		void DestroyImage();
 
 		void CreateImageView();
+
+		// Returns an image view created with format 'fmt' (if provided) or (if not provided) image.m_spec.format
+		[[nodiscard]] static vk::UniqueImageView CreateImageView(const Image2D& image, std::optional<vk::Format> fmt = std::nullopt);
 
 		void DestroyImageView() {
 			m_view.release();
