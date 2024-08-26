@@ -124,7 +124,7 @@ void VulkanContext::ICreateLogicalDevice(vk::SurfaceKHR surface, const std::vect
 
 void VulkanContext::ICreateInstance(const char* app_name) {
 	std::vector<const char*> layers = {
-		//"VK_LAYER_KHRONOS_validation"
+		"VK_LAYER_KHRONOS_validation"
 	};
 
 	std::vector<const char*> extensions = {

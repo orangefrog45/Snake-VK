@@ -6,6 +6,8 @@
 #include "util/util.h"
 #include "util/UI.h"
 #include "util/FileUtil.h"
+#include "assets/AssetSerializer.h"
+#include "util/ByteSerializer.h"
 
 #include <backends/imgui_impl_vulkan.h>
 #include <imgui.h>
@@ -54,7 +56,7 @@ void AssetEditor::RenderAssetEntry(const AssetEntry& entry) {
 		ImGui::EndDragDropSource();
 	}
 	
-	ImGuiUtil::Popup("Asset options", entry.popup_settings, ImGui::IsItemClicked(1));
+	ImGuiWidgets::Popup("Asset options", entry.popup_settings, ImGui::IsItemClicked(1));
 
 	ImGui::PopID();
 }
@@ -69,7 +71,12 @@ bool AssetEditor::RenderBaseAssetEditor() {
 
 	ImGui::SetNextWindowSize({ 500, 500 });
 	if (ImGui::Begin("Asset editor")) {
-		ImGui::Dummy({ 0, 0 }); ImGui::SameLine(ImGui::GetContentRegionAvail().x - 5); if (ImGui::SmallButton("X")) p_selected_asset = nullptr;
+		ImGui::Dummy({ 0, 0 }); ImGui::SameLine(ImGui::GetContentRegionAvail().x - 5); 
+		if (ImGui::SmallButton("X")) {
+			p_selected_asset = nullptr;
+			return false;
+		}
+
 		ImGui::Text("Name: "); ImGui::InputText("##name", &p_selected_asset->name);
 		ImGui::Text(std::format("Filepath: {}", p_selected_asset->filepath).c_str());
 		ImGui::ImageButton(GetOrCreateAssetImage(p_selected_asset), {150, 150});
@@ -283,12 +290,22 @@ bool AssetEditor::AddAssetButton() {
 		if (!filepath.empty()) {
 			auto mesh_data = AssetManager::CreateAsset<MeshDataAsset>();
 			mesh_data->filepath = filepath;
-			if (!AssetManager::LoadMeshFromFile(mesh_data)) {
-				AssetManager::DeleteAsset(mesh_data.get());
-				p_editor->ErrorMessagePopup(std::format("Failed to load mesh file '{}', check logs for more info", filepath));
+
+			if (auto p_data = AssetManager::LoadMeshFromFile(mesh_data)) {
+				for (auto& mat : p_data->materials) {
+					AssetSerializer::SerializeMaterialBinary(p_editor->project.directory + std::format("/res/materials/{}{}.mat", mat->uuid(), mat->name), *mat.get());
+				}
+				for (auto& tex : p_data->textures) {
+					AssetSerializer::SerializeTexture2DBinaryFromRawFile(p_editor->project.directory + std::format("/res/textures/{}.tex2d", files::GetFilename(tex->filepath)), *tex.get(), tex->filepath);
+				}
+
+				AssetSerializer::SerializeMeshDataBinary(p_editor->project.directory + std::format("/res/meshes/{}.smesh", 
+					files::GetFilename(mesh_data->filepath)), *p_data, *mesh_data.get());
+				ret = true;
 			}
 			else {
-				ret = true;
+				AssetManager::DeleteAsset(mesh_data.get());
+				p_editor->ErrorMessagePopup(std::format("Failed to load mesh file '{}', check logs for more info", filepath));
 			}
 		}
 	};
@@ -305,7 +322,7 @@ bool AssetEditor::AddAssetButton() {
 	};
 
 	ImGui::Button("Add asset");
-	ImGuiUtil::Popup("##add asset", popup_options, ImGui::IsItemClicked());
+	ImGuiWidgets::Popup("##add asset", popup_options, ImGui::IsItemClicked());
 
 	return ret;
 }
@@ -332,6 +349,11 @@ void AssetEditor::OnRequestTextureAssetAddFromFile(const std::string& filepath) 
 					AssetManager::DeleteAsset(tex.get());
 					p_editor->ErrorMessagePopup(std::format("Failed to load texture file '{}', check logs for more info", filepath));
 				}
+				else {
+					AssetSerializer::SerializeTexture2DBinaryFromRawFile(std::format("res/textures/{}.tex2d", files::GetFilename(filepath)), *tex.get(), filepath);
+					AssetSerializer::DeserializeTexture2D(std::format("res/textures/{}.tex2d", files::GetFilename(filepath)), *AssetManager::CreateAsset<Texture2DAsset>().get());
+				}
+
 			}
 			p_box->close = true;
 		}

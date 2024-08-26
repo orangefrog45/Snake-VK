@@ -113,7 +113,9 @@ void EditorLayer::PromptCreateNewProject() {
 void EditorLayer::SaveProject() {
 	nlohmann::json j;
 	j["OpenScene"] = scene.name;
-	files::WriteTextFile(active_project_path + "/project.json", j.dump(4));
+	files::WriteTextFile(project.directory + "/project.json", j.dump(4));
+
+	SceneSerializer::SerializeScene(project.directory + std::format("/res/scenes/{}.json", scene.name), scene);
 }
 
 void EditorLayer::LoadProject(const std::string& project_path) {
@@ -125,34 +127,35 @@ void EditorLayer::LoadProject(const std::string& project_path) {
 		return;
 	}
 	
-	active_project_path = project_path;
+	project.directory = project_path;
 
 	try {
 		nlohmann::json j = nlohmann::json::parse(files::ReadTextFile(project_settings_path));
 		std::string open_scene_name = j.at("OpenScene").template get<std::string>();
+		scene.name = open_scene_name;
 
 		if (open_scene_name.empty()) {
 			SNK_CORE_WARN("Project loaded with no scene");
 		}
 
-		std::string open_scene_path = "";
+		project.active_scene_path = "";
 
-		for (auto& entry : std::filesystem::directory_iterator(active_project_path + "/res/scenes")) {
+		for (auto& entry : std::filesystem::directory_iterator(project.directory + "/res/scenes")) {
 			if (entry.path().string().ends_with(open_scene_name + ".json")) {
-				open_scene_path = entry.path().string();
+				project.active_scene_path = entry.path().string();
 				break;
 			}
 		}
 
-		if (open_scene_path.empty()) {
+		if (project.active_scene_path.empty()) {
 			SNK_CORE_ERROR("LoadProject failed, tried to open scene '{}' which was not found", open_scene_name);
 			return;
 		}
-
-		SceneSerializer::DeserializeScene(open_scene_path, scene);
+		SceneSerializer::DeserializeScene(project.active_scene_path, scene);
 
 	}
 	catch (std::exception& e) {
+		scene.name = "Unnamed scene";
 		SNK_CORE_ERROR("Error loading project settings: '{}'", e.what());
 		return;
 	}
@@ -169,6 +172,18 @@ void EditorLayer::ToolbarGUI() {
 			if (ImGui::BeginMenu("Files")) {
 				if (ImGui::Button("New project")) {
 					PromptCreateNewProject();
+				}
+				if (ImGui::Button("Load project")) {
+					std::string path = files::SelectFileFromExplorer();
+					if (path.empty() || !path.ends_with("project.json")) {
+						ErrorMessagePopup("Invalid project directory");
+					}
+					else {
+						LoadProject(files::GetFileDirectory(path));
+					}
+				}
+				if (ImGui::Button("Save project")) {
+					SaveProject();
 				}
 				ImGui::EndMenu();
 			}
@@ -209,13 +224,11 @@ void EditorLayer::OnInit() {
 	p_cam_ent->AddComponent<RelationshipComponent>();
 	p_cam_ent->AddComponent<CameraComponent>()->MakeActive();
 
+	LoadProject("res/project-template");
 	for (int i = 0; i < 100; i++) {
-		CreateLargeEntity(scene);
+		//CreateLargeEntity(scene);
 	}
-	//LoadProject("./");
 }
-
-
 
 void EditorLayer::OnUpdate() {
 	glm::vec3 move{ 0,0,0 };
@@ -358,7 +371,7 @@ void EditorLayer::RenderDialogBoxes() {
 }
 
 bool EditorLayer::ModifyEntityPopup(bool open_condition, Entity* p_ent) {
-	return ImGuiUtil::Popup("Modify entity",
+	return ImGuiWidgets::Popup("Modify entity",
 		{
 			{"Delete", [&] {scene.DeleteEntity(p_ent); }}
 		}, open_condition
@@ -366,12 +379,12 @@ bool EditorLayer::ModifyEntityPopup(bool open_condition, Entity* p_ent) {
 }
 
 bool EditorLayer::CreateEntityPopup(bool open_condition) {
-	return ImGuiUtil::Popup("Create entity",
+	return ImGuiWidgets::Popup("Create entity",
 		{
 			{"Empty", [&] {scene.CreateEntity(); }},
 			{"Mesh", [&] {scene.CreateEntity().AddComponent<StaticMeshComponent>(); }},
 			{"Pointlight", [&] {scene.CreateEntity().AddComponent<PointlightComponent>(); }},
-			{"Spotlight", [&] {scene.CreateEntity().AddComponent<SpotlightComponent>(); }},
+			{"Spotlight", [&] {scene.CreateEntity().AddComponent<SpotlightComponent>()->GetEntity()->AddComponent<PointlightComponent>(); }},
 		}, open_condition
 	);
 }

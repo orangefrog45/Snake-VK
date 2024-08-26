@@ -28,6 +28,18 @@ namespace glm {
 	}
 }
 
+namespace SNAKE {
+	void to_json(json& j, const LightAttenuation& atten) {
+		j = json::array({ atten.constant, atten.linear, atten.exp });
+	}
+
+	void from_json(const json& j, LightAttenuation& atten) {
+		j.at(0).get_to(atten.constant);
+		j.at(1).get_to(atten.linear);
+		j.at(2).get_to(atten.exp);
+	}
+}
+
 #define tget(node, type)node.template get<type>()
 
 
@@ -52,6 +64,17 @@ json SceneSerializer::SerializeEntity(Entity& ent, Scene& scene) {
 		j["StaticMesh"]["AssetUUID"] = p_mesh->mesh_asset->uuid();
 	}
 
+	if (auto* p_pl = ent.GetComponent<PointlightComponent>()) {
+		j["Pointlight"]["Colour"] = p_pl->colour;
+		j["Pointlight"]["Attenuation"] = p_pl->attenuation;
+	}
+
+	if (auto* p_sl = ent.GetComponent<SpotlightComponent>()) {
+		j["Spotlight"]["Colour"] = p_sl->colour;
+		j["Spotlight"]["Attenuation"] = p_sl->attenuation;
+		j["Spotlight"]["Aperture"] = p_sl->aperture;
+	}
+
 	
 	return j;
 }
@@ -72,13 +95,29 @@ void SceneSerializer::DeserializeEntity(Entity& ent, json& j) {
 
 	{
 		auto* p_transform = ent.GetComponent<TransformComponent>();
-		auto& t_node = j.at("Transform");
-		t_node.at("Abs").get_to(p_transform->m_is_absolute);
-		t_node.at("P").get_to(p_transform->m_pos);
-		t_node.at("S").get_to(p_transform->m_scale);
-		t_node.at("O").get_to(p_transform->m_orientation);
+		auto& t = j.at("Transform");
+		t.at("Abs").get_to(p_transform->m_is_absolute);
+		t.at("P").get_to(p_transform->m_pos);
+		t.at("S").get_to(p_transform->m_scale);
+		t.at("O").get_to(p_transform->m_orientation);
 		p_transform->RebuildMatrix(TransformComponent::ALL);
 	}
+
+	if (j.contains("Pointlight")) {
+		auto* p_comp = ent.AddComponent<PointlightComponent>();
+		auto& p = j.at("Pointlight");
+		p.at("Colour").get_to(p_comp->colour);
+		p.at("Attenuation").get_to(p_comp->attenuation);
+	}
+
+	if (j.contains("Spotlight")) {
+		auto* p_comp = ent.AddComponent<SpotlightComponent>();
+		auto& s = j.at("Spotlight");
+		s.at("Colour").get_to(p_comp->colour);
+		s.at("Attenuation").get_to(p_comp->attenuation);
+		s.at("Aperture").get_to(p_comp->aperture);
+	}
+	
 
 	if (j.contains("StaticMesh")) {
 		auto& m = j["StaticMesh"];

@@ -95,7 +95,7 @@ namespace SNAKE {
 
 		void AddDefaultSystems();
 
-		std::string name;
+		std::string name = "Unnamed scene";
 		UUID<uint64_t> uuid;
 
 		DirectionalLight directional_light;

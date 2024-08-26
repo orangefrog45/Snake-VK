@@ -18,6 +18,10 @@ namespace SNAKE {
 
 		bool StaticMeshCompEditor(StaticMeshComponent* p_comp);
 
+		bool PointlightCompEditor(PointlightComponent* p_comp);
+
+		bool SpotlightCompEditor(SpotlightComponent* p_comp);
+
 		void SelectEntity(Entity* p_ent);
 
 		void DeselectEntity(Entity* p_ent);

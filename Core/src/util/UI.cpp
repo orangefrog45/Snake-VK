@@ -3,7 +3,7 @@
 
 using namespace SNAKE;
 
-bool ImGuiUtil::Popup(const std::string& name, const std::unordered_map<std::string, std::function<void()>>& options, bool open_condition) {
+bool ImGuiWidgets::Popup(const std::string& name, const std::unordered_map<std::string, std::function<void()>>& options, bool open_condition) {
 	if (open_condition) {
 		ImGui::OpenPopup(name.c_str());
 	}
@@ -22,3 +22,21 @@ bool ImGuiUtil::Popup(const std::string& name, const std::unordered_map<std::str
 
 	return selected;
 }
+
+bool ImGuiWidgets::Table(const std::string& name, const TableWidgetData& data) {
+	bool ret = false;
+
+	if (ImGui::BeginTable(name.c_str(), 2, ImGuiTableFlags_SizingFixedSame | ImGuiTableFlags_Borders)) {
+		for (auto& [key, func] : data) {
+			ImGui::TableNextColumn();
+			ImGui::Text(key.c_str()); 
+			ImGui::TableNextColumn();
+			ret |= func();
+		}
+
+		ImGui::EndTable();
+	}
+
+	return ret;
+}
+

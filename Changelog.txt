@@ -1,3 +1,7 @@
+26/8/24:
+-Lots of asset serialization code (meshes, textures, materials)
+-Fixed JobSystem deadlock/crash through deleting jobs while potentially accessing them through another thread
+
 24/8/24:
 -Mipmap generation
 ----

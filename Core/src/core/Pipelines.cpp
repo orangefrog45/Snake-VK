@@ -39,7 +39,7 @@ namespace SNAKE {
 		rasterizer_info.rasterizerDiscardEnable = VK_FALSE; // if geometry should never pass through rasterizer stage
 		rasterizer_info.polygonMode = vk::PolygonMode::eFill;
 		rasterizer_info.lineWidth = 1.f;
-		rasterizer_info.cullMode = vk::CullModeFlagBits::eNone;
+		rasterizer_info.cullMode = vk::CullModeFlagBits::eBack;
 		rasterizer_info.frontFace = vk::FrontFace::eCounterClockwise;
 		rasterizer_info.depthBiasEnable = VK_FALSE;
 

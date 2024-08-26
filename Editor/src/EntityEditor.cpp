@@ -2,6 +2,7 @@
 #include "imgui.h"
 #include "AssetEditor.h"
 #include "misc/cpp/imgui_stdlib.h"
+#include "util/UI.h"
 
 using namespace SNAKE;
 
@@ -19,6 +20,73 @@ bool EntityEditor::TransformCompEditor(TransformComponent* p_comp) {
 		p_comp->SetPosition(p);
 		p_comp->SetScale(s);
 		p_comp->SetOrientation(r);
+	}
+
+	return ret;
+}
+
+bool EntityEditor::PointlightCompEditor(PointlightComponent* p_comp) {
+	bool ret = false;
+	static float intensity = 1.f;
+	//p_comp->colour /= intensity;
+	//TableWidgetData table;
+	//table["Colour"] = [&] { return ImGui::DragFloat3("##c", &p_comp->colour[0], 1.f, 0.f, 1.f); };
+	//table["Intensity"] = [&] { return ImGui::DragFloat("##i", &intensity, 0.01f, 1.f, 25.f); };
+	//table["Attentuation [C|L|E]"] = [&] { return ImGui::DragFloat3("##i", &p_comp->attenuation.constant, 0.01f, 0.f, 1.f); };
+	//ret |= ImGuiWidgets::Table("##tbl", table);
+	//p_comp->colour *= intensity;
+
+	if (ImGui::BeginTable("##e", 2, ImGuiTableFlags_SizingFixedSame | ImGuiTableFlags_Borders)) {
+		p_comp->colour /= intensity; 
+
+		ImGui::TableNextColumn();
+		ImGui::Text("Colour"); 
+		ImGui::TableNextColumn();
+		ret |= ImGui::DragFloat3("##c", &p_comp->colour[0], 1.f, 0.f, 1.f); 
+		ImGui::TableNextColumn();
+		ImGui::Text("Intensity"); 
+		ImGui::TableNextColumn();
+		ret |= ImGui::DragFloat("##i", &intensity, 0.01f, 1.f, 25.f); 
+		ImGui::TableNextColumn();
+		p_comp->colour *= intensity;
+
+		ImGui::Text("Attentuation [C|L|E]");  ImGui::TableNextColumn();
+		ret |= ImGui::DragFloat3("##i", &p_comp->attenuation.constant, 0.01f, 0.f, 1.f);
+
+		ImGui::EndTable();
+	}
+
+	return ret;
+}
+
+bool EntityEditor::SpotlightCompEditor(SpotlightComponent* p_comp) {
+	bool ret = false;
+	static float intensity = 1.f;
+
+	if (ImGui::BeginTable("##e", 2, ImGuiTableFlags_SizingFixedSame | ImGuiTableFlags_Borders)) {
+		p_comp->colour /= intensity;
+
+		ImGui::TableNextColumn();
+
+		ImGui::Text("Colour");
+		ImGui::TableNextColumn();
+		ret |= ImGui::DragFloat3("##c", &p_comp->colour[0], 1.f, 0.f, 1.f);
+		ImGui::TableNextColumn();
+
+		ImGui::Text("Intensity");
+		ImGui::TableNextColumn();
+		ret |= ImGui::DragFloat("##i", &intensity, 0.01f, 1.f, 25.f);
+		ImGui::TableNextColumn();
+		p_comp->colour *= intensity;
+
+		ImGui::Text("Attentuation [C|L|E]");  ImGui::TableNextColumn();
+		ret |= ImGui::DragFloat3("##i", &p_comp->attenuation.constant, 0.01f, 0.f, 1.f);
+		ImGui::TableNextColumn();
+
+		ImGui::Text("Aperture");  ImGui::TableNextColumn();
+		ret |= ImGui::DragFloat("##aperture", &p_comp->aperture, 0.01f, 0.f, 1.f);
+
+		ImGui::EndTable();
 	}
 
 	return ret;
@@ -78,7 +146,9 @@ bool EntityEditor::RenderImGui() {
 		
 		ret |= ImGui::InputText("##tag", &mp_active_entity->GetComponent<TagComponent>()->name);
 		ret |= TransformCompEditor(mp_active_entity->GetComponent<TransformComponent>());
-		if (auto* p_mesh = mp_active_entity->GetComponent<StaticMeshComponent>()) ret |= StaticMeshCompEditor(p_mesh);
+		if (auto* p_comp = mp_active_entity->GetComponent<StaticMeshComponent>()) ret |= StaticMeshCompEditor(p_comp);
+		if (auto* p_comp = mp_active_entity->GetComponent<PointlightComponent>()) ret |= PointlightCompEditor(p_comp);
+		if (auto* p_comp = mp_active_entity->GetComponent<SpotlightComponent>()) ret |= SpotlightCompEditor(p_comp);
 	}
 
 end_window:

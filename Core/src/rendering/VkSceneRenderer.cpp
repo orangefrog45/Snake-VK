@@ -36,8 +36,8 @@ void VkSceneRenderer::TakeGameStateSnapshot() {
 		m_snapshot_data.static_mesh_data.emplace_back(p_mesh->GetEntity()->GetComponent<TransformComponent>()->GetMatrix(), &p_mesh->materials);
 	}
 
-	m_snapshot_data.mesh_ranges.emplace_back(p_current_mesh->uuid(), mesh_change_index, same_mesh_count);
-
+	if (p_current_mesh)
+		m_snapshot_data.mesh_ranges.emplace_back(p_current_mesh->uuid(), mesh_change_index, same_mesh_count);
 }
 
 void VkSceneRenderer::Init(Window& window, Scene* p_scene) {

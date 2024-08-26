@@ -17,6 +17,10 @@ namespace SNAKE {
 		bool block_other_window_input = true;
 	};
 
+	struct ProjectState {
+		std::string directory;
+		std::string active_scene_path;
+	};
 
 	class EditorLayer : public Layer {
 	public:
@@ -32,6 +36,7 @@ namespace SNAKE {
 
 		Scene scene;
 		FullscreenImage2D render_image;
+		ProjectState project;
 	private:
 		void RenderDialogBoxes();
 
@@ -46,11 +51,11 @@ namespace SNAKE {
 		void PromptCreateNewProject();
 		void CreateProject(const std::string& directory, const std::string& project_name);
 
+
 		Window* p_window = nullptr;
 
 		AssetEditor asset_editor;
 
-		std::string active_project_path;
 		std::string editor_executable_dir;
 		bool unsaved_changes = false;
 

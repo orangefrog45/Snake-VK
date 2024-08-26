@@ -77,7 +77,7 @@ namespace SNAKE {
 		delete asset;
 	}
 
-	AssetRef<Texture2DAsset> AssetManager::CreateOrGetTextureFromMaterial(const std::string& dir, aiTextureType type, aiMaterial* p_material) {
+	std::pair<AssetRef<Texture2DAsset>, bool>  AssetManager::CreateOrGetTextureFromMaterial(const std::string& dir, aiTextureType type, aiMaterial* p_material) {
 		AssetRef<Texture2DAsset> tex = nullptr;
 
 		if (p_material->GetTextureCount(type) > 0) {
@@ -93,14 +93,12 @@ namespace SNAKE {
 				full_path = dir + "\\" + p;
 
 				if (auto existing = GetAsset<Texture2DAsset>(full_path)) {
-					return existing;
+					return { existing, false };
 				}
-
-				tex = CreateAsset<Texture2DAsset>();
 
 				if (!files::PathExists(full_path)) {
 					SNK_CORE_ERROR("CreateOrGetTextureFromMaterial failed, invalid path '{}'", full_path);
-					return nullptr;
+					return { nullptr, false };
 				}
 
 				tex = CreateAsset<Texture2DAsset>();
@@ -109,13 +107,14 @@ namespace SNAKE {
 			}
 		}
 
-		return tex;
+		return { tex, true };
 	}
 
 	bool AssetManager::LoadTextureFromFile(AssetRef<Texture2DAsset> tex, vk::Format fmt) {
 		int width, height, channels;
 		// Force 4 channels as most GPUs only support these as samplers
 		stbi_uc* pixels = stbi_load(tex->filepath.c_str(), &width, &height, &channels, 4);
+
 		if (!pixels) {
 			return false;
 		}
@@ -154,16 +153,15 @@ namespace SNAKE {
 		return true;
 	}
 
+	std::unique_ptr<AssetManager::MeshData> AssetManager::LoadMeshFromFile(AssetRef<MeshDataAsset> mesh_data_asset) {
+		auto data = std::make_unique<MeshData>();
 
-	bool AssetManager::LoadMeshFromFile(AssetRef<MeshDataAsset> mesh_data_asset) {
-		Assimp::Importer importer;
-
-		const aiScene* p_scene = importer.ReadFile(mesh_data_asset->filepath, 
+		const aiScene* p_scene = data->importer.ReadFile(mesh_data_asset->filepath, 
 			aiProcess_Triangulate | aiProcess_JoinIdenticalVertices | aiProcess_SortByPType | aiProcess_CalcTangentSpace);
 
 		if (!p_scene) {
-			SNK_CORE_ERROR("Failed to import mesh from filepath '{}' : '{}'", mesh_data_asset->filepath, importer.GetErrorString());
-			return false;
+			SNK_CORE_ERROR("Failed to import mesh from filepath '{}' : '{}'", mesh_data_asset->filepath, data->importer.GetErrorString());
+			return nullptr;
 		}
 
 		unsigned num_vertices = 0;
@@ -234,10 +232,8 @@ namespace SNAKE {
 			current_vert_offset += submesh.mNumVertices;
 		}
 
-		std::vector<unsigned> indices;
-		std::vector<aiVector2D> tex_coords;
-		indices.resize(num_indices);
-		tex_coords.resize(num_vertices);
+		data->indices.resize(num_indices);
+		data->tex_coords.resize(num_vertices);
 
 		unsigned indices_offset = 0;
 
@@ -245,17 +241,17 @@ namespace SNAKE {
 			aiMesh& submesh = *p_scene->mMeshes[i];
 			for (size_t j = 0; j < submesh.mNumFaces; j++) {
 				aiFace& face = submesh.mFaces[j];
-				memcpy(indices.data() + indices_offset, face.mIndices, sizeof(unsigned) * 3);
+				memcpy(data->indices.data() + indices_offset, face.mIndices, sizeof(unsigned) * 3);
 				indices_offset += 3;
 			}
 
 			for (size_t j = 0; j < submesh.mNumVertices; j++) {
-				memcpy(tex_coords.data() + j, &submesh.mTextureCoords[0][j], sizeof(aiVector2D));
+				memcpy(data->tex_coords.data() + j, &submesh.mTextureCoords[0][j], sizeof(aiVector2D));
 			}
 		}
 
-		memcpy(p_data_index, indices.data(), indices.size() * sizeof(unsigned));
-		memcpy(p_data_tex_coord, tex_coords.data(), tex_coords.size() * sizeof(aiVector2D));
+		memcpy(p_data_index, data->indices.data(), data->indices.size() * sizeof(unsigned));
+		memcpy(p_data_tex_coord, data->tex_coords.data(), data->tex_coords.size() * sizeof(aiVector2D));
 
 		CopyBuffer(staging_buf_pos.buffer, mesh_data_asset->position_buf.buffer, num_vertices * sizeof(aiVector3D));
 		CopyBuffer(staging_buf_norm.buffer, mesh_data_asset->normal_buf.buffer, num_vertices * sizeof(aiVector3D));
@@ -280,13 +276,30 @@ namespace SNAKE {
 		for (size_t i = 0; i < p_scene->mNumMaterials; i++) {
 			aiMaterial* p_material = p_scene->mMaterials[i];
 			AssetRef<MaterialAsset> material_asset = CreateAsset<MaterialAsset>();
+
 			bool material_properties_set = false;
 
-			material_asset->albedo_tex = CreateOrGetTextureFromMaterial(dir, aiTextureType_BASE_COLOR, p_material);
-			material_asset->normal_tex = CreateOrGetTextureFromMaterial(dir, aiTextureType_NORMALS, p_material);
-			material_asset->roughness_tex = CreateOrGetTextureFromMaterial(dir, aiTextureType_DIFFUSE_ROUGHNESS, p_material);
-			material_asset->metallic_tex = CreateOrGetTextureFromMaterial(dir, aiTextureType_METALNESS, p_material);
-			material_asset->ao_tex = CreateOrGetTextureFromMaterial(dir, aiTextureType_AMBIENT_OCCLUSION, p_material);
+			if (auto [tex, is_newly_created] = CreateOrGetTextureFromMaterial(dir, aiTextureType_BASE_COLOR, p_material); tex) {
+				material_asset->albedo_tex = tex;
+				if (is_newly_created) data->textures.push_back(tex);
+			}
+			if (auto [tex, is_newly_created] = CreateOrGetTextureFromMaterial(dir, aiTextureType_NORMALS, p_material); tex) {
+				material_asset->normal_tex = tex;
+				if (is_newly_created) data->textures.push_back(tex);
+			}
+			if (auto [tex, is_newly_created] = CreateOrGetTextureFromMaterial(dir, aiTextureType_DIFFUSE_ROUGHNESS, p_material); tex) {
+				material_asset->roughness_tex = tex;
+				if (is_newly_created) data->textures.push_back(tex);
+			}
+			if (auto [tex, is_newly_created] = CreateOrGetTextureFromMaterial(dir, aiTextureType_METALNESS, p_material); tex) {
+				material_asset->metallic_tex = tex;
+				if (is_newly_created) data->textures.push_back(tex);
+			}
+			if (auto [tex, is_newly_created] = CreateOrGetTextureFromMaterial(dir, aiTextureType_AMBIENT_OCCLUSION, p_material); tex) {
+				material_asset->ao_tex = tex;
+				if (is_newly_created) data->textures.push_back(tex);
+			}
+
 
 			aiColor3D base_col(1.f, 1.f, 1.f);
 			if (p_material->Get(AI_MATKEY_BASE_COLOR, base_col) == aiReturn_SUCCESS) {
@@ -306,15 +319,18 @@ namespace SNAKE {
 				material_properties_set = true;
 			}
 
-			if (!material_properties_set) {
+			if (material_properties_set) {
+				data->materials.push_back(material_asset);
+			}
+			else {
 				material_asset = GetAsset<MaterialAsset>(CoreAssetIDs::MATERIAL);
 				AssetManager::DeleteAsset(material_asset->uuid());
-			} 
+			}
 
 			mesh_data_asset->materials[i] = material_asset;
 		}
 
-		return true;
+		return std::move(data);
 	}
 
 	void AssetManager::DeleteAsset(uint64_t uuid) {

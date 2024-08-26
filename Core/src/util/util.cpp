@@ -186,6 +186,30 @@ namespace SNAKE {
 			return filepath.substr(0, back_pos);
 	}
 
+	std::string GetFilename(const std::string& filepath) {
+		size_t end = filepath.size() - 1;
+		size_t forward_pos = filepath.rfind("/");
+		size_t back_pos = filepath.rfind("\\");
+
+		if (back_pos == std::string::npos) {
+			if (forward_pos == std::string::npos) {
+				// Filepath is just the filename
+				return filepath;
+			}
+			return filepath.substr(forward_pos, end);
+		}
+		else if (forward_pos == std::string::npos) {
+			return filepath.substr(back_pos, end);
+		}
+
+
+		if (forward_pos > back_pos)
+			return filepath.substr(forward_pos, end);
+		else
+			return filepath.substr(back_pos, end);
+	}
+
+
 	bool PathEqualTo(const std::string& path1, const std::string& path2) {
 		if (path1.empty() || path2.empty())
 			return false;
@@ -246,6 +270,18 @@ namespace SNAKE {
 		}
 
 		out << content;
+		out.close();
+	}
+
+	bool WriteBinaryFile(const std::string& filepath, void* data, size_t size) {
+		std::ofstream out{ filepath, std::ios::binary };
+
+		if (!out.is_open()) {
+			SNK_CORE_ERROR("Failed to open text file '{0}' for reading", filepath);
+			return false;
+		}
+
+		out.write(reinterpret_cast<char*>(data), size);
 		out.close();
 	}
 

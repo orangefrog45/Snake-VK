@@ -4,9 +4,9 @@
 namespace SNAKE {
 	struct Job {
 		// _waited_on should be true if JobSystem::WaitOn(this) will be called
-		Job(bool _waited_on) : is_waited_on(_waited_on) {}
+		Job(bool _waited_on) : is_waited_on(_waited_on) { unfinished_jobs.store(1); }
 		std::function<void(Job const*)> func = nullptr;
-		std::atomic_uint32_t unfinished_jobs = 1;
+		std::atomic_uint32_t unfinished_jobs;
 
 		const bool is_waited_on;
 
@@ -48,6 +48,10 @@ namespace SNAKE {
 			while (job->unfinished_jobs.load() != 0) {
 				std::this_thread::yield();
 			}
+
+			if (job->p_parent)
+				job->p_parent->unfinished_jobs.fetch_sub(1);
+
 			delete job;
 		}
 
@@ -64,7 +68,8 @@ namespace SNAKE {
 		}
 
 		[[nodiscard]] static Job* CreateJob() {
-			return new Job(false);
+			auto job = new Job(false);
+			return job;
 		}
 
 		[[nodiscard]] static Job* CreateWaitedOnJob() {
@@ -97,6 +102,10 @@ namespace SNAKE {
 		void ExecuteImpl(Job* job) {
 			m_assigned_jobs.fetch_add(1);
 			job->p_parent = m_thread_jobs[std::this_thread::get_id()];
+
+			if (job->p_parent)
+				job->p_parent->unfinished_jobs.fetch_add(1);
+
 			m_job_queue.push_back(job);
 			m_wake_condition.notify_one();
 		}
@@ -110,9 +119,6 @@ namespace SNAKE {
 
 					while (m_is_running) {
 						if (auto job = m_job_queue.pop_front()) {
-							if (job->p_parent)
-								job->p_parent->unfinished_jobs.fetch_add(1);
-
 							m_thread_jobs[id] = job;
 
 							job->func(job);
@@ -125,11 +131,13 @@ namespace SNAKE {
 
 							m_thread_jobs[id] = nullptr;
 
-							if (job->p_parent)
-								job->p_parent->unfinished_jobs.fetch_sub(1);
 
-							if (!job->is_waited_on)
+							if (!job->is_waited_on) {
+								if (job->p_parent)
+									job->p_parent->unfinished_jobs.fetch_sub(1);
+
 								delete job;
+							}
 
 							m_finished_jobs.fetch_add(1);
 						}

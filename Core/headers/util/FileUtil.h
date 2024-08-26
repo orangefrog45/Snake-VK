@@ -15,6 +15,8 @@ namespace SNAKE {
 
 		std::string GetFileDirectory(const std::string& filepath);
 
+		std::string GetFilename(const std::string& filepath);
+
 		std::string GetFileLastWriteTime(const std::string& filepath);
 
 		void Create_Directory(const std::string& path);
@@ -26,6 +28,8 @@ namespace SNAKE {
 		std::string ReadTextFile(const std::string& filepath);
 
 		bool WriteTextFile(const std::string& filepath, const std::string& content);
+
+		bool WriteBinaryFile(const std::string& filepath, void* data, size_t size);
 
 		std::string SelectFileFromExplorer(const std::string& start_dir = "");
 

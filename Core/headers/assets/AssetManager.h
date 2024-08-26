@@ -8,6 +8,8 @@
 namespace SNAKE {
 	class AssetManager {
 	public:
+		friend class AssetSerializer;
+
 		inline static AssetManager& Get() {
 			static AssetManager instance;
 			return instance;
@@ -32,7 +34,21 @@ namespace SNAKE {
 			}
 		}
 
-		static bool LoadMeshFromFile(AssetRef<MeshDataAsset> mesh_data_asset);
+		struct MeshData {
+			Assimp::Importer importer;
+
+			// Textures loaded from the mesh
+			std::vector<AssetRef<Texture2DAsset>> textures;
+
+			// Materials loaded from the mesh
+			std::vector<AssetRef<MaterialAsset>> materials;
+
+			// From mesh - rest of vertex data can be extracted from scene in importer
+			std::vector<aiVector2D> tex_coords;
+			std::vector<unsigned> indices;
+		};
+
+		static std::unique_ptr<MeshData> LoadMeshFromFile(AssetRef<MeshDataAsset> mesh_data_asset);
 
 		static bool LoadTextureFromFile(AssetRef<Texture2DAsset> tex, vk::Format fmt);
 
@@ -117,7 +133,8 @@ namespace SNAKE {
 
 
 	private:
-		static AssetRef<Texture2DAsset> CreateOrGetTextureFromMaterial(const std::string& dir, aiTextureType type, aiMaterial* p_material);
+		// Returns [TextureRef, is_texture_newly_created]
+		static std::pair<AssetRef<Texture2DAsset>, bool> CreateOrGetTextureFromMaterial(const std::string& dir, aiTextureType type, aiMaterial* p_material);
 
 		void LoadCoreAssets();
 		void I_Init();
