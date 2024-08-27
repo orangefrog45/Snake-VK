@@ -17,6 +17,33 @@ namespace SNAKE {
 		unsigned int material_index;
 	};
 
+	struct MeshData {
+		MeshData() = default;
+		~MeshData() {
+			delete[] positions;
+			delete[] normals;
+			delete[] tangents;
+			delete[] tex_coords;
+			delete[] indices;
+		}
+		// Textures (UUIDS) loaded from the mesh
+		std::vector<uint64_t> textures;
+
+		// Materials (UUIDS) loaded from the mesh
+		std::vector<uint64_t> materials;
+
+		std::vector<Submesh> submeshes;
+
+		unsigned num_indices = 0;
+		unsigned num_vertices = 0;
+
+		aiVector3D* positions = nullptr;
+		aiVector3D* normals = nullptr;
+		aiVector3D* tangents = nullptr;
+		aiVector2D* tex_coords = nullptr;
+		unsigned* indices = nullptr;
+	};
+
 	struct MeshDataAsset : public Asset {
 		MeshDataAsset(uint64_t uuid = 0) : Asset(uuid) {};
 

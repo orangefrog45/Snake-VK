@@ -6,9 +6,21 @@
 #include "assets/MeshData.h"
 
 namespace SNAKE {
+	enum class AssetEventType {
+		CREATED,
+		DESTROYED
+	};
+
+	struct AssetEvent : public Event {
+		AssetEvent(AssetEventType _type, Asset* _asset) : type(_type), p_asset(_asset) {}
+
+		AssetEventType type;
+		Asset* p_asset;
+	};
+
 	class AssetManager {
 	public:
-		friend class AssetSerializer;
+		friend class AssetLoader;
 
 		inline static AssetManager& Get() {
 			static AssetManager instance;
@@ -23,34 +35,16 @@ namespace SNAKE {
 
 		template<std::derived_from<Asset> AssetT>
 		void OnAssetAdd(AssetRef<AssetT> asset) {
-			if constexpr (std::is_same_v<AssetT, MeshDataAsset>) {
-				// TODO: add multithreaded loading logic
-			}
-			else if constexpr (std::is_same_v<AssetT, Texture2DAsset>) {
-				//m_global_tex_buffer_manager
-			}
-			else if constexpr (std::is_same_v<AssetT, MaterialAsset>) {
+			if constexpr (std::is_same_v<AssetT, MaterialAsset>) {
 				m_global_material_buffer_manager.RegisterMaterial(asset);
 			}
+
+			EventManagerG::DispatchEvent(AssetEvent{ AssetEventType::CREATED, asset.get()});
 		}
 
-		struct MeshData {
-			Assimp::Importer importer;
-
-			// Textures loaded from the mesh
-			std::vector<AssetRef<Texture2DAsset>> textures;
-
-			// Materials loaded from the mesh
-			std::vector<AssetRef<MaterialAsset>> materials;
-
-			// From mesh - rest of vertex data can be extracted from scene in importer
-			std::vector<aiVector2D> tex_coords;
-			std::vector<unsigned> indices;
-		};
-
-		static std::unique_ptr<MeshData> LoadMeshFromFile(AssetRef<MeshDataAsset> mesh_data_asset);
-
-		static bool LoadTextureFromFile(AssetRef<Texture2DAsset> tex, vk::Format fmt);
+		void OnAssetDelete(Asset* p_asset) {
+			EventManagerG::DispatchEvent(AssetEvent{ AssetEventType::DESTROYED, p_asset });
+		}
 
 		template<std::derived_from<Asset> AssetT, typename... Args>
 		static AssetRef<AssetT> CreateAsset(uint64_t uuid = 0, Args&&... args) {
@@ -72,6 +66,7 @@ namespace SNAKE {
 
 		enum CoreAssetIDs {
 			SPHERE_MESH = 1,
+			SPHERE_MESH_DATA,
 			MATERIAL,
 			TEXTURE,
 		};
@@ -117,10 +112,32 @@ namespace SNAKE {
 		static std::vector<T*> GetView() {
 			std::vector<T*> ret;
 			for (auto& [uuid, p_asset] : Get().m_assets) {
+				if (IsCoreAssetUUID(uuid))
+					continue;
+
 				if (auto* p_casted = dynamic_cast<T*>(p_asset))
 					ret.push_back(p_casted);
 			}
 			return ret;
+		}
+
+		static void Clear() {
+			std::vector<uint64_t> deletion_queue;
+			auto& assets = Get().m_assets;
+			for (auto [uuid, p_asset] : assets) {
+				if (IsCoreAssetUUID(uuid))
+					continue;
+				else
+					deletion_queue.push_back(uuid);
+			}
+
+			for (auto uuid : deletion_queue) {
+				DeleteAsset(uuid);
+			}
+		}
+
+		static bool IsCoreAssetUUID(uint64_t uuid) {
+			return uuid != 0 && uuid <= NUM_CORE_ASSETS;
 		}
 
 		static vk::DeviceAddress GetGlobalTexMatBufDeviceAddress(uint32_t current_frame) {
@@ -133,9 +150,7 @@ namespace SNAKE {
 
 
 	private:
-		// Returns [TextureRef, is_texture_newly_created]
-		static std::pair<AssetRef<Texture2DAsset>, bool> CreateOrGetTextureFromMaterial(const std::string& dir, aiTextureType type, aiMaterial* p_material);
-
+		static constexpr size_t NUM_CORE_ASSETS = 4;
 		void LoadCoreAssets();
 		void I_Init();
 

@@ -62,6 +62,11 @@ json SceneSerializer::SerializeEntity(Entity& ent, Scene& scene) {
 
 	if (auto* p_mesh = ent.GetComponent<StaticMeshComponent>()) {
 		j["StaticMesh"]["AssetUUID"] = p_mesh->mesh_asset->uuid();
+		std::vector<uint64_t> material_uuids;
+		for (size_t i = 0; i < p_mesh->materials.size(); i++) {
+			material_uuids.push_back(p_mesh->materials[i]->uuid());
+		}
+		j["StaticMesh"]["Materials"] = material_uuids;
 	}
 
 	if (auto* p_pl = ent.GetComponent<PointlightComponent>()) {
@@ -121,7 +126,20 @@ void SceneSerializer::DeserializeEntity(Entity& ent, json& j) {
 
 	if (j.contains("StaticMesh")) {
 		auto& m = j["StaticMesh"];
-		ent.AddComponent<StaticMeshComponent>()->mesh_asset = AssetManager::GetAsset<StaticMeshAsset>(tget(m["AssetUUID"], uint64_t));
+		auto* p_mesh = ent.AddComponent<StaticMeshComponent>();
+		p_mesh->mesh_asset = AssetManager::GetAsset<StaticMeshAsset>(tget(m["AssetUUID"], uint64_t));
+		std::vector<uint64_t> material_uuids;
+		m.at("Materials").get_to<std::vector<uint64_t>>(material_uuids);
+		for (size_t i = 0; i < p_mesh->materials.size(); i++) {
+			auto uuid = material_uuids[i];
+			auto mat = AssetManager::GetAsset<MaterialAsset>(uuid);
+			if (!mat) {
+				SNK_CORE_ERROR("Tried deserializing material {} for mesh component but UUID not found, replacing with default", uuid);
+				mat = AssetManager::GetAsset<MaterialAsset>(AssetManager::CoreAssetIDs::MATERIAL);
+			}
+
+			p_mesh->materials[i] = mat;
+		}
 	}
 	
 }

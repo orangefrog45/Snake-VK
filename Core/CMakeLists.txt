@@ -115,7 +115,7 @@ add_library(SNAKE_VK_CORE
  "headers/assets/MaterialAsset.h" 
  "src/core/DescriptorBuffer.cpp" 
  "src/core/App.cpp"
- "src/scene/Scene.cpp" "headers/components/Components.h" "src/rendering/VkRenderer.cpp" "headers/layers/ImGuiLayer.h" "src/layers/LayerManager.cpp" "src/layers/ImGuiLayer.cpp" "src/scene/Entity.cpp" "src/scene/TransformSystem.cpp" "headers/scene/TransformSystem.h" "headers/scene/SceneSerializer.h" "src/scene/SceneSerializer.cpp" "src/assets/TextureAssets.cpp" "src/util/UI.cpp" "headers/util/UI.h" "headers/core/JobSystem.h" "headers/util/TsQueue.h" "headers/rendering/RenderCommon.h" "src/rendering/VkSceneRenderer.cpp" "headers/util/ByteSerializer.h" "headers/assets/AssetSerializer.h" "src/assets/AssetSerializer.cpp")
+ "src/scene/Scene.cpp" "headers/components/Components.h" "src/rendering/VkRenderer.cpp" "headers/layers/ImGuiLayer.h" "src/layers/LayerManager.cpp" "src/layers/ImGuiLayer.cpp" "src/scene/Entity.cpp" "src/scene/TransformSystem.cpp" "headers/scene/TransformSystem.h" "headers/scene/SceneSerializer.h" "src/scene/SceneSerializer.cpp"  "src/util/UI.cpp" "headers/util/UI.h" "headers/core/JobSystem.h" "headers/util/TsQueue.h" "headers/rendering/RenderCommon.h" "src/rendering/VkSceneRenderer.cpp" "headers/util/ByteSerializer.h" "headers/assets/AssetLoader.h" "src/assets/AssetLoader.cpp")
 
 
 target_link_options(SNAKE_VK_CORE PRIVATE -INCREMENTAL -ZI)

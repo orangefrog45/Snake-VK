@@ -116,10 +116,12 @@ void EditorLayer::SaveProject() {
 	files::WriteTextFile(project.directory + "/project.json", j.dump(4));
 
 	SceneSerializer::SerializeScene(project.directory + std::format("/res/scenes/{}.json", scene.name), scene);
+	asset_editor.SerializeAllAssets();
 }
 
 void EditorLayer::LoadProject(const std::string& project_path) {
 	scene.ClearEntities();
+	AssetManager::Clear();
 
 	std::string project_settings_path = project_path + "/project.json";
 	if (!files::PathExists(project_settings_path)) {
@@ -151,16 +153,15 @@ void EditorLayer::LoadProject(const std::string& project_path) {
 			SNK_CORE_ERROR("LoadProject failed, tried to open scene '{}' which was not found", open_scene_name);
 			return;
 		}
-		SceneSerializer::DeserializeScene(project.active_scene_path, scene);
 
+		asset_editor.DeserializeAllAssetsFromActiveProject();
+		SceneSerializer::DeserializeScene(project.active_scene_path, scene);
 	}
 	catch (std::exception& e) {
 		scene.name = "Unnamed scene";
 		SNK_CORE_ERROR("Error loading project settings: '{}'", e.what());
 		return;
 	}
-
-
 
 }
 

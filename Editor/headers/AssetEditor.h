@@ -11,7 +11,7 @@ namespace SNAKE {
 
 		std::string drag_drop_name;
 		
-		std::unordered_map<std::string, std::function<void()>> popup_settings = { {"Delete", [&] { AssetManager::DeleteAsset(p_asset); }} };
+		std::unordered_map<std::string, std::function<void()>> popup_settings;
 
 		vk::DescriptorSet image;
 
@@ -25,9 +25,15 @@ namespace SNAKE {
 		void Render();
 		bool RenderImGui();
 
-		void RenderAssetEntry(const AssetEntry& entry);
+		// Serializes all assets, overwriting their existing serialized files in the active project resource folder
+		void SerializeAllAssets();
+		void DeserializeAllAssetsFromActiveProject();
+
+		void RenderAssetEntry(AssetEntry& entry);
 		vk::DescriptorSet GetOrCreateAssetImage(Asset* _asset);
 	private:
+		void DeleteAsset(Asset* p_asset);
+
 		void OnRequestTextureAssetAddFromFile(const std::string& filepath);
 		bool RenderMaterialEditor();
 
@@ -35,8 +41,11 @@ namespace SNAKE {
 		Image2D render_image;
 		vk::DescriptorSet render_image_set;
 
+		std::vector<Asset*> asset_deletion_queue;
+
 		// Returns new texture if a new texture was drag/dropped onto this display
 		std::optional<Texture2DAsset*> RenderMaterialTexture(Texture2DAsset* p_tex);
+
 
 		void RenderMeshes();
 		void RenderTextures();
@@ -46,6 +55,8 @@ namespace SNAKE {
 		bool RenderBaseAssetEditor();
 
 		std::unordered_map<Asset*, vk::DescriptorSet> asset_images;
+
+		EventListener asset_deletion_listener;
 
 		Asset* p_selected_asset = nullptr;
 

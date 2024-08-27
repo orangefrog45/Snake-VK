@@ -23,10 +23,11 @@ namespace SNAKE {
 		// data - pointer to data
 		// size - size in bytes
 		void Value(const std::byte* data, size_t size) {
+			Value(size);
+
 			if (m_pos + size >= m_data.size())
 				m_data.resize(m_data.size() + size);
 
-			Value(size);
 			memcpy(m_data.data() + m_pos, data, size);
 			m_pos += size;
 		}
@@ -76,14 +77,15 @@ namespace SNAKE {
 
 		// Deserializes a value that was serialized as a pointer to data with a fixed size in ByteSerializer
 		// Output should be nullptr, it will be allocated here
-		void Value(std::byte*& output, size_t PLACEHOLDER) {
+		template<typename T>
+		void Value(T*& output, size_t PLACEHOLDER) {
 			size_t size;
 			Value(size);
 
 			SNK_ASSERT(!output);
 			SNK_ASSERT(m_pos + size <= m_data_size);
 
-			output = new std::byte[size];
+			output = new T[size / sizeof(T)];
 			memcpy(output, m_data + m_pos, size);
 			m_pos += size;
 		}
@@ -93,10 +95,11 @@ namespace SNAKE {
 			size_t size;
 			Value(size);
 
-			if (output.size() < size) {
+			size_t required_output_container_size = size / sizeof(typename T::value_type);
+			if (output.size() < required_output_container_size) {
 				if constexpr (IsResizableContainer<T>) {
-					if (output.size() < size)
-						output.resize(size);
+					if (output.size() < required_output_container_size)
+						output.resize(required_output_container_size);
 				}
 				else
 					SNK_ASSERT_ARG(false, "Output container size not big enough");

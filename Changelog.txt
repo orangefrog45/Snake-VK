@@ -1,3 +1,8 @@
+27/28/24:
+-Full serialization/deserialization for all assets in engine
+-Project saving/loading with full scene/asset serialization
+-Fixes to binary serializers
+
 26/8/24:
 -Lots of asset serialization code (meshes, textures, materials)
 -Fixed JobSystem deadlock/crash through deleting jobs while potentially accessing them through another thread

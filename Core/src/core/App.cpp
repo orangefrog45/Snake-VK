@@ -63,12 +63,10 @@ void App::Init(const char* app_name) {
 
 void App::MainLoop() {
 	while (!glfwWindowShouldClose(window.GetGLFWwindow())) {
-		glfwPollEvents();
 		EventManagerG::DispatchEvent(FrameSyncFenceEvent{ });
 
 		EventManagerG::DispatchEvent(FrameStartEvent{ });
 
-		window.OnUpdate();
 		Job* update_job = JobSystem::CreateJob();
 		update_job->func = [this]([[maybe_unused]] Job const* job) {layers.OnUpdate(); };
 		JobSystem::Execute(update_job);
@@ -83,6 +81,9 @@ void App::MainLoop() {
 		layers.OnImGuiRender();
 
 		VulkanContext::Get().m_current_frame = (VulkanContext::Get().m_current_frame + 1) % MAX_FRAMES_IN_FLIGHT;
+
+		window.OnUpdate();
+		glfwPollEvents();
 	}
 
 	VulkanContext::GetLogicalDevice().device->waitIdle();
