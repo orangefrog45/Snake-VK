@@ -77,7 +77,11 @@ void CompilePermutation(const ShaderFileData& data, uint8_t bits, const std::str
 	}
 
 	std::bitset<8> b = bits;
-	auto cmd = std::format("%VULKAN_SDK%/Bin/glslc.exe {} {} -o {}", define_str, data.path, output_path + "_" + b.to_string() + ".spv");
+	auto bit_str = b.to_string();
+	// Reverse bits for more intuitive filename (each bit corresponds in the same order to a define in SNAKE_PERMUTATIONS(...))
+	std::ranges::reverse(bit_str);
+
+	auto cmd = std::format("%VULKAN_SDK%/Bin/glslc.exe {} {} -o {}", define_str, data.path, output_path + "_" + bit_str + ".spv");
 	std::cout << cmd << "\n";
 	std::system(cmd.c_str());
 }
