@@ -27,6 +27,25 @@ void VkRenderer::InitImpl() {
 	EventManagerG::RegisterListener<FrameSyncFenceEvent>(m_fence_sync_listener);
 
 	SNK_ASSERT(m_image_avail_semaphores[0]);
+	vk::VertexInputAttributeDescription vert_input_desc{};
+	vert_input_desc.binding = 0;
+	vert_input_desc.format = vk::Format::eR32G32B32Sfloat;
+	vert_input_desc.location = 0;
+	vert_input_desc.offset = 0;
+	vk::VertexInputBindingDescription binding_desc{};
+	binding_desc.binding = 0;
+	binding_desc.inputRate = vk::VertexInputRate::eVertex;
+	binding_desc.stride = sizeof(glm::vec3);
+
+	GraphicsPipelineBuilder debug_pipeline_builder{};
+	debug_pipeline_builder.AddColourAttachment(vk::Format::eR8G8B8A8Srgb)
+		.AddDepthAttachment(FindDepthFormat())
+		.AddShader(vk::ShaderStageFlagBits::eVertex, "res/shaders/Transformvert_10000000.spv")
+		.AddShader(vk::ShaderStageFlagBits::eFragment, "res/shaders/Colourfrag_00000000.spv");
+	debug_pipeline_builder.input_assembly_info.topology = vk::PrimitiveTopology::eLineList;
+	debug_pipeline_builder.Build();
+	m_debug_pipeline.Init(debug_pipeline_builder);
+
 }
 
 
@@ -99,4 +118,63 @@ vk::Semaphore VkRenderer::AcquireNextSwapchainImageImpl(Window& window, uint32_t
 
 	image_index = m_current_swapchain_image_index;
 	return *m_image_avail_semaphores[VulkanContext::GetCurrentFIF()];
+}
+
+void VkRenderer::RecordRenderDebugCommandsImpl(vk::CommandBuffer cmd_buf, Image2D& colour_image, Image2D& depth_image, DescriptorBuffer& scene_data_db) {
+	vk::CommandBufferBeginInfo begin_info{};
+	SNK_CHECK_VK_RESULT(cmd_buf.begin(begin_info));
+
+	vk::RenderingAttachmentInfo colour_info{};
+	colour_info.loadOp = vk::AttachmentLoadOp::eLoad;
+	colour_info.storeOp = vk::AttachmentStoreOp::eStore;
+	colour_info.imageView = colour_image.GetImageView();
+	colour_info.imageLayout = vk::ImageLayout::eColorAttachmentOptimal;
+
+	vk::RenderingAttachmentInfo depth_info{};
+	depth_info.loadOp = vk::AttachmentLoadOp::eLoad;
+	depth_info.storeOp = vk::AttachmentStoreOp::eStore;
+	depth_info.imageView = depth_image.GetImageView();
+	depth_info.imageLayout = vk::ImageLayout::eDepthAttachmentOptimal;
+
+	const auto& colour_spec = colour_image.GetSpec();
+
+	vk::RenderingInfo rendering_info{};
+	rendering_info.colorAttachmentCount = 1;
+	rendering_info.pColorAttachments = &colour_info;
+	rendering_info.pDepthAttachment = &depth_info;
+	rendering_info.layerCount = 1;
+	rendering_info.renderArea.extent = vk::Extent2D{ colour_spec.size.x, colour_spec.size.y };
+	rendering_info.renderArea.offset = vk::Offset2D{ 0, 0 };
+
+	cmd_buf.beginRenderingKHR(rendering_info);
+	cmd_buf.bindPipeline(vk::PipelineBindPoint::eGraphics, m_debug_pipeline.GetPipeline());
+
+	vk::Viewport viewport{};
+	viewport.x = 0.0f;
+	viewport.y = 0.0f;
+	viewport.width = static_cast<float>(colour_spec.size.x);
+	viewport.height = static_cast<float>(colour_spec.size.y);
+	viewport.minDepth = 0.0f;
+	viewport.maxDepth = 1.0f;
+	cmd_buf.setViewport(0, 1, &viewport);
+	vk::Rect2D scissor{};
+	scissor.offset = vk::Offset2D{ 0, 0 };
+	scissor.extent = rendering_info.renderArea.extent;
+	cmd_buf.setScissor(0, 1, &scissor);
+
+	vk::DescriptorBufferBindingInfoEXT binding_info = scene_data_db.GetBindingInfo();
+	cmd_buf.bindDescriptorBuffersEXT(binding_info);
+
+	uint32_t buffer_index_and_offset = 0;
+	cmd_buf.setDescriptorBufferOffsetsEXT(vk::PipelineBindPoint::eGraphics, m_debug_pipeline.pipeline_layout.GetPipelineLayout(), 0, buffer_index_and_offset, buffer_index_and_offset);
+
+	for (auto& line : m_render_data.lines) {
+		std::array<glm::vec4, 3> data = { glm::vec4(line.p0, 1.0), glm::vec4(line.p1, 1.0), glm::vec4(line.colour) };
+		cmd_buf.pushConstants(m_debug_pipeline.pipeline_layout.GetPipelineLayout(), vk::ShaderStageFlagBits::eAllGraphics, 0, data.size() * sizeof(glm::vec4), data.data());
+		cmd_buf.draw(2, 1, 0, 0);
+	}
+
+	cmd_buf.endRenderingKHR();
+
+	SNK_CHECK_VK_RESULT(cmd_buf.end());
 }

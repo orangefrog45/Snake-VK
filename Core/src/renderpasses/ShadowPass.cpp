@@ -31,12 +31,11 @@ namespace SNAKE {
 
 		GraphicsPipelineBuilder builder{};
 		builder.AddDepthAttachment(vk::Format::eD16Unorm)
-			.AddShader(vk::ShaderStageFlagBits::eVertex, "res/shaders/depth_vert.spv")
-			.AddShader(vk::ShaderStageFlagBits::eFragment, "res/shaders/depth_frag.spv")
+			.AddShader(vk::ShaderStageFlagBits::eVertex, "res/shaders/Depthvert_00000000.spv")
+			.AddShader(vk::ShaderStageFlagBits::eFragment, "res/shaders/Depthfrag_00000000.spv")
 			.AddVertexBinding(vert_attr_descs[0], vert_binding_descs[0])
 			.AddVertexBinding(vert_attr_descs[1], vert_binding_descs[1])
 			.AddVertexBinding(vert_attr_descs[2], vert_binding_descs[2])
-			//.SetPipelineLayout(m_shadow_pipeline_layout.GetPipelineLayout())
 			.Build();
 
 		m_pipeline.Init(builder);

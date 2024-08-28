@@ -24,6 +24,5 @@ namespace SNAKE {
 		std::array<CommandBuffer, MAX_FRAMES_IN_FLIGHT> m_cmd_buffers;
 
 		GraphicsPipeline m_pipeline;
-
 	};
 }

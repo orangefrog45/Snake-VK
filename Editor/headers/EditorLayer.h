@@ -36,6 +36,8 @@ namespace SNAKE {
 
 		Scene scene;
 		FullscreenImage2D render_image;
+		FullscreenImage2D depth_image;
+
 		ProjectState project;
 	private:
 		void RenderDialogBoxes();
@@ -51,6 +53,7 @@ namespace SNAKE {
 		void PromptCreateNewProject();
 		void CreateProject(const std::string& directory, const std::string& project_name);
 
+		std::array<CommandBuffer, MAX_FRAMES_IN_FLIGHT> m_cmd_buffers;
 
 		Window* p_window = nullptr;
 

@@ -6,11 +6,11 @@
 namespace SNAKE {
 	class VkSceneRenderer {
 	public:
-		void Init(Window& window, Scene* p_scene);
+		void Init(class Window& window, Scene* p_scene);
 
 		// Renders scene and stores result in output_image
 		// Forward pass will wait on forward_wait_semphore if provided
-		void RenderScene(Image2D& output_image);
+		void RenderScene(Image2D& output_image, Image2D& depth_image);
 
 		// Sets scene to render
 		void SetScene(Scene* p_scene) {

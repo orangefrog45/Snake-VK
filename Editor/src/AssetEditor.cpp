@@ -136,13 +136,13 @@ window_end:
 void AssetEditor::Render() {
 	return;
 
-	render_image.TransitionImageLayout(vk::ImageLayout::eShaderReadOnlyOptimal, vk::ImageLayout::eColorAttachmentOptimal,
-		vk::AccessFlagBits::eNone, vk::AccessFlagBits::eNone, vk::PipelineStageFlagBits::eColorAttachmentOutput, 
-		vk::PipelineStageFlagBits::eBottomOfPipe, 0);
+	//render_image.TransitionImageLayout(vk::ImageLayout::eShaderReadOnlyOptimal, vk::ImageLayout::eColorAttachmentOptimal,
+	//	vk::AccessFlagBits::eNone, vk::AccessFlagBits::eNone, vk::PipelineStageFlagBits::eColorAttachmentOutput, 
+	//	vk::PipelineStageFlagBits::eBottomOfPipe, 0);
 
-	renderer.RenderScene(render_image);
-	render_image.TransitionImageLayout(vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eShaderReadOnlyOptimal, vk::AccessFlagBits::eNone, vk::AccessFlagBits::eNone,
-		vk::PipelineStageFlagBits::eBottomOfPipe, vk::PipelineStageFlagBits::eFragmentShader, 0);
+	//renderer.RenderScene(render_image);
+	//render_image.TransitionImageLayout(vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eShaderReadOnlyOptimal, vk::AccessFlagBits::eNone, vk::AccessFlagBits::eNone,
+	//	vk::PipelineStageFlagBits::eBottomOfPipe, vk::PipelineStageFlagBits::eFragmentShader, 0);
 }
 
 bool AssetEditor::RenderMaterialEditor() {

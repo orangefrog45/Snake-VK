@@ -15,8 +15,6 @@ namespace SNAKE {
 			buf.Init(vk::CommandBufferLevel::ePrimary);
 		}
 
-		CreateDepthResources({p_window->GetWidth(), p_window->GetHeight()});
-
 		for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
 			auto main_pass_descriptor_set_spec = std::make_shared<DescriptorSetSpec>();
 			main_pass_descriptor_set_spec->AddDescriptor(0, vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eAllGraphics)
@@ -35,8 +33,8 @@ namespace SNAKE {
 		auto attribute_desc = Vertex::GetAttributeDescriptions();
 
 		GraphicsPipelineBuilder graphics_builder{};
-		graphics_builder.AddShader(vk::ShaderStageFlagBits::eVertex, "res/shaders/vert.spv")
-			.AddShader(vk::ShaderStageFlagBits::eFragment, "res/shaders/frag.spv")
+		graphics_builder.AddShader(vk::ShaderStageFlagBits::eVertex, "res/shaders/Forwardvert_00000000.spv")
+			.AddShader(vk::ShaderStageFlagBits::eFragment, "res/shaders/Forwardfrag_00000000.spv")
 			.AddVertexBinding(attribute_desc[0], binding_desc[0])
 			.AddVertexBinding(attribute_desc[1], binding_desc[1])
 			.AddVertexBinding(attribute_desc[2], binding_desc[2])
@@ -49,24 +47,8 @@ namespace SNAKE {
 	}
 
 
-	void ForwardPass::CreateDepthResources(glm::vec2 window_dimensions) {
-		// Create depth image
-		auto depth_format = FindDepthFormat();
-		Image2DSpec depth_spec{};
-		depth_spec.format = depth_format;
-		depth_spec.size = { window_dimensions.x, window_dimensions.y };
-		depth_spec.tiling = vk::ImageTiling::eOptimal;
-		depth_spec.usage = vk::ImageUsageFlagBits::eDepthStencilAttachment;
-		depth_spec.aspect_flags = vk::ImageAspectFlagBits::eDepth | (HasStencilComponent(depth_format) ? vk::ImageAspectFlagBits::eStencil : vk::ImageAspectFlagBits::eNone);
-		m_depth_image.SetSpec(depth_spec);
-		m_depth_image.CreateImage();
-		m_depth_image.CreateImageView() ;
 
-		m_depth_image.TransitionImageLayout(vk::ImageLayout::eUndefined,
-			(HasStencilComponent(depth_format) ? vk::ImageLayout::eDepthAttachmentOptimal : vk::ImageLayout::eDepthAttachmentOptimal), 0);
-	}
-
-	void ForwardPass::RecordCommandBuffer(Image2D& output_image, Scene& scene, const SceneSnapshotData& snapshot) {
+	void ForwardPass::RecordCommandBuffer(Image2D& output_image, Image2D& depth_image, Scene& scene, const SceneSnapshotData& snapshot) {
 		auto frame_idx = VulkanContext::GetCurrentFIF();
 
 		auto cmd_buffer = *m_cmd_buffers[frame_idx].buf;
@@ -88,7 +70,7 @@ namespace SNAKE {
 		vk::RenderingAttachmentInfo depth_attachment_info{};
 		depth_attachment_info.loadOp = vk::AttachmentLoadOp::eClear;
 		depth_attachment_info.storeOp = vk::AttachmentStoreOp::eStore;
-		depth_attachment_info.imageView = m_depth_image.GetImageView();
+		depth_attachment_info.imageView = depth_image.GetImageView();
 		depth_attachment_info.imageLayout = vk::ImageLayout::eDepthAttachmentOptimal;
 		depth_attachment_info.clearValue = vk::ClearValue{ vk::ClearDepthStencilValue{1.f} };
 
@@ -97,7 +79,7 @@ namespace SNAKE {
 		render_info.colorAttachmentCount = 1;
 		render_info.pColorAttachments = &colour_attachment_info;
 		render_info.pDepthAttachment = &depth_attachment_info;
-		auto spec = output_image.GetSpec();
+		auto& spec = output_image.GetSpec();
 		render_info.renderArea.extent = vk::Extent2D{ spec.size.x, spec.size.y };
 		render_info.renderArea.offset = vk::Offset2D{ 0, 0 };
 

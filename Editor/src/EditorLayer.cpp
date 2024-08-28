@@ -5,6 +5,7 @@
 #include "misc/cpp/imgui_stdlib.h"
 #include "util/FileUtil.h"
 #include "scene/SceneSerializer.h"
+#include "scene/SceneInfoBufferSystem.h"
 #include "util/UI.h"
 #include "core/JobSystem.h"
 
@@ -196,6 +197,27 @@ void EditorLayer::ToolbarGUI() {
 }
 
 void EditorLayer::OnInit() {
+	VkRenderer::QueueDebugRenderLine({ 0, 0, 0 }, { 0, 10000, 0 }, { 0, 1, 0, 1 });
+
+	// Create depth image
+	auto depth_format = FindDepthFormat();
+	Image2DSpec depth_spec{};
+	depth_spec.format = depth_format;
+	depth_spec.size = { p_window->GetWidth(), p_window->GetHeight()};
+	depth_spec.tiling = vk::ImageTiling::eOptimal;
+	depth_spec.usage = vk::ImageUsageFlagBits::eDepthStencilAttachment;
+	depth_spec.aspect_flags = vk::ImageAspectFlagBits::eDepth | (HasStencilComponent(depth_format) ? vk::ImageAspectFlagBits::eStencil : vk::ImageAspectFlagBits::eNone);
+	depth_image.SetSpec(depth_spec);
+	depth_image.CreateImage();
+	depth_image.CreateImageView();
+
+	depth_image.TransitionImageLayout(vk::ImageLayout::eUndefined,
+		(HasStencilComponent(depth_format) ? vk::ImageLayout::eDepthAttachmentOptimal : vk::ImageLayout::eDepthAttachmentOptimal), 0);
+
+	for (auto& cmd_buf : m_cmd_buffers) {
+		cmd_buf.Init(vk::CommandBufferLevel::ePrimary);
+	}
+
 	editor_executable_dir = std::filesystem::current_path().string();
 	renderer.Init(*p_window, &scene);
 	ent_editor.Init(&asset_editor);
@@ -261,7 +283,17 @@ void EditorLayer::OnRender() {
 	uint32_t image_index;
 	vk::Semaphore image_avail_semaphore = VkRenderer::AcquireNextSwapchainImage(*p_window, image_index);
 	auto& swapchain_image = p_window->GetVkContext().swapchain_images[image_index];
-	renderer.RenderScene(render_image);
+
+	renderer.RenderScene(render_image, depth_image);
+	m_cmd_buffers[VulkanContext::GetCurrentFIF()].buf->reset();
+	VkRenderer::RecordRenderDebugCommands(*m_cmd_buffers[VulkanContext::GetCurrentFIF()].buf, render_image, depth_image, 
+		scene.GetSystem<SceneInfoBufferSystem>()->descriptor_buffers[VulkanContext::GetCurrentFIF()]);
+
+	vk::SubmitInfo submit_info{};
+	submit_info.commandBufferCount = 1;
+	submit_info.pCommandBuffers = &*m_cmd_buffers[VulkanContext::GetCurrentFIF()].buf;
+	SNK_CHECK_VK_RESULT(VulkanContext::GetLogicalDevice().graphics_queue.submit(submit_info));
+
 	render_image.BlitTo(*swapchain_image, 0, 0, vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eUndefined,
 		vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eColorAttachmentOptimal, vk::Filter::eNearest, image_avail_semaphore);
 	

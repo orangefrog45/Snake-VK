@@ -124,4 +124,14 @@ void main() {
 	for (auto& future : g_futures) {
 		future.wait();
 	}
+
+	std::array<std::string, 2> output_directories = {
+		THIS_DIR "/../out/build/x64-Debug/Editor/res/shaders/",
+		THIS_DIR "/../out/build/x64-Release/Editor/res/shaders/",
+	};
+
+	for (int i = 0; i < output_directories.size(); i++) {
+		std::filesystem::copy(shader_directories[0] + "/spv/", output_directories[i], 
+			std::filesystem::copy_options::recursive | std::filesystem::copy_options::overwrite_existing);
+	}
 }

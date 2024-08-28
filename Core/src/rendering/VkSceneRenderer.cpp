@@ -53,14 +53,14 @@ void VkSceneRenderer::Init(Window& window, Scene* p_scene) {
 	EventManagerG::RegisterListener<FrameStartEvent>(m_frame_start_listener);
 }
 
-void VkSceneRenderer::RenderScene(Image2D& output_image) {
+void VkSceneRenderer::RenderScene(Image2D& output_image, Image2D& depth_image) {
 	if (!mp_scene)
 		return;
 
 	auto* shadow_job = JobSystem::CreateWaitedOnJob();
 	shadow_job->func = [this]([[maybe_unused]] Job const*) {m_shadow_pass.RecordCommandBuffers(*mp_scene, m_snapshot_data); };
 	JobSystem::Execute(shadow_job);
-	m_forward_pass.RecordCommandBuffer(output_image, *mp_scene, m_snapshot_data);
+	m_forward_pass.RecordCommandBuffer(output_image, depth_image, *mp_scene, m_snapshot_data);
 	JobSystem::WaitOn(shadow_job);
 
 	vk::SubmitInfo depth_submit_info;
