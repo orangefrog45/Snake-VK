@@ -1,0 +1,8 @@
+cmake_minimum_required(VERSION 3.8)
+set (CMAKE_CXX_STANDARD 20)
+
+project(SHADER_PERMUTATION_HELPER)
+
+add_executable(SHADER_PERMUTATION_HELPER main.cpp)
+
+target_compile_definitions(SHADER_PERMUTATION_HELPER PUBLIC THIS_DIR="${CMAKE_CURRENT_LIST_DIR}")

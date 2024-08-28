@@ -2,11 +2,29 @@
 #include "core/Window.h"
 #include "util/util.h"
 #include "core/VkCommands.h"
+#include "core/Pipelines.h"
 
 namespace SNAKE {
 	struct SwapchainInvalidateEvent : public Event {
 		SwapchainInvalidateEvent(glm::vec2 new_extents) : new_swapchain_extents(new_extents) {};
 		glm::vec2 new_swapchain_extents{ 0, 0 };
+	};
+
+
+	struct Renderable {
+		enum Type {
+			LINE,
+			SPHERE
+		};
+		const Type type;
+		Renderable(Type _type) : type(_type) {};
+		glm::vec3 colour{ 1, 1, 1 };
+	};
+
+	struct Line : public Renderable {
+		Line() : Renderable(LINE) {};
+		glm::vec3 p0;
+		glm::vec3 p1;
 	};
 
 	class VkRenderer {
@@ -18,6 +36,14 @@ namespace SNAKE {
 
 		static void Init() {
 			Get().InitImpl();
+		}
+
+		static void QueueDebugRenderLine(glm::vec3 pos0, glm::vec3 pos1, glm::vec3 colour) {
+			Line* p_line = new Line();
+			p_line->colour = colour;
+			p_line->p0 = pos0;
+			p_line->p1 = pos1;
+			Get().m_render_queue.push_back(p_line);
 		}
 
 		// Resulting swapchain image index is written into image_index
@@ -60,8 +86,10 @@ namespace SNAKE {
 		std::array<vk::UniqueSemaphore, MAX_FRAMES_IN_FLIGHT> m_render_finished_semaphores;
 
 		EventListener m_fence_sync_listener;
-
 		std::vector<vk::UniqueSemaphore> m_image_avail_semaphores;
+
+		GraphicsPipeline m_debug_pipeline;
+		std::vector<Renderable*> m_render_queue;
 	};
 
 

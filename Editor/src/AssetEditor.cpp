@@ -90,7 +90,33 @@ bool AssetEditor::RenderBaseAssetEditor() {
 			goto window_end;
 		}
 
-		ImGui::Text("Name: "); ImGui::InputText("##name", &p_selected_asset->name);
+		ImGui::Text(std::format("Name: {}", p_selected_asset->name).c_str()); 
+		static bool show_rename_input = false;
+		ImGui::SameLine(); 
+		if (ImGui::Button("Rename")) {
+			show_rename_input = true;
+		}
+
+		if (show_rename_input) {
+			ImGui::InputText("##name", &p_selected_asset->name);
+			if (p_window->input.IsKeyPressed(Key::Enter) || ImGui::IsItemDeactivated()) {
+				show_rename_input = false;
+				if (files::PathExists(p_selected_asset->filepath)) {
+					size_t last_slash_pos = p_selected_asset->filepath.rfind("/");
+					std::string new_path = p_selected_asset->filepath.substr(0, last_slash_pos);
+					std::string extension = p_selected_asset->filepath.substr(p_selected_asset->filepath.rfind('.') + 1);
+					new_path += "/" + AssetLoader::GenAssetFilename(p_selected_asset, extension);
+
+					// Rename and recreate serialized file to reflect asset name update
+					files::FileCopy(p_selected_asset->filepath, new_path);
+					files::FileDelete(p_selected_asset->filepath);
+					p_selected_asset->filepath = new_path;
+					SerializeAllAssets();
+				}
+			}
+		}
+		
+
 		ImGui::Text(std::format("Filepath: {}", p_selected_asset->filepath).c_str());
 		ImGui::ImageButton(GetOrCreateAssetImage(p_selected_asset), {150, 150});
 

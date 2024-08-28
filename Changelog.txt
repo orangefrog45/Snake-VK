@@ -1,3 +1,6 @@
+28/8/24:
+-Shader permutation compiler helper program
+
 27/28/24:
 -Full serialization/deserialization for all assets in engine
 -Project saving/loading with full scene/asset serialization

@@ -2,9 +2,6 @@ cmake_minimum_required(VERSION 3.8)
 
 project(SNAKE_VK_CORE)
 
-
-
-
 find_package(Vulkan REQUIRED)
 find_library(SHADERC_LIB shaderc_combined $ENV{VULKAN_SDK}/Lib)
 add_subdirectory(extern/vma SYSTEM)

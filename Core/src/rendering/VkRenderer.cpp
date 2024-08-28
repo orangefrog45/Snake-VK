@@ -27,6 +27,9 @@ void VkRenderer::InitImpl() {
 	EventManagerG::RegisterListener<FrameSyncFenceEvent>(m_fence_sync_listener);
 
 	SNK_ASSERT(m_image_avail_semaphores[0]);
+
+	PipelineLayoutBuilder pipeline_builder{};
+	pipeline_builder.AddPushConstant(0, sizeof())
 }
 
 
