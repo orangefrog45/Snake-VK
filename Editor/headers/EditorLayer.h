@@ -4,6 +4,7 @@
 #include "rendering/VkSceneRenderer.h"
 #include "scene/Scene.h"
 #include "AssetEditor.h"
+#include "rendering/Raytracing.h"
 
 namespace SNAKE {
 	class Window;
@@ -39,6 +40,8 @@ namespace SNAKE {
 		FullscreenImage2D depth_image;
 
 		ProjectState project;
+
+		RT raytracing;
 	private:
 		void RenderDialogBoxes();
 

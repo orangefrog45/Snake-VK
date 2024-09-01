@@ -69,7 +69,7 @@ void VkSceneRenderer::RenderScene(Image2D& output_image, Image2D& depth_image) {
 		.setPCommandBuffers(&shadow_pass_cmd_buf);
 
 	SNK_CHECK_VK_RESULT(
-		VulkanContext::GetLogicalDevice().graphics_queue.submit(depth_submit_info)
+		VkContext::GetLogicalDevice().graphics_queue.submit(depth_submit_info)
 	);
 
 	vk::SubmitInfo submit_info{};
@@ -82,7 +82,7 @@ void VkSceneRenderer::RenderScene(Image2D& output_image, Image2D& depth_image) {
 	submit_info.signalSemaphoreCount = 0;
 
 	SNK_CHECK_VK_RESULT(
-		VulkanContext::GetLogicalDevice().graphics_queue.submit(submit_info) // Fence is signalled once command buffer finishes execution
+		VkContext::GetLogicalDevice().graphics_queue.submit(submit_info) // Fence is signalled once command buffer finishes execution
 	);
 
 }

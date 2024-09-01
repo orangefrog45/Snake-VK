@@ -13,7 +13,7 @@ namespace SNAKE {
 		void RecordCommandBuffer(Image2D& output_image, Image2D& depth_image, class Scene& scene, const SceneSnapshotData& data);
 
 		vk::CommandBuffer GetCommandBuffer() {
-			return *m_cmd_buffers[VulkanContext::GetCurrentFIF()].buf;
+			return *m_cmd_buffers[VkContext::GetCurrentFIF()].buf;
 		}
 
 	private:

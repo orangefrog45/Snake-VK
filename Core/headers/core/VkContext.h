@@ -16,15 +16,21 @@ namespace SNAKE {
 	};
 
 	struct PhysicalDevice {
+		PhysicalDevice() {
+			buffer_properties.pNext = &accel_properties;
+			accel_properties.pNext = &ray_properties;
+		}
 		vk::PhysicalDevice device;
 		vk::PhysicalDeviceProperties properties;
 		vk::PhysicalDeviceDescriptorBufferPropertiesEXT buffer_properties;
+		vk::PhysicalDeviceAccelerationStructurePropertiesKHR accel_properties;
+		vk::PhysicalDeviceRayTracingPipelinePropertiesKHR ray_properties;
 	};
 
-	class VulkanContext {
+	class VkContext {
 	public:
-		static VulkanContext& Get() {
-			static VulkanContext s_instance;
+		static VkContext& Get() {
+			static VkContext s_instance;
 			return s_instance;
 		}
 
@@ -74,10 +80,10 @@ namespace SNAKE {
 		}
 
 	private:
-		VulkanContext(const VulkanContext& other) = delete;
-		VulkanContext()=default;
+		VkContext(const VkContext& other) = delete;
+		VkContext()=default;
 
-		~VulkanContext() {
+		~VkContext() {
 			vmaDestroyAllocator(m_allocator);
 
 			for (auto& [thread_id, cmd_pools] : m_cmd_pools) {

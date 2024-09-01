@@ -17,7 +17,7 @@ namespace SNAKE {
 
 		void RecordCommandBuffers(class Scene& scene, const SceneSnapshotData& data);
 
-		vk::CommandBuffer GetCommandBuffer() { return *m_cmd_buffers[VulkanContext::GetCurrentFIF()].buf; }
+		vk::CommandBuffer GetCommandBuffer() { return *m_cmd_buffers[VkContext::GetCurrentFIF()].buf; }
 
 		Image2D m_dir_light_shadow_map;
 	private:

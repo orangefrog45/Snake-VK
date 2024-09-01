@@ -20,7 +20,7 @@ void Image2D::CreateSampler() {
 	sampler_info.addressModeV = vk::SamplerAddressMode::eRepeat;
 	sampler_info.addressModeW = vk::SamplerAddressMode::eRepeat;
 	sampler_info.anisotropyEnable = true;
-	sampler_info.maxAnisotropy = VulkanContext::GetPhysicalDevice().properties.limits.maxSamplerAnisotropy;
+	sampler_info.maxAnisotropy = VkContext::GetPhysicalDevice().properties.limits.maxSamplerAnisotropy;
 	sampler_info.borderColor = vk::BorderColor::eFloatOpaqueBlack;
 	sampler_info.unnormalizedCoordinates = false; // Coordinates are in range [0, 1], not [0, tex_pixel_extents]
 	sampler_info.compareEnable = false;
@@ -30,7 +30,7 @@ void Image2D::CreateSampler() {
 	sampler_info.minLod = 0.f;
 	sampler_info.maxLod = (float)m_spec.mip_levels;
 
-	auto [res, sampler] = VulkanContext::GetLogicalDevice().device->createSamplerUnique(sampler_info);
+	auto [res, sampler] = VkContext::GetLogicalDevice().device->createSamplerUnique(sampler_info);
 	SNK_CHECK_VK_RESULT(res);
 	m_sampler = std::move(sampler);
 }
@@ -105,12 +105,11 @@ void Image2D::CreateImage(VmaAllocationCreateFlags flags) {
 	image_info.samples = vk::SampleCountFlagBits::e1; // Multisampling config, ignore
 
 	auto im_info = static_cast<VkImageCreateInfo>(image_info);
-
 	VmaAllocationCreateInfo alloc_info{};
 	alloc_info.usage = VMA_MEMORY_USAGE_AUTO;
 	alloc_info.flags = flags;
 
-	SNK_CHECK_VK_RESULT(vmaCreateImage(VulkanContext::GetAllocator(), &im_info, &alloc_info, reinterpret_cast<VkImage*>(&m_image), &m_allocation, nullptr));
+	SNK_CHECK_VK_RESULT(vmaCreateImage(VkContext::GetAllocator(), &im_info, &alloc_info, reinterpret_cast<VkImage*>(&m_image), &m_allocation, nullptr));
 }
 
 void Image2D::GenerateMipmaps(vk::ImageLayout start_layout) {
@@ -123,7 +122,7 @@ void Image2D::GenerateMipmaps(vk::ImageLayout start_layout) {
 
 void Image2D::DestroyImage() {
 	if (m_image != VK_NULL_HANDLE)
-		vmaDestroyImage(VulkanContext::GetAllocator(), m_image, m_allocation);
+		vmaDestroyImage(VkContext::GetAllocator(), m_image, m_allocation);
 
 	if (m_sampler)
 		m_sampler.release();
@@ -238,7 +237,7 @@ vk::UniqueImageView Image2D::CreateImageView(const Image2D& image, std::optional
 	info.subresourceRange.levelCount = image.m_spec.mip_levels;
 	info.subresourceRange.layerCount = 1;
 
-	auto [res, view] = VulkanContext::GetLogicalDevice().device->createImageViewUnique(info);
+	auto [res, view] = VkContext::GetLogicalDevice().device->createImageViewUnique(info);
 	SNK_CHECK_VK_RESULT(res);
 	return std::move(view);
 }

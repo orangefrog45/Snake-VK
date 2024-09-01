@@ -39,7 +39,7 @@ void GlobalMaterialBufferManager::RegisterMaterial(AssetRef<MaterialAsset> mater
 }
 
 void GlobalMaterialBufferManager::UpdateMaterialUBO() {
-	auto frame_in_flight_idx = VulkanContext::GetCurrentFIF();
+	auto frame_in_flight_idx = VkContext::GetCurrentFIF();
 
 	std::byte* p_data = reinterpret_cast<std::byte*>(m_material_ubos[frame_in_flight_idx].Map());
 
@@ -89,7 +89,7 @@ void GlobalTextureBufferManager::RegisterTexture(AssetRef<Texture2DAsset> tex) {
 }
 
 void GlobalTextureBufferManager::RegisterTexturesInternal() {
-	auto frame_in_flight_idx = VulkanContext::GetCurrentFIF();
+	auto frame_in_flight_idx = VkContext::GetCurrentFIF();
 
 	for (auto& tex : m_textures_to_register[frame_in_flight_idx]) {
 		auto info = tex->image.CreateDescriptorGetInfo(vk::ImageLayout::eShaderReadOnlyOptimal);

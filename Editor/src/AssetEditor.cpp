@@ -485,20 +485,11 @@ bool AssetEditor::RenderImGui() {
 	}
 	asset_deletion_queue.clear();
 
-	if (p_window->input.IsKeyPressed('e'))
-		SerializeAllAssets();
-
-	if (p_window->input.IsKeyPressed('f')) {
-		AssetManager::Clear();
-		DeserializeAllAssetsFromActiveProject();
-	}
-
 	bool ret = false;
 
 	ret |= RenderBaseAssetEditor();
 
 	constexpr unsigned ASSET_WINDOW_HEIGHT = 200;
-
 
 	ImGui::SetNextWindowPos({ 0, (float)p_window->GetHeight() - ASSET_WINDOW_HEIGHT });
 	ImGui::SetNextWindowSize({ (float)p_window->GetWidth(), ASSET_WINDOW_HEIGHT });

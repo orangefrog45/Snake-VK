@@ -1,3 +1,6 @@
+1/9/24:
+-Started work on hardware raytracing
+
 28/8/24:
 -Debug rendering utilities (coloured lines, spheres etc)
 --

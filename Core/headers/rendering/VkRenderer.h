@@ -50,8 +50,8 @@ namespace SNAKE {
 
 		static void Shutdown() {
 			for (FrameInFlightIndex i = 0; i < Get().m_in_flight_fences.size(); i++) {
-				SNK_CHECK_VK_RESULT(VulkanContext::GetLogicalDevice().device->waitForFences(1, &*Get().m_in_flight_fences[i], VK_TRUE, UINT64_MAX));
-				SNK_CHECK_VK_RESULT(VulkanContext::GetLogicalDevice().device->resetFences(1, &*Get().m_in_flight_fences[i]));
+				SNK_CHECK_VK_RESULT(VkContext::GetLogicalDevice().device->waitForFences(1, &*Get().m_in_flight_fences[i], VK_TRUE, UINT64_MAX));
+				SNK_CHECK_VK_RESULT(VkContext::GetLogicalDevice().device->resetFences(1, &*Get().m_in_flight_fences[i]));
 			}
 		}
 

@@ -51,7 +51,7 @@ namespace SNAKE {
 	}
 
 	void ShadowPass::RecordCommandBuffers(Scene& scene, const SceneSnapshotData& snapshot) {
-		auto frame_idx = VulkanContext::GetCurrentFIF();
+		auto frame_idx = VkContext::GetCurrentFIF();
 
 		auto cmd = *m_cmd_buffers[frame_idx].buf;
 		SNK_CHECK_VK_RESULT(cmd.reset());

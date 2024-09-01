@@ -21,7 +21,7 @@ void CreateLargeEntity(Scene& scene) {
 		for (int j = 0; j < 10; j++) {
 			auto& p_current = scene.CreateEntity();
 			p_current.AddComponent<StaticMeshComponent>();
-			p_current.GetComponent<TransformComponent>()->SetPosition(rand() % 300, rand() % 300, rand() % 300);
+			p_current.GetComponent<TransformComponent>()->SetPosition(rand() % 300 - 150, rand() % 300 - 150, rand() % 300 - 150);
 			p_current.SetParent(child);
 		}
 	}
@@ -214,6 +214,17 @@ void EditorLayer::OnInit() {
 	depth_image.TransitionImageLayout(vk::ImageLayout::eUndefined,
 		(HasStencilComponent(depth_format) ? vk::ImageLayout::eDepthAttachmentOptimal : vk::ImageLayout::eDepthAttachmentOptimal), 0);
 
+	Image2DSpec spec;
+	spec.aspect_flags = vk::ImageAspectFlagBits::eColor;
+	spec.format = vk::Format::eR32G32B32A32Sfloat;
+	spec.size = { p_window->GetWidth(), p_window->GetHeight() };
+	spec.tiling = vk::ImageTiling::eOptimal;
+	spec.usage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eStorage;
+
+	render_image.SetSpec(spec);
+	render_image.CreateImage();
+	render_image.CreateImageView();
+
 	for (auto& cmd_buf : m_cmd_buffers) {
 		cmd_buf.Init(vk::CommandBufferLevel::ePrimary);
 	}
@@ -223,16 +234,7 @@ void EditorLayer::OnInit() {
 	ent_editor.Init(&asset_editor);
 	asset_editor.Init();
 
-	Image2DSpec spec;
-	spec.aspect_flags = vk::ImageAspectFlagBits::eColor;
-	spec.format = vk::Format::eR8G8B8A8Srgb;
-	spec.size = { p_window->GetWidth(), p_window->GetHeight() };
-	spec.tiling = vk::ImageTiling::eOptimal;
-	spec.usage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eTransferDst;
 
-	render_image.SetSpec(spec);
-	render_image.CreateImage();
-	render_image.CreateImageView();
 
 	entity_deletion_listener.callback = [&](Event const* _event) {
 		auto* p_casted = dynamic_cast<EntityDeleteEvent const*>(_event);
@@ -247,13 +249,17 @@ void EditorLayer::OnInit() {
 	p_cam_ent->AddComponent<RelationshipComponent>();
 	p_cam_ent->AddComponent<CameraComponent>()->MakeActive();
 
-	LoadProject("res/project-template");
-	for (int i = 0; i < 100; i++) {
-		//CreateLargeEntity(scene);
+	//LoadProject("res/project-template");
+
+	for (int i = 0; i < 10; i++) {
+		CreateLargeEntity(scene);
 	}
+	raytracing.Init(scene, render_image, scene.GetSystem<SceneInfoBufferSystem>()->descriptor_buffers[0].GetDescriptorSpec()->GetLayout());
+
 }
 
 void EditorLayer::OnUpdate() {
+
 	glm::vec3 move{ 0,0,0 };
 	auto* p_transform = p_cam_ent->GetComponent<TransformComponent>();
 
@@ -284,17 +290,18 @@ void EditorLayer::OnRender() {
 	vk::Semaphore image_avail_semaphore = VkRenderer::AcquireNextSwapchainImage(*p_window, image_index);
 	auto& swapchain_image = p_window->GetVkContext().swapchain_images[image_index];
 
-	renderer.RenderScene(render_image, depth_image);
-	m_cmd_buffers[VulkanContext::GetCurrentFIF()].buf->reset();
-	VkRenderer::RecordRenderDebugCommands(*m_cmd_buffers[VulkanContext::GetCurrentFIF()].buf, render_image, depth_image, 
-		scene.GetSystem<SceneInfoBufferSystem>()->descriptor_buffers[VulkanContext::GetCurrentFIF()]);
+	raytracing.RecordRenderCmdBuf(*m_cmd_buffers[VkContext::GetCurrentFIF()].buf, render_image, scene.GetSystem<SceneInfoBufferSystem>()->descriptor_buffers[VkContext::GetCurrentFIF()]);
+	//renderer.RenderScene(render_image, depth_image);
+	//m_cmd_buffers[VkContext::GetCurrentFIF()].buf->reset();
+	//VkRenderer::RecordRenderDebugCommands(*m_cmd_buffers[VkContext::GetCurrentFIF()].buf, render_image, depth_image, 
+	//	scene.GetSystem<SceneInfoBufferSystem>()->descriptor_buffers[VkContext::GetCurrentFIF()]);
 
 	vk::SubmitInfo submit_info{};
 	submit_info.commandBufferCount = 1;
-	submit_info.pCommandBuffers = &*m_cmd_buffers[VulkanContext::GetCurrentFIF()].buf;
-	SNK_CHECK_VK_RESULT(VulkanContext::GetLogicalDevice().graphics_queue.submit(submit_info));
+	submit_info.pCommandBuffers = &*m_cmd_buffers[VkContext::GetCurrentFIF()].buf;
+	SNK_CHECK_VK_RESULT(VkContext::GetLogicalDevice().graphics_queue.submit(submit_info));
 
-	render_image.BlitTo(*swapchain_image, 0, 0, vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eUndefined,
+	render_image.BlitTo(*swapchain_image, 0, 0, vk::ImageLayout::eGeneral, vk::ImageLayout::eUndefined,
 		vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eColorAttachmentOptimal, vk::Filter::eNearest, image_avail_semaphore);
 	
 	asset_editor.Render();

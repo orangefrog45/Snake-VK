@@ -17,7 +17,7 @@ struct Material {
     uint pad0, pad1, pad2;
 };
 
-layout(set = 1, binding = 0) buffer MaterialUBO {
+layout(set = 1, binding = 0) readonly buffer MaterialUBO {
     Material materials[4096];
 } material_ubo;
 

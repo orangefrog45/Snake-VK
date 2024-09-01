@@ -472,21 +472,23 @@ std::unique_ptr<MeshData> AssetLoader::LoadMeshDataFromRawFile(const std::string
 
 void AssetLoader::LoadMeshFromData(AssetRef<MeshDataAsset> mesh_data_asset, MeshData& data) {
 	mesh_data_asset->submeshes = data.submeshes;
+	mesh_data_asset->num_indices = data.num_indices;
+	mesh_data_asset->num_vertices = data.num_vertices;
 
 	mesh_data_asset->position_buf.CreateBuffer(data.num_vertices * sizeof(aiVector3D),
-		vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eTransferDst);
+		vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eAccelerationStructureBuildInputReadOnlyKHR);
 
 	mesh_data_asset->normal_buf.CreateBuffer(data.num_vertices * sizeof(aiVector3D),
-		vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eTransferDst);
+		vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eShaderDeviceAddress);
 
 	mesh_data_asset->index_buf.CreateBuffer(data.num_indices * sizeof(uint32_t),
-		vk::BufferUsageFlagBits::eIndexBuffer | vk::BufferUsageFlagBits::eTransferDst);
+		vk::BufferUsageFlagBits::eIndexBuffer | vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eAccelerationStructureBuildInputReadOnlyKHR);
 
 	mesh_data_asset->tex_coord_buf.CreateBuffer(data.num_vertices * sizeof(aiVector2D),
-		vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eTransferDst);
+		vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eShaderDeviceAddress);
 
 	mesh_data_asset->tangent_buf.CreateBuffer(data.num_vertices * sizeof(aiVector3D),
-		vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eTransferDst);
+		vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eShaderDeviceAddress);
 
 	S_VkBuffer staging_buf_pos;
 	staging_buf_pos.CreateBuffer(data.num_vertices * sizeof(aiVector3D),

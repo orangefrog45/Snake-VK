@@ -49,7 +49,7 @@ namespace SNAKE {
 
 
 	void ForwardPass::RecordCommandBuffer(Image2D& output_image, Image2D& depth_image, Scene& scene, const SceneSnapshotData& snapshot) {
-		auto frame_idx = VulkanContext::GetCurrentFIF();
+		auto frame_idx = VkContext::GetCurrentFIF();
 
 		auto cmd_buffer = *m_cmd_buffers[frame_idx].buf;
 		SNK_CHECK_VK_RESULT(cmd_buffer.reset());

@@ -11,18 +11,31 @@
 namespace SNAKE {
 	class ShaderLibrary {
 	public:
-		static vk::UniqueShaderModule CreateShaderModule(const std::string& filepath, PipelineLayoutBuilder& layout_builder) {
+		// Creates shader module from spv file at "filepath"
+		// Optional layout_builder will have shader descriptors/push constants reflected into it to automate pipeline layout creation
+		static vk::UniqueShaderModule CreateShaderModule(const std::string& filepath, std::optional<std::reference_wrapper<PipelineLayoutBuilder>> layout_builder = std::nullopt) {
 			using namespace spirv_cross;
 
 			SNK_ASSERT(files::PathExists(filepath));
 			std::vector<std::byte> output;
 			auto code = files::ReadBinaryFile(filepath, output);
+			vk::ShaderModuleCreateInfo create_info{
+				vk::ShaderModuleCreateFlags{0},
+				output.size(), reinterpret_cast<const uint32_t*>(output.data())
+			};
+
+			vk::UniqueShaderModule shader_module = VkContext::GetLogicalDevice().device->createShaderModuleUnique(create_info).value;
+			SNK_ASSERT(shader_module);
+
+			if (!layout_builder.has_value())
+				return shader_module;
 
 			Compiler comp(reinterpret_cast<uint32_t*>(output.data()), output.size() / 4);
 			
 			auto res = comp.get_shader_resources();
 
-			auto& descriptors = layout_builder.descriptor_set_layouts; // these are going out of scope and being destroyed, specs stored in builder?
+			auto& builder = layout_builder.value().get();
+			auto& descriptors = builder.descriptor_set_layouts;
 
 			for (const Resource& resource : res.uniform_buffers) {
 				unsigned set = comp.get_decoration(resource.id, spv::DecorationDescriptorSet);
@@ -66,22 +79,15 @@ namespace SNAKE {
 				auto type = comp.get_type(resource.type_id);
 				size_t size = comp.get_declared_struct_size(type);
 
-				if (layout_builder.push_constants.empty())
-					layout_builder.AddPushConstant(0, size, vk::ShaderStageFlagBits::eAllGraphics);
+				if (builder.push_constants.empty())
+					builder.AddPushConstant(0, size, vk::ShaderStageFlagBits::eAllGraphics);
 			}
 
 			for (auto& [set_idx, set_spec] : descriptors) {
 				set_spec->GenDescriptorLayout();
 			}
 
-			vk::ShaderModuleCreateInfo create_info{
-				vk::ShaderModuleCreateFlags{0},
-				output.size(), reinterpret_cast<const uint32_t*>(output.data())
-			};
 
-			vk::UniqueShaderModule shader_module = VulkanContext::GetLogicalDevice().device->createShaderModuleUnique(create_info).value;
-
-			SNK_ASSERT(shader_module)
 			return shader_module;
 		}
 	};

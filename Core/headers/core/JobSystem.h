@@ -52,6 +52,8 @@ namespace SNAKE {
 			if (job->p_parent)
 				job->p_parent->unfinished_jobs.fetch_sub(1);
 
+			Get().m_finished_jobs.fetch_add(1);
+
 			delete job;
 		}
 
@@ -131,15 +133,14 @@ namespace SNAKE {
 
 							m_thread_jobs[id] = nullptr;
 
-
 							if (!job->is_waited_on) {
 								if (job->p_parent)
 									job->p_parent->unfinished_jobs.fetch_sub(1);
 
 								delete job;
+								m_finished_jobs.fetch_add(1);
 							}
 
-							m_finished_jobs.fetch_add(1);
 						}
 						else {
 							std::unique_lock<std::mutex> lock(m_wake_mutex);

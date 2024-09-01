@@ -13,7 +13,7 @@ namespace SNAKE {
 		alloc_create_info.flags = flags;
 
 		auto buf_info = static_cast<VkBufferCreateInfo>(buffer_info);
-		SNK_CHECK_VK_RESULT(vmaCreateBuffer(VulkanContext::GetAllocator(), &buf_info,
+		SNK_CHECK_VK_RESULT(vmaCreateBuffer(VkContext::GetAllocator(), &buf_info,
 			&alloc_create_info, reinterpret_cast<VkBuffer*>(&buffer), &allocation, &alloc_info));
 	}
 

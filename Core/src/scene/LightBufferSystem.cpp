@@ -63,7 +63,7 @@ namespace SNAKE {
 
 
 	void LightBufferSystem::UpdateLightSSBO() {
-		auto frame_idx = VulkanContext::GetCurrentFIF();
+		auto frame_idx = VkContext::GetCurrentFIF();
 		size_t current_shader_offset = 0;
 		std::byte* p_data = reinterpret_cast<std::byte*>(light_ssbos[frame_idx].Map());
 

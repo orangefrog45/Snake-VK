@@ -9,7 +9,7 @@
 #include <bitset>
 
 bool IsShaderFile(const std::string& filepath) {
-	return filepath.ends_with(".vert") || filepath.ends_with(".frag");
+	return filepath.ends_with(".vert") || filepath.ends_with(".frag") || filepath.ends_with(".rgen") || filepath.ends_with(".rchit") || filepath.ends_with(".rmiss");
 }
 
 struct ShaderFileData {
@@ -81,7 +81,7 @@ void CompilePermutation(const ShaderFileData& data, uint8_t bits, const std::str
 	// Reverse bits for more intuitive filename (each bit corresponds in the same order to a define in SNAKE_PERMUTATIONS(...))
 	std::ranges::reverse(bit_str);
 
-	auto cmd = std::format("%VULKAN_SDK%/Bin/glslc.exe {} {} -o {}", define_str, data.path, output_path + "_" + bit_str + ".spv");
+	auto cmd = std::format("%VULKAN_SDK%/Bin/glslc.exe --target-env=vulkan1.3 {} {} -o {}", define_str, data.path, output_path + "_" + bit_str + ".spv");
 	std::cout << cmd << "\n";
 	std::system(cmd.c_str());
 }
@@ -103,35 +103,51 @@ void CompilePermutations(const ShaderFileData& data, const std::string& base_out
 }
 
 void main() {
-	std::array<std::string, 1> shader_directories = { THIS_DIR "/../Core/res/shaders" };
+	while (true) {
+		std::array<std::string, 1> shader_directories = { THIS_DIR "/../Core/res/shaders" };
 
-	for (const auto& dir : shader_directories) {
-		for (const auto& entry : std::filesystem::recursive_directory_iterator(dir)) {
-			std::string path = entry.path().string();
-			if (IsShaderFile(path)) {
+		for (const auto& dir : shader_directories) {
+			for (const auto& entry : std::filesystem::recursive_directory_iterator(dir)) {
+				std::string path = entry.path().string();
+				if (IsShaderFile(path)) {
 
-				g_futures.push_back(std::async(std::launch::async, [=] {
-					std::string filename = path.substr(path.rfind("\\") + 1);
-					filename.erase(filename.rfind('.'), 1);
-					std::string output_path = dir + "/spv/" + filename;
-					CompilePermutations(ReadShaderFile(path), output_path);
-				}));
+					g_futures.push_back(std::async(std::launch::async, [=] {
+						std::string filename = path.substr(path.rfind("\\") + 1);
+						filename.erase(filename.rfind('.'), 1);
+						std::string output_path = dir + "/spv/" + filename;
+						CompilePermutations(ReadShaderFile(path), output_path);
+					}));
 
+				}
 			}
 		}
-	}
 
-	for (auto& future : g_futures) {
-		future.wait();
-	}
+		for (auto& future : g_futures) {
+			future.wait();
+		}
 
-	std::array<std::string, 2> output_directories = {
-		THIS_DIR "/../out/build/x64-Debug/Editor/res/shaders/",
-		THIS_DIR "/../out/build/x64-Release/Editor/res/shaders/",
-	};
+		g_futures.clear();
 
-	for (int i = 0; i < output_directories.size(); i++) {
-		std::filesystem::copy(shader_directories[0] + "/spv/", output_directories[i], 
-			std::filesystem::copy_options::recursive | std::filesystem::copy_options::overwrite_existing);
+		std::array<std::string, 2> output_directories = {
+			THIS_DIR "/../out/build/x64-Debug/Editor/res/shaders/",
+			THIS_DIR "/../out/build/x64-Release/Editor/res/shaders/",
+		};
+
+		for (int i = 0; i < output_directories.size(); i++) {
+			try {
+				if (!std::filesystem::exists(shader_directories[0] + "/spv"))
+					std::filesystem::create_directory(shader_directories[0] + "/spv");
+
+				std::filesystem::copy(shader_directories[0] + "/spv/", output_directories[i], 
+					std::filesystem::copy_options::recursive | std::filesystem::copy_options::overwrite_existing);
+			}
+			catch (std::exception& e) {
+				continue;
+			}
+		}
+
+		std::cout << "\n\n\n PRESS ANY KEY + ENTER TO CONTINUE";
+		std::string temp;
+		std::cin >> temp;
 	}
 }

@@ -11,7 +11,7 @@ namespace SNAKE {
 		constexpr size_t UBO_SIZE = aligned_size(sizeof(glm::mat4) * 2 + sizeof(glm::vec4), 64);
 
 		m_frame_start_listener.callback = [this]([[maybe_unused]] auto _event) {
-			UpdateUBO(VulkanContext::GetCurrentFIF());
+			UpdateUBO(VkContext::GetCurrentFIF());
 			};
 
 		EventManagerG::RegisterListener<FrameStartEvent>(m_frame_start_listener);
@@ -21,7 +21,7 @@ namespace SNAKE {
 				VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT);
 
 			auto descriptor_spec = std::make_shared<DescriptorSetSpec>();
-			descriptor_spec->AddDescriptor(0, vk::DescriptorType::eUniformBuffer, vk::ShaderStageFlagBits::eAllGraphics)
+			descriptor_spec->AddDescriptor(0, vk::DescriptorType::eUniformBuffer, vk::ShaderStageFlagBits::eAll)
 				.GenDescriptorLayout();
 
 			descriptor_buffers[i].SetDescriptorSpec(descriptor_spec);

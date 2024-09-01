@@ -124,7 +124,7 @@ void Window::CreateSwapchain() {
 		glfwWaitEvents();
 	}
 
-	SwapChainSupportDetails swapchain_support = QuerySwapChainSupport(VulkanContext::GetPhysicalDevice().device, *m_vk_context.surface);
+	SwapChainSupportDetails swapchain_support = QuerySwapChainSupport(VkContext::GetPhysicalDevice().device, *m_vk_context.surface);
 
 	vk::SurfaceFormatKHR surface_format = ChooseSwapSurfaceFormat(swapchain_support.formats);
 	vk::PresentModeKHR present_mode = ChooseSwapPresentMode(swapchain_support.present_modes);
@@ -154,7 +154,7 @@ void Window::CreateSwapchain() {
 	};
 	create_info.pNext = &fmt_list_info;
 
-	QueueFamilyIndices indices = FindQueueFamilies(VulkanContext::GetPhysicalDevice().device, *m_vk_context.surface);
+	QueueFamilyIndices indices = FindQueueFamilies(VkContext::GetPhysicalDevice().device, *m_vk_context.surface);
 	std::array<uint32_t, 2> qf_indices = { indices.graphics_family.value(), indices.present_family.value() };
 
 	if (indices.graphics_family != indices.present_family) {
@@ -175,7 +175,7 @@ void Window::CreateSwapchain() {
 	create_info.clipped = VK_TRUE; // Don't care about color of pixels that are obscured by other windows
 	create_info.oldSwapchain = VK_NULL_HANDLE;
 
-	auto& l_device = VulkanContext::GetLogicalDevice().device;
+	auto& l_device = VkContext::GetLogicalDevice().device;
 
 	m_vk_context.swapchain = l_device->createSwapchainKHRUnique(create_info).value;
 
@@ -211,7 +211,7 @@ void Window::CreateSwapchain() {
 
 void Window::RecreateSwapChain() {
 	SNK_CHECK_VK_RESULT(
-		VulkanContext::GetLogicalDevice().device->waitIdle()
+		VkContext::GetLogicalDevice().device->waitIdle()
 	);
 
 	for (auto& image : m_vk_context.swapchain_images) {
@@ -235,8 +235,8 @@ void Window::OnPresentNeedsResize() {
 void Window::CreateSurface() {
 	VkSurfaceKHR surface_temp;
 
-	auto res = vk::Result(glfwCreateWindowSurface(*VulkanContext::GetInstance(), p_window, nullptr, &surface_temp));
-	m_vk_context.surface = vk::UniqueSurfaceKHR{ surface_temp, *VulkanContext::GetInstance()};
+	auto res = vk::Result(glfwCreateWindowSurface(*VkContext::GetInstance(), p_window, nullptr, &surface_temp));
+	m_vk_context.surface = vk::UniqueSurfaceKHR{ surface_temp, *VkContext::GetInstance()};
 	SNK_CHECK_VK_RESULT(res);
 }
 

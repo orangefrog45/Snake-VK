@@ -51,7 +51,9 @@ namespace SNAKE {
 		std::vector<AssetRef<MaterialAsset>> materials;
 
 		std::vector<Submesh> submeshes;
-
+		unsigned num_indices = 0;
+		unsigned num_vertices = 0;
+	
 		S_VkBuffer position_buf;
 		S_VkBuffer normal_buf;
 		S_VkBuffer tex_coord_buf;

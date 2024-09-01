@@ -28,7 +28,7 @@ struct Spotlight {
 
 #define PI 3.1415926
 
-layout(set = 2, binding = 0) buffer LightData {
+layout(set = 2, binding = 0) readonly buffer LightData {
     DirectionalLight dir_light;
     uint num_pointlights;
     uint num_spotlights;

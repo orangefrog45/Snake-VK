@@ -7,11 +7,11 @@ namespace SNAKE {
 	vk::UniqueCommandBuffer BeginSingleTimeCommands() {
 		vk::CommandBufferAllocateInfo alloc_info{};
 		alloc_info.level = vk::CommandBufferLevel::ePrimary;
-		alloc_info.commandPool = VulkanContext::GetCommandPool();
+		alloc_info.commandPool = VkContext::GetCommandPool();
 		alloc_info.commandBufferCount = 1;
 
 		// Create new command buffer to perform memory transfer
-		auto [result, bufs] = VulkanContext::GetLogicalDevice().device->allocateCommandBuffersUnique(alloc_info);
+		auto [result, bufs] = VkContext::GetLogicalDevice().device->allocateCommandBuffersUnique(alloc_info);
 		SNK_CHECK_VK_RESULT(
 			result
 		);
@@ -44,7 +44,7 @@ namespace SNAKE {
 			submit_info.pWaitDstStageMask = &wait_semaphore_stage.value().second;
 		}
 
-		auto& device = VulkanContext::GetLogicalDevice();
+		auto& device = VkContext::GetLogicalDevice();
 
 		SNK_CHECK_VK_RESULT(
 			device.graphics_queue.submit(submit_info)
@@ -74,7 +74,7 @@ namespace SNAKE {
 	}
 
 	uint32_t FindMemoryType(uint32_t type_filter, vk::MemoryPropertyFlags properties) {
-		auto phys_mem_properties = VulkanContext::GetPhysicalDevice().device.getMemoryProperties();
+		auto phys_mem_properties = VkContext::GetPhysicalDevice().device.getMemoryProperties();
 
 		for (uint32_t i = 0; i < phys_mem_properties.memoryTypeCount; i++) {
 			if (type_filter & (1 << i) &&
@@ -185,7 +185,7 @@ namespace SNAKE {
 
 	vk::Format FindSupportedFormat(const std::vector<vk::Format>& candidates, vk::ImageTiling tiling, vk::FormatFeatureFlags features) {
 		for (auto format : candidates) {
-			vk::FormatProperties properties = VulkanContext::GetPhysicalDevice().device.getFormatProperties(format);
+			vk::FormatProperties properties = VkContext::GetPhysicalDevice().device.getFormatProperties(format);
 			if (tiling == vk::ImageTiling::eLinear && (properties.linearTilingFeatures & features) == features) {
 				return format;
 			}

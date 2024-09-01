@@ -7,7 +7,7 @@
 
 using namespace SNAKE;
 
-void VulkanContext::IPickPhysicalDevice(vk::SurfaceKHR surface, const std::vector<const char*>& required_extensions_vec) {
+void VkContext::IPickPhysicalDevice(vk::SurfaceKHR surface, const std::vector<const char*>& required_extensions_vec) {
 	uint32_t device_count = 0;
 	auto res = m_instance->enumeratePhysicalDevices(&device_count, nullptr, VULKAN_HPP_DEFAULT_DISPATCHER);
 	SNK_CHECK_VK_RESULT(res);
@@ -37,7 +37,7 @@ void VulkanContext::IPickPhysicalDevice(vk::SurfaceKHR surface, const std::vecto
 }
 
 
-void VulkanContext::CreateCommandPool(const QueueFamilyIndices& queue_indices) {
+void VkContext::CreateCommandPool(const QueueFamilyIndices& queue_indices) {
 	auto num_threads = std::thread::hardware_concurrency();
 	std::vector<std::thread::id> thread_ids = JobSystem::GetThreadIDs();
 
@@ -47,7 +47,7 @@ void VulkanContext::CreateCommandPool(const QueueFamilyIndices& queue_indices) {
 			pool_info.queueFamilyIndex = queue_indices.graphics_family.value();
 			pool_info.flags = vk::CommandPoolCreateFlagBits::eResetCommandBuffer;
 
-			auto [res, value] = VulkanContext::GetLogicalDevice().device->createCommandPoolUnique(pool_info);
+			auto [res, value] = VkContext::GetLogicalDevice().device->createCommandPoolUnique(pool_info);
 			Get().m_cmd_pools[thread_ids[i]][fif] = std::move(value);
 			SNK_CHECK_VK_RESULT(res);
 		}
@@ -55,7 +55,7 @@ void VulkanContext::CreateCommandPool(const QueueFamilyIndices& queue_indices) {
 }
 
 
-bool VulkanContext::IsDeviceSuitable(vk::PhysicalDevice device, vk::SurfaceKHR surface, const std::vector<const char*>& required_extensions_vec) {
+bool VkContext::IsDeviceSuitable(vk::PhysicalDevice device, vk::SurfaceKHR surface, const std::vector<const char*>& required_extensions_vec) {
 	vk::PhysicalDeviceProperties properties;
 	device.getProperties(&properties, VULKAN_HPP_DEFAULT_DISPATCHER);
 
@@ -72,13 +72,13 @@ bool VulkanContext::IsDeviceSuitable(vk::PhysicalDevice device, vk::SurfaceKHR s
 }
 
 
-void VulkanContext::ICreateLogicalDevice(vk::SurfaceKHR surface, const std::vector<const char*>& required_device_extensions) {
+void VkContext::ICreateLogicalDevice(vk::SurfaceKHR surface, const std::vector<const char*>& required_device_extensions) {
 	QueueFamilyIndices indices = FindQueueFamilies(m_physical_device.device, surface);
 	float queue_priority = 1.f;
 
+
 	vk::PhysicalDeviceFeatures device_features{};
 	device_features.samplerAnisotropy = true;
-
 
 	std::vector<vk::DeviceQueueCreateInfo> queue_create_infos;
 	std::set<uint32_t> unique_queue_families = { indices.graphics_family.value(), indices.present_family.value() };
@@ -95,6 +95,7 @@ void VulkanContext::ICreateLogicalDevice(vk::SurfaceKHR surface, const std::vect
 		queue_create_infos.push_back(queue_create_info);
 	}
 
+	// Features
 	vk::PhysicalDeviceDescriptorBufferFeaturesEXT descriptor_buffer_features{};
 	descriptor_buffer_features.descriptorBuffer = true;
 
@@ -106,12 +107,20 @@ void VulkanContext::ICreateLogicalDevice(vk::SurfaceKHR surface, const std::vect
 	dynamic_rendering_features.dynamicRendering = VK_TRUE;
 	dynamic_rendering_features.pNext = &buffer_device_address_features;
 
+	vk::PhysicalDeviceAccelerationStructureFeaturesKHR accel_features{};
+	accel_features.accelerationStructure = true;
+	accel_features.pNext = &dynamic_rendering_features;
+
+	vk::PhysicalDeviceRayTracingPipelineFeaturesKHR rtp_features{};
+	rtp_features.rayTracingPipeline = true;
+	rtp_features.pNext = &accel_features;
+
 	auto device_create_info = vk::DeviceCreateInfo{}
 		.setQueueCreateInfoCount((uint32_t)queue_create_infos.size())
 		.setPQueueCreateInfos(queue_create_infos.data())
 		.setEnabledExtensionCount((uint32_t)required_device_extensions.size())
 		.setPpEnabledExtensionNames(required_device_extensions.data())
-		.setPNext(&dynamic_rendering_features)
+		.setPNext(&rtp_features)
 		.setPEnabledFeatures(&device_features);
 
 
@@ -122,9 +131,9 @@ void VulkanContext::ICreateLogicalDevice(vk::SurfaceKHR surface, const std::vect
 	m_device.presentation_queue = m_device.device->getQueue(indices.present_family.value(), 0, VULKAN_HPP_DEFAULT_DISPATCHER);
 }
 
-void VulkanContext::ICreateInstance(const char* app_name) {
+void VkContext::ICreateInstance(const char* app_name) {
 	std::vector<const char*> layers = {
-		"VK_LAYER_KHRONOS_validation"
+		//"VK_LAYER_KHRONOS_validation"
 	};
 
 	std::vector<const char*> extensions = {

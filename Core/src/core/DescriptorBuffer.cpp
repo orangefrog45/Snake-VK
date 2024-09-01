@@ -14,16 +14,19 @@ void DescriptorBuffer::CreateBuffer(uint32_t num_sets) {
 			m_usage_flags |= vk::BufferUsageFlagBits::eResourceDescriptorBufferEXT;
 		else if (binding.descriptorType == vk::DescriptorType::eCombinedImageSampler)
 			m_usage_flags |= vk::BufferUsageFlagBits::eSamplerDescriptorBufferEXT;
+		else if (binding.descriptorType == vk::DescriptorType::eAccelerationStructureKHR)
+			m_usage_flags |= vk::BufferUsageFlagBits::eResourceDescriptorBufferEXT;
+		else if (binding.descriptorType == vk::DescriptorType::eStorageImage)
+			m_usage_flags |= vk::BufferUsageFlagBits::eResourceDescriptorBufferEXT;
 		else
 			SNK_BREAK("Unsupported descriptorType in descriptor layout binding");
 	}
-
 	descriptor_buffer.CreateBuffer(mp_descriptor_spec->m_aligned_size * num_sets,
 		m_usage_flags | vk::BufferUsageFlagBits::eShaderDeviceAddress, VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT);
 }
 
 void DescriptorBuffer::LinkResource(vk::DescriptorGetInfoEXT* resource_info, unsigned binding_idx, unsigned set_buffer_idx, uint32_t array_idx) {
-	auto& descriptor_buffer_properties = VulkanContext::GetPhysicalDevice().buffer_properties;
+	auto& descriptor_buffer_properties = VkContext::GetPhysicalDevice().buffer_properties;
 
 	size_t size = 0;
 	auto descriptor_type = mp_descriptor_spec->GetDescriptorTypeAtBinding(binding_idx);
@@ -38,12 +41,18 @@ void DescriptorBuffer::LinkResource(vk::DescriptorGetInfoEXT* resource_info, uns
 	case vk::DescriptorType::eStorageBuffer:
 		size = descriptor_buffer_properties.storageBufferDescriptorSize;
 		break;
+	case vk::DescriptorType::eAccelerationStructureKHR:
+		size = descriptor_buffer_properties.accelerationStructureDescriptorSize;
+		break;
+	case vk::DescriptorType::eStorageImage:
+		size = descriptor_buffer_properties.storageImageDescriptorSize;
+		break;
 	default:
 		SNK_BREAK("LinkResource failed, unsupported descriptor type used");
 		break;
 	}
 
-	VulkanContext::GetLogicalDevice().device->getDescriptorEXT(resource_info, size,
+	VkContext::GetLogicalDevice().device->getDescriptorEXT(resource_info, size,
 		reinterpret_cast<std::byte*>(descriptor_buffer.Map()) + mp_descriptor_spec->GetBindingOffset(binding_idx) + size * array_idx + mp_descriptor_spec->m_aligned_size * set_buffer_idx);
 }
 
@@ -68,18 +77,18 @@ DescriptorSetSpec& DescriptorSetSpec::GenDescriptorLayout() {
 	layout_info.bindingCount = (uint32_t)m_layout_bindings.size();
 	layout_info.pBindings = m_layout_bindings.data();
 	layout_info.flags = vk::DescriptorSetLayoutCreateFlagBits::eDescriptorBufferEXT;
-	auto [res, val] = VulkanContext::GetLogicalDevice().device->createDescriptorSetLayoutUnique(layout_info);
+	auto [res, val] = VkContext::GetLogicalDevice().device->createDescriptorSetLayoutUnique(layout_info);
 	SNK_CHECK_VK_RESULT(res);
 	m_layout = std::move(val);
 
-	auto& device = VulkanContext::GetLogicalDevice().device;
+	auto& device = VkContext::GetLogicalDevice().device;
 
 	for (uint32_t i = 0; i < m_layout_bindings.size(); i++) {
 		m_binding_offsets[m_layout_bindings[i].binding] = device->getDescriptorSetLayoutBindingOffsetEXT(*m_layout, i);
 	}
 
 	m_size = device->getDescriptorSetLayoutSizeEXT(*m_layout);
-	m_aligned_size = aligned_size(m_size, VulkanContext::GetPhysicalDevice().buffer_properties.descriptorBufferOffsetAlignment);
+	m_aligned_size = aligned_size(m_size, VkContext::GetPhysicalDevice().buffer_properties.descriptorBufferOffsetAlignment);
 
 	return *this;
 }

@@ -34,7 +34,7 @@ namespace SNAKE {
 
 		void Init(PipelineLayoutBuilder& builder) {
 			SNK_ASSERT(!pipeline_layout);
-			auto [res, val] = VulkanContext::GetLogicalDevice().device->createPipelineLayoutUnique(builder.pipeline_layout_info);
+			auto [res, val] = VkContext::GetLogicalDevice().device->createPipelineLayoutUnique(builder.pipeline_layout_info);
 			SNK_CHECK_VK_RESULT(res);
 			pipeline_layout = std::move(val);
 
@@ -113,7 +113,7 @@ namespace SNAKE {
 
 		void Init( GraphicsPipelineBuilder& builder) {
 			SNK_ASSERT(!m_pipeline);
-			auto [res, pipeline] = VulkanContext::GetLogicalDevice().device->createGraphicsPipelineUnique(VK_NULL_HANDLE, builder.pipeline_info);
+			auto [res, pipeline] = VkContext::GetLogicalDevice().device->createGraphicsPipelineUnique(VK_NULL_HANDLE, builder.pipeline_info);
 			SNK_CHECK_VK_RESULT(res);
 			m_pipeline = std::move(pipeline);
 			pipeline_layout.pipeline_layout = std::move(builder.pipeline_layout.pipeline_layout);

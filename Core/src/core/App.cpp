@@ -29,8 +29,8 @@ void App::Init(const char* app_name) {
 	window.Init(app_name, 1920, 1080, true);
 
 	VULKAN_HPP_DEFAULT_DISPATCHER.init();
-	VulkanContext::CreateInstance(app_name);
-	VULKAN_HPP_DEFAULT_DISPATCHER.init(VulkanContext::GetInstance().get());
+	VkContext::CreateInstance(app_name);
+	VULKAN_HPP_DEFAULT_DISPATCHER.init(VkContext::GetInstance().get());
 	CreateDebugCallback();
 	window.CreateSurface();
 
@@ -44,13 +44,17 @@ void App::Init(const char* app_name) {
 		VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME,
 		VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME,
 		VK_KHR_SWAPCHAIN_MUTABLE_FORMAT_EXTENSION_NAME,
-		VK_KHR_IMAGE_FORMAT_LIST_EXTENSION_NAME
+		VK_KHR_IMAGE_FORMAT_LIST_EXTENSION_NAME,
+
+		VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME,
+		VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME,
+		VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME
 	};
 
-	VulkanContext::PickPhysicalDevice(*window.GetVkContext().surface, required_device_extensions);
-	VulkanContext::CreateLogicalDevice(*window.GetVkContext().surface, required_device_extensions);
-	VulkanContext::InitVMA();
-	VulkanContext::CreateCommandPool(FindQueueFamilies(VulkanContext::GetPhysicalDevice().device, *window.GetVkContext().surface));
+	VkContext::PickPhysicalDevice(*window.GetVkContext().surface, required_device_extensions);
+	VkContext::CreateLogicalDevice(*window.GetVkContext().surface, required_device_extensions);
+	VkContext::InitVMA();
+	VkContext::CreateCommandPool(FindQueueFamilies(VkContext::GetPhysicalDevice().device, *window.GetVkContext().surface));
 
 	window.CreateSwapchain();
 
@@ -67,9 +71,10 @@ void App::MainLoop() {
 
 		EventManagerG::DispatchEvent(FrameStartEvent{ });
 
-		Job* update_job = JobSystem::CreateJob();
+		Job* update_job = JobSystem::CreateWaitedOnJob();
 		update_job->func = [this]([[maybe_unused]] Job const* job) {layers.OnUpdate(); };
 		JobSystem::Execute(update_job);
+		JobSystem::WaitOn(update_job);
 		EventManagerG::DispatchEvent(EngineUpdateEvent{ });
 
 		Job* render_job = JobSystem::CreateJob();
@@ -80,20 +85,20 @@ void App::MainLoop() {
 		JobSystem::WaitAll();
 		layers.OnImGuiRender();
 
-		VulkanContext::Get().m_current_frame = (VulkanContext::Get().m_current_frame + 1) % MAX_FRAMES_IN_FLIGHT;
+		VkContext::Get().m_current_frame = (VkContext::Get().m_current_frame + 1) % MAX_FRAMES_IN_FLIGHT;
 
 		window.OnUpdate();
 		glfwPollEvents();
 	}
 
-	VulkanContext::GetLogicalDevice().device->waitIdle();
+	VkContext::GetLogicalDevice().device->waitIdle();
 	VkRenderer::Shutdown();
 	EventManagerG::DispatchEvent(EngineShutdownEvent{ });
 	layers.ShutdownLayers();
 	window.Shutdown();
 	AssetManager::Shutdown();
 	glfwTerminate();
-	VulkanContext::GetLogicalDevice().device->waitIdle();
+	VkContext::GetLogicalDevice().device->waitIdle();
 
 	JobSystem::Shutdown();
 }
@@ -121,7 +126,7 @@ void App::CreateDebugCallback() {
 		nullptr
 	};
 
-	m_messenger = VulkanContext::GetInstance()->createDebugUtilsMessengerEXTUnique(messenger_create_info, nullptr, VULKAN_HPP_DEFAULT_DISPATCHER).value;
+	m_messenger = VkContext::GetInstance()->createDebugUtilsMessengerEXTUnique(messenger_create_info, nullptr, VULKAN_HPP_DEFAULT_DISPATCHER).value;
 	SNK_ASSERT(m_messenger);
 }
 

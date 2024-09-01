@@ -15,10 +15,14 @@ namespace SNAKE {
 			buffer(std::move(other.buffer)) {};
 
 		~S_VkBuffer() {
+			DestroyBuffer();
+		}
+
+		void DestroyBuffer() {
 			if (p_data) Unmap();
 
 			if (buffer)
-				vmaDestroyBuffer(VulkanContext::GetAllocator(), buffer, allocation);
+				vmaDestroyBuffer(VkContext::GetAllocator(), buffer, allocation);
 		}
 
 		void CreateBuffer(vk::DeviceSize size, vk::BufferUsageFlags usage, VmaAllocationCreateFlags flags = 0);
@@ -28,18 +32,18 @@ namespace SNAKE {
 		vk::DeviceAddress GetDeviceAddress() {
 			vk::BufferDeviceAddressInfo buffer_addr_info{};
 			buffer_addr_info.buffer = buffer;
-			return VulkanContext::GetLogicalDevice().device->getBufferAddress(buffer_addr_info);
+			return VkContext::GetLogicalDevice().device->getBufferAddress(buffer_addr_info);
 		}
 
 		inline void* Map() {
 			if (p_data) return p_data;
 
-			SNK_CHECK_VK_RESULT(vmaMapMemory(VulkanContext::GetAllocator(), allocation, &p_data));
+			SNK_CHECK_VK_RESULT(vmaMapMemory(VkContext::GetAllocator(), allocation, &p_data));
 			return p_data;
 		}
 
 		inline void Unmap() {
-			vmaUnmapMemory(VulkanContext::GetAllocator(), allocation);
+			vmaUnmapMemory(VkContext::GetAllocator(), allocation);
 			p_data = nullptr;
 		}
 
