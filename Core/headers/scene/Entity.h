@@ -46,6 +46,10 @@ namespace SNAKE {
 			return GetComponent<RelationshipComponent>()->parent;
 		}
 
+		entt::entity GetEnttHandle() {
+			return m_entt_handle;
+		}
+
 		Entity* GetChild(const std::string& name) {
 			auto& rel_comp = mp_registry->get<RelationshipComponent>(m_entt_handle);
 			entt::entity current_entity = rel_comp.first;

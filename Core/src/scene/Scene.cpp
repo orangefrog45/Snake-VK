@@ -3,6 +3,7 @@
 #include "scene/CameraSystem.h"
 #include "scene/SceneInfoBufferSystem.h"
 #include "scene/TransformSystem.h"
+#include "scene/TransformBufferSystem.h"
 
 using namespace SNAKE;
 
@@ -11,6 +12,7 @@ void Scene::AddDefaultSystems() {
 	AddSystem<CameraSystem>();
 	AddSystem<LightBufferSystem>();
 	AddSystem<SceneInfoBufferSystem>();
+	AddSystem<TransformBufferSystem>();
 }
 
 Entity* Scene::GetEntity(entt::entity handle) {

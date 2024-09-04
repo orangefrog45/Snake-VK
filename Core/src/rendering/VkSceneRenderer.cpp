@@ -33,7 +33,8 @@ void VkSceneRenderer::TakeGameStateSnapshot() {
 
 		same_mesh_count++;
 		// TODO: reduce jumping through memory
-		m_snapshot_data.static_mesh_data.emplace_back(p_mesh->GetEntity()->GetComponent<TransformComponent>()->GetMatrix(), &p_mesh->materials);
+		auto* p_ent = p_mesh->GetEntity();
+		m_snapshot_data.static_mesh_data.emplace_back(&p_mesh->materials);
 	}
 
 	if (p_current_mesh)
@@ -49,6 +50,7 @@ void VkSceneRenderer::Init(Window& window, Scene* p_scene) {
 	m_frame_start_listener.callback = [this](Event const* p_event) {
 		TakeGameStateSnapshot();
 	};
+
 
 	EventManagerG::RegisterListener<FrameStartEvent>(m_frame_start_listener);
 }

@@ -35,6 +35,7 @@ namespace SNAKE {
 		alignas(16) glm::mat4 view;
 		alignas(16) glm::mat4 proj;
 		alignas(16) glm::vec4 cam_pos;
+		alignas(16) glm::vec4 cam_forward;
 	};
 
 
@@ -54,8 +55,10 @@ namespace SNAKE {
 
 		ubo.view = glm::lookAt(p_transform->GetPosition(), p_transform->GetPosition() + p_transform->forward, glm::vec3(0.f, 1.f, 0.f));
 		ubo.proj = p_cam_comp->GetProjectionMatrix();
-		ubo.cam_pos = glm::vec4(p_scene->GetSystem<CameraSystem>()->GetActiveCam()->GetEntity()->GetComponent<TransformComponent>()->GetAbsPosition(), 1.f);
 
+		auto* p_cam_transform = p_scene->GetSystem<CameraSystem>()->GetActiveCam()->GetEntity()->GetComponent<TransformComponent>();
+		ubo.cam_pos = glm::vec4(p_cam_transform->GetAbsPosition(), 1.f);
+		ubo.cam_forward = glm::vec4(p_cam_transform->forward, 1.f);
 		// Y coordinate of clip coordinates inverted as glm designed to work with opengl, flip here
 		ubo.proj[1][1] *= -1;
 

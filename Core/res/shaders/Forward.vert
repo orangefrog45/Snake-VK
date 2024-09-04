@@ -13,15 +13,19 @@ layout(location = 4) out vec3 vs_tangent;
 
 #include "CommonUBO.glsl"
 
+#define TRANSFORM_BUFFER_DESCRIPTOR_SET_IDX 4
+#include "Transforms.glsl"
+
 layout(push_constant) uniform pc {
-    mat4 transform;
+    uint transform_idx;
     uint material_idx;
 } push;
 
+#define TRANSFORM transforms.m[push.transform_idx]
 
 mat3 CalculateTbnMatrix(vec3 _t, vec3 _n) {
-	vec3 t = normalize(vec3(mat3(push.transform) * _t));
-	vec3 n = normalize(vec3(mat3(push.transform) * _n));
+	vec3 t = normalize(vec3(mat3(TRANSFORM) * _t));
+	vec3 n = normalize(vec3(mat3(TRANSFORM) * _n));
 
 	t = normalize(t - dot(t, n) * n);
 	vec3 b = cross(n, t);
@@ -32,12 +36,12 @@ mat3 CalculateTbnMatrix(vec3 _t, vec3 _n) {
 }
 
 void main() {
-    vec3 world_pos = vec4(push.transform * vec4(in_position, 1.0)).xyz;
+    vec3 world_pos = vec4(TRANSFORM * vec4(in_position, 1.0)).xyz;
 
     vs_world_pos = world_pos;
 
     vs_tex_coord = in_tex_coord;
-    vs_normal = transpose(inverse(mat3(push.transform))) * in_normal;
+    vs_normal = transpose(inverse(mat3(TRANSFORM))) * in_normal;
     vs_tangent = in_tangent;
     vs_tbn = CalculateTbnMatrix(in_tangent, in_normal);
     gl_Position = common_ubo.proj * common_ubo.view * vec4(world_pos, 1.0);

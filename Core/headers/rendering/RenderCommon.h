@@ -1,8 +1,8 @@
 #pragma once
 #include "entt/entt.hpp"
+#include "components/Component.h"
 
 namespace SNAKE {
-
 	struct SceneSnapshotData {
 		struct MeshRange {
 			MeshRange(uint64_t uuid, uint32_t _start_idx, uint32_t _count) : mesh_uuid(uuid), start_idx(_start_idx), count(_count) {};
@@ -12,8 +12,7 @@ namespace SNAKE {
 		};
 
 		struct MeshRenderData {
-			MeshRenderData(glm::mat4 t, std::vector<AssetRef<MaterialAsset>>* m) : transform(t), material_vec(m) {}
-			glm::mat4 transform;
+			MeshRenderData(std::vector<AssetRef<MaterialAsset>>* m) : material_vec(m) {}
 			std::vector<AssetRef<MaterialAsset>>* material_vec;
 		};
 
@@ -31,5 +30,6 @@ namespace SNAKE {
 
 		// Vector sorted into groups of transforms for each mesh
 		std::vector<MeshRenderData> static_mesh_data;
+
 	};
 }

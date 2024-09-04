@@ -115,12 +115,16 @@ void VkContext::ICreateLogicalDevice(vk::SurfaceKHR surface, const std::vector<c
 	rtp_features.rayTracingPipeline = true;
 	rtp_features.pNext = &accel_features;
 
+	vk::PhysicalDeviceScalarBlockLayoutFeatures scalar_layout_features{};
+	scalar_layout_features.scalarBlockLayout = true;
+	scalar_layout_features.pNext = &rtp_features;
+
 	auto device_create_info = vk::DeviceCreateInfo{}
 		.setQueueCreateInfoCount((uint32_t)queue_create_infos.size())
 		.setPQueueCreateInfos(queue_create_infos.data())
 		.setEnabledExtensionCount((uint32_t)required_device_extensions.size())
 		.setPpEnabledExtensionNames(required_device_extensions.data())
-		.setPNext(&rtp_features)
+		.setPNext(&scalar_layout_features)
 		.setPEnabledFeatures(&device_features);
 
 

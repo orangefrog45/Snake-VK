@@ -1,3 +1,8 @@
+3/9/24:
+-Multi-bounce raytraced reflections
+-Using storage buffer for transforms instead of push constants for availability in raytracing shaders
+-Reworked mesh loading and buffers so vertex data for different meshes is combined into one large buffer for availability in raytracing shaders
+
 1/9/24:
 -Started work on hardware raytracing
 

@@ -334,7 +334,7 @@ bool AssetEditor::AddAssetButton() {
 			mesh_data->filepath = filepath;
 
 			if (auto p_data = AssetLoader::LoadMeshDataFromRawFile(filepath)) {
-				AssetLoader::LoadMeshFromData(mesh_data, *p_data);
+				AssetManager::Get().mesh_buffer_manager.LoadMeshFromData(mesh_data.get(), *p_data);
 				// Serialize the mesh as well as any new textures/materials created from it
 				for (auto mat_uuid : p_data->materials) {
 					if (mat_uuid == AssetManager::CoreAssetIDs::MATERIAL)

@@ -18,7 +18,6 @@ namespace SNAKE {
 
 	private:
 		GraphicsPipeline m_graphics_pipeline;
-		std::array<DescriptorBuffer, MAX_FRAMES_IN_FLIGHT> m_main_pass_descriptor_buffers;
 		std::array<CommandBuffer, MAX_FRAMES_IN_FLIGHT> m_cmd_buffers;
 	};
 }

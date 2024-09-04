@@ -209,7 +209,7 @@ MeshDataAsset* AssetLoader::DeserializeMeshData(const std::string& filepath) {
 		asset.materials.push_back(mat);
 	}
 
-	LoadMeshFromData(asset, mesh_data);
+	AssetManager::Get().mesh_buffer_manager.LoadMeshFromData(&asset, mesh_data);
 	return &asset;
 }
 
@@ -470,82 +470,82 @@ std::unique_ptr<MeshData> AssetLoader::LoadMeshDataFromRawFile(const std::string
 	return std::move(p_data);
 }
 
-void AssetLoader::LoadMeshFromData(AssetRef<MeshDataAsset> mesh_data_asset, MeshData& data) {
-	mesh_data_asset->submeshes = data.submeshes;
-	mesh_data_asset->num_indices = data.num_indices;
-	mesh_data_asset->num_vertices = data.num_vertices;
-
-	mesh_data_asset->position_buf.CreateBuffer(data.num_vertices * sizeof(aiVector3D),
-		vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eAccelerationStructureBuildInputReadOnlyKHR);
-
-	mesh_data_asset->normal_buf.CreateBuffer(data.num_vertices * sizeof(aiVector3D),
-		vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eShaderDeviceAddress);
-
-	mesh_data_asset->index_buf.CreateBuffer(data.num_indices * sizeof(uint32_t),
-		vk::BufferUsageFlagBits::eIndexBuffer | vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eAccelerationStructureBuildInputReadOnlyKHR);
-
-	mesh_data_asset->tex_coord_buf.CreateBuffer(data.num_vertices * sizeof(aiVector2D),
-		vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eShaderDeviceAddress);
-
-	mesh_data_asset->tangent_buf.CreateBuffer(data.num_vertices * sizeof(aiVector3D),
-		vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eShaderDeviceAddress);
-
-	S_VkBuffer staging_buf_pos;
-	staging_buf_pos.CreateBuffer(data.num_vertices * sizeof(aiVector3D),
-		vk::BufferUsageFlagBits::eTransferSrc, VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT);
-
-	S_VkBuffer staging_buf_norm;
-	staging_buf_norm.CreateBuffer(data.num_vertices * sizeof(aiVector3D),
-		vk::BufferUsageFlagBits::eTransferSrc, VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT);
-
-	S_VkBuffer staging_buf_index;
-	staging_buf_index.CreateBuffer(data.num_indices * sizeof(unsigned),
-		vk::BufferUsageFlagBits::eTransferSrc, VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT);
-
-	S_VkBuffer staging_buf_tex_coord;
-	staging_buf_tex_coord.CreateBuffer(data.num_vertices * sizeof(aiVector2D),
-		vk::BufferUsageFlagBits::eTransferSrc, VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT);
-
-	S_VkBuffer staging_buf_tangent;
-	staging_buf_tangent.CreateBuffer(data.num_vertices * sizeof(aiVector3D),
-		vk::BufferUsageFlagBits::eTransferSrc, VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT);
-
-	std::byte* p_data_pos = reinterpret_cast<std::byte*>(staging_buf_pos.Map());
-	std::byte* p_data_norm = reinterpret_cast<std::byte*>(staging_buf_norm.Map());
-	std::byte* p_data_index = reinterpret_cast<std::byte*>(staging_buf_index.Map());
-	std::byte* p_data_tex_coord = reinterpret_cast<std::byte*>(staging_buf_tex_coord.Map());
-	std::byte* p_data_tangent = reinterpret_cast<std::byte*>(staging_buf_tangent.Map());
-
-
-	memcpy(p_data_pos, data.positions, data.num_vertices * sizeof(aiVector3D));
-	memcpy(p_data_norm, data.normals, data.num_vertices * sizeof(aiVector3D));
-	memcpy(p_data_tangent, data.tangents, data.num_vertices * sizeof(aiVector3D));
-	memcpy(p_data_tex_coord, data.tex_coords, data.num_vertices * sizeof(aiVector3D));
-	memcpy(p_data_index, data.indices, data.num_indices * sizeof(unsigned));
-	
-
-	CopyBuffer(staging_buf_pos.buffer, mesh_data_asset->position_buf.buffer, data.num_vertices * sizeof(aiVector3D));
-	CopyBuffer(staging_buf_norm.buffer, mesh_data_asset->normal_buf.buffer, data.num_vertices * sizeof(aiVector3D));
-	CopyBuffer(staging_buf_index.buffer, mesh_data_asset->index_buf.buffer, data.num_indices * sizeof(unsigned));
-	CopyBuffer(staging_buf_tex_coord.buffer, mesh_data_asset->tex_coord_buf.buffer, data.num_vertices * sizeof(aiVector2D));
-	CopyBuffer(staging_buf_tangent.buffer, mesh_data_asset->tangent_buf.buffer, data.num_vertices * sizeof(aiVector3D));
-
-	staging_buf_pos.Unmap();
-	staging_buf_index.Unmap();
-	staging_buf_norm.Unmap();
-	staging_buf_tex_coord.Unmap();
-	staging_buf_tangent.Unmap();
-
-	for (auto mat_uuid : data.materials) {
-		auto mat = AssetManager::GetAsset<MaterialAsset>(mat_uuid);
-		if (!mat) {
-			SNK_CORE_ERROR("LoadMeshFromData error: attempted to load material uuid '{}' which doesn't exist", mat_uuid);
-			mat = AssetManager::GetAsset<MaterialAsset>(AssetManager::CoreAssetIDs::MATERIAL);
-		}
-		mesh_data_asset->materials.push_back(mat);
-	}
-
-}
+//void AssetLoader::LoadMeshFromData(AssetRef<MeshDataAsset> mesh_data_asset, MeshData& data) {
+//	mesh_data_asset->submeshes = data.submeshes;
+//	mesh_data_asset->num_indices = data.num_indices;
+//	mesh_data_asset->num_vertices = data.num_vertices;
+//
+//	mesh_data_asset->position_buf.CreateBuffer(data.num_vertices * sizeof(aiVector3D),
+//		vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eAccelerationStructureBuildInputReadOnlyKHR);
+//
+//	mesh_data_asset->normal_buf.CreateBuffer(data.num_vertices * sizeof(aiVector3D),
+//		vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eShaderDeviceAddress);
+//
+//	mesh_data_asset->index_buf.CreateBuffer(data.num_indices * sizeof(uint32_t),
+//		vk::BufferUsageFlagBits::eIndexBuffer | vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eAccelerationStructureBuildInputReadOnlyKHR);
+//
+//	mesh_data_asset->tex_coord_buf.CreateBuffer(data.num_vertices * sizeof(aiVector2D),
+//		vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eShaderDeviceAddress);
+//
+//	mesh_data_asset->tangent_buf.CreateBuffer(data.num_vertices * sizeof(aiVector3D),
+//		vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eShaderDeviceAddress);
+//
+//	S_VkBuffer staging_buf_pos;
+//	staging_buf_pos.CreateBuffer(data.num_vertices * sizeof(aiVector3D),
+//		vk::BufferUsageFlagBits::eTransferSrc, VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT);
+//
+//	S_VkBuffer staging_buf_norm;
+//	staging_buf_norm.CreateBuffer(data.num_vertices * sizeof(aiVector3D),
+//		vk::BufferUsageFlagBits::eTransferSrc, VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT);
+//
+//	S_VkBuffer staging_buf_index;
+//	staging_buf_index.CreateBuffer(data.num_indices * sizeof(unsigned),
+//		vk::BufferUsageFlagBits::eTransferSrc, VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT);
+//
+//	S_VkBuffer staging_buf_tex_coord;
+//	staging_buf_tex_coord.CreateBuffer(data.num_vertices * sizeof(aiVector2D),
+//		vk::BufferUsageFlagBits::eTransferSrc, VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT);
+//
+//	S_VkBuffer staging_buf_tangent;
+//	staging_buf_tangent.CreateBuffer(data.num_vertices * sizeof(aiVector3D),
+//		vk::BufferUsageFlagBits::eTransferSrc, VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT);
+//
+//	std::byte* p_data_pos = reinterpret_cast<std::byte*>(staging_buf_pos.Map());
+//	std::byte* p_data_norm = reinterpret_cast<std::byte*>(staging_buf_norm.Map());
+//	std::byte* p_data_index = reinterpret_cast<std::byte*>(staging_buf_index.Map());
+//	std::byte* p_data_tex_coord = reinterpret_cast<std::byte*>(staging_buf_tex_coord.Map());
+//	std::byte* p_data_tangent = reinterpret_cast<std::byte*>(staging_buf_tangent.Map());
+//
+//
+//	memcpy(p_data_pos, data.positions, data.num_vertices * sizeof(aiVector3D));
+//	memcpy(p_data_norm, data.normals, data.num_vertices * sizeof(aiVector3D));
+//	memcpy(p_data_tangent, data.tangents, data.num_vertices * sizeof(aiVector3D));
+//	memcpy(p_data_tex_coord, data.tex_coords, data.num_vertices * sizeof(aiVector3D));
+//	memcpy(p_data_index, data.indices, data.num_indices * sizeof(unsigned));
+//	
+//
+//	CopyBuffer(staging_buf_pos.buffer, mesh_data_asset->position_buf.buffer, data.num_vertices * sizeof(aiVector3D));
+//	CopyBuffer(staging_buf_norm.buffer, mesh_data_asset->normal_buf.buffer, data.num_vertices * sizeof(aiVector3D));
+//	CopyBuffer(staging_buf_index.buffer, mesh_data_asset->index_buf.buffer, data.num_indices * sizeof(unsigned));
+//	CopyBuffer(staging_buf_tex_coord.buffer, mesh_data_asset->tex_coord_buf.buffer, data.num_vertices * sizeof(aiVector2D));
+//	CopyBuffer(staging_buf_tangent.buffer, mesh_data_asset->tangent_buf.buffer, data.num_vertices * sizeof(aiVector3D));
+//
+//	staging_buf_pos.Unmap();
+//	staging_buf_index.Unmap();
+//	staging_buf_norm.Unmap();
+//	staging_buf_tex_coord.Unmap();
+//	staging_buf_tangent.Unmap();
+//
+//	for (auto mat_uuid : data.materials) {
+//		auto mat = AssetManager::GetAsset<MaterialAsset>(mat_uuid);
+//		if (!mat) {
+//			SNK_CORE_ERROR("LoadMeshFromData error: attempted to load material uuid '{}' which doesn't exist", mat_uuid);
+//			mat = AssetManager::GetAsset<MaterialAsset>(AssetManager::CoreAssetIDs::MATERIAL);
+//		}
+//		mesh_data_asset->materials.push_back(mat);
+//	}
+//
+//}
 
 std::pair<AssetRef<Texture2DAsset>, bool>  AssetLoader::CreateOrGetTextureFromMaterial(const std::string& dir, aiTextureType type, aiMaterial* p_material) {
 	AssetRef<Texture2DAsset> tex = nullptr;

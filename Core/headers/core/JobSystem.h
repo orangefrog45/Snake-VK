@@ -4,9 +4,9 @@
 namespace SNAKE {
 	struct Job {
 		// _waited_on should be true if JobSystem::WaitOn(this) will be called
-		Job(bool _waited_on) : is_waited_on(_waited_on) { unfinished_jobs.store(1); }
+		Job(bool _waited_on) : is_waited_on(_waited_on) {};
 		std::function<void(Job const*)> func = nullptr;
-		std::atomic_uint32_t unfinished_jobs;
+		std::atomic_uint32_t unfinished_jobs = 1;
 
 		const bool is_waited_on;
 
@@ -56,7 +56,7 @@ namespace SNAKE {
 
 			delete job;
 		}
-
+		 
 		static std::vector<std::thread::id> GetThreadIDs() {
 			std::vector<std::thread::id> ret;
 			ret.push_back(std::this_thread::get_id());

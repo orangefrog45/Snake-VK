@@ -5,6 +5,7 @@
 #include "scene/LightBufferSystem.h"
 #include "scene/Scene.h"
 #include "scene/SceneInfoBufferSystem.h"
+#include "scene/TransformBufferSystem.h"
 #include "assets/MaterialAsset.h"
 
 namespace SNAKE {
@@ -20,12 +21,7 @@ namespace SNAKE {
 			main_pass_descriptor_set_spec->AddDescriptor(0, vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eAllGraphics)
 				.GenDescriptorLayout();
 
-			m_main_pass_descriptor_buffers[i].SetDescriptorSpec(main_pass_descriptor_set_spec);
-			m_main_pass_descriptor_buffers[i].CreateBuffer(1);
-
 			auto shadow_map_info = p_shadowmap_image->CreateDescriptorGetInfo(vk::ImageLayout::eShaderReadOnlyOptimal);
-			m_main_pass_descriptor_buffers[i].LinkResource(&shadow_map_info.first, 0, 0);
-
 		}
 
 		// Create graphics pipeline
@@ -103,10 +99,13 @@ namespace SNAKE {
 		scissor.extent = render_info.renderArea.extent;
 		cmd_buffer.setScissor(0, 1, &scissor);
 
+		vk::DescriptorBufferBindingInfoEXT transform_binding_info{};
+		transform_binding_info.address = scene.GetSystem<TransformBufferSystem>()->GetTransformStorageBuffer(VkContext::GetCurrentFIF()).GetDeviceAddress();
+		transform_binding_info.usage = vk::BufferUsageFlagBits::eResourceDescriptorBufferEXT;
 
 		std::array<vk::DescriptorBufferBindingInfoEXT, 4> binding_infos = { scene.GetSystem<SceneInfoBufferSystem>()->descriptor_buffers[frame_idx].GetBindingInfo(),
 			AssetManager::GetGlobalTexMatBufBindingInfo(frame_idx), scene.GetSystem<LightBufferSystem>()->light_descriptor_buffers[frame_idx].GetBindingInfo(),
-			 m_main_pass_descriptor_buffers[frame_idx].GetBindingInfo() };
+			 transform_binding_info };
 
 		cmd_buffer.bindDescriptorBuffersEXT(binding_infos);
 
@@ -114,20 +113,28 @@ namespace SNAKE {
 		std::array<vk::DeviceSize, 4> buffer_offsets = { 0, 0, 0, 0 };
 
 		cmd_buffer.setDescriptorBufferOffsetsEXT(vk::PipelineBindPoint::eGraphics, m_graphics_pipeline.pipeline_layout.GetPipelineLayout(), 0, buffer_indices, buffer_offsets);
+		
+		auto& asset_manager = AssetManager::Get();
+		auto buffers = asset_manager.mesh_buffer_manager.GetMeshBuffers();
+
+		std::vector<vk::Buffer> vert_buffers = { buffers.position_buf.buffer, buffers.normal_buf.buffer, buffers.tex_coord_buf.buffer, buffers.tangent_buf.buffer };
+		std::vector<vk::Buffer> index_buffers = { buffers.indices_buf.buffer };
 
 		for (auto& range : snapshot.mesh_ranges) {
 			auto mesh_asset = AssetManager::GetAssetRaw<StaticMeshAsset>(range.mesh_uuid);
-			std::vector<vk::Buffer> vert_buffers = { mesh_asset->data->position_buf.buffer, mesh_asset->data->normal_buf.buffer, mesh_asset->data->tex_coord_buf.buffer, mesh_asset->data->tangent_buf.buffer };
-			std::vector<vk::Buffer> index_buffers = { mesh_asset->data->index_buf.buffer };
-			std::vector<vk::DeviceSize> offsets = { 0, 0, 0, 0 };
+			auto& mesh_buffer_entry_data = asset_manager.mesh_buffer_manager.GetEntryData(mesh_asset->data.get());
+
+			std::vector<vk::DeviceSize> offsets = { mesh_buffer_entry_data.data_start_vertex_idx, mesh_buffer_entry_data.data_start_vertex_idx, 
+				mesh_buffer_entry_data.data_start_vertex_idx, mesh_buffer_entry_data.data_start_vertex_idx };
+
 			cmd_buffer.bindVertexBuffers(0, 4, vert_buffers.data(), offsets.data());
-			cmd_buffer.bindIndexBuffer(mesh_asset->data->index_buf.buffer, 0, vk::IndexType::eUint32);
+			cmd_buffer.bindIndexBuffer(index_buffers[0], mesh_buffer_entry_data.data_start_indices_idx, vk::IndexType::eUint32);
 
 			for (uint32_t i = range.start_idx; i < range.start_idx + range.count; i++) {
-				cmd_buffer.pushConstants(m_graphics_pipeline.pipeline_layout.GetPipelineLayout(), vk::ShaderStageFlagBits::eAllGraphics, 0, sizeof(glm::mat4), &snapshot.static_mesh_data[i].transform);
+				cmd_buffer.pushConstants(m_graphics_pipeline.pipeline_layout.GetPipelineLayout(), vk::ShaderStageFlagBits::eAllGraphics, 0, sizeof(uint32_t), &i);
 				for (auto& submesh : mesh_asset->data->submeshes) {
 					uint32_t mat_index = (*snapshot.static_mesh_data[i].material_vec)[submesh.material_index]->GetGlobalBufferIndex();
-					cmd_buffer.pushConstants(m_graphics_pipeline.pipeline_layout.GetPipelineLayout(), vk::ShaderStageFlagBits::eAllGraphics, sizeof(glm::mat4), sizeof(uint32_t), &mat_index);
+					cmd_buffer.pushConstants(m_graphics_pipeline.pipeline_layout.GetPipelineLayout(), vk::ShaderStageFlagBits::eAllGraphics, sizeof(uint32_t), sizeof(uint32_t), &mat_index);
 					cmd_buffer.drawIndexed(submesh.num_indices, 1, submesh.base_index, submesh.base_vertex, 0);
 				}
 			}

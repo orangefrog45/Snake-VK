@@ -102,7 +102,7 @@ namespace SNAKE {
 
 	void EndSingleTimeCommands(vk::CommandBuffer& cmd_buf, std::optional<std::pair<vk::Semaphore, vk::PipelineStageFlags>> wait_semaphore = std::nullopt);
 
-	void CopyBuffer(vk::Buffer src, vk::Buffer dst, vk::DeviceSize size);
+	void CopyBuffer(vk::Buffer src, vk::Buffer dst, vk::DeviceSize size, vk::DeviceSize src_offset = 0, vk::DeviceSize dst_offset = 0);
 
 	inline constexpr vk::DeviceSize aligned_size(vk::DeviceSize value, vk::DeviceSize alignment)
 	{

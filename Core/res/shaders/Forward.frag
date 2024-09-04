@@ -3,11 +3,11 @@
 layout(location = 0) out vec4 out_colour;
 layout(set = 3, binding = 0) uniform sampler2D depth_tex;
 
-layout(location = 5) in mat3 vs_tbn;
 layout(location = 1) in vec2 vs_tex_coord;
 layout(location = 2) in vec3 vs_normal;
 layout(location = 3) in vec3 vs_world_pos;
 layout(location = 4) in vec3 vs_tangent;
+layout(location = 5) in mat3 vs_tbn;
 
 
 #include "CommonUBO.glsl"

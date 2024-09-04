@@ -40,7 +40,7 @@ namespace SNAKE {
 		static MeshDataAsset* DeserializeMeshData(const std::string& filepath);
 
 		// Loads mesh_data_asset's gpu buffers, materials etc from "data"
-		static void LoadMeshFromData(AssetRef<MeshDataAsset> mesh_data_asset, MeshData& data);
+		//static void LoadMeshFromData(AssetRef<MeshDataAsset> mesh_data_asset, MeshData& data);
 		
 		// Creates and loads a MeshData struct from a raw 3d model file supported by assimp (.obj, .fbx etc)
 		static std::unique_ptr<MeshData> LoadMeshDataFromRawFile(const std::string& filepath, bool load_materials_and_textures = true);

@@ -17,7 +17,7 @@ namespace SNAKE {
 			&alloc_create_info, reinterpret_cast<VkBuffer*>(&buffer), &allocation, &alloc_info));
 	}
 
-	std::pair<vk::DescriptorGetInfoEXT, std::shared_ptr<vk::DescriptorAddressInfoEXT>> S_VkBuffer::CreateDescriptorGetInfo() {
+	std::pair<vk::DescriptorGetInfoEXT, std::shared_ptr<vk::DescriptorAddressInfoEXT>> S_VkBuffer::CreateDescriptorGetInfo() const {
 		vk::DescriptorType type;
 
 		if (m_usage & vk::BufferUsageFlagBits::eStorageBuffer)
@@ -31,7 +31,6 @@ namespace SNAKE {
 		addr_info->address = GetDeviceAddress(); 
 		addr_info->range = alloc_info.size;
 
-		// Use above address + size data to connect the descriptor at the offset provided to this specific UBO
 		vk::DescriptorGetInfoEXT buffer_descriptor_info{};
 		buffer_descriptor_info.type = type;
 		buffer_descriptor_info.data.pUniformBuffer = &*addr_info;

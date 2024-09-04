@@ -55,7 +55,7 @@ namespace SNAKE {
 		mesh->data = CreateAsset<MeshDataAsset>(CoreAssetIDs::SPHERE_MESH_DATA);
 		mesh->data->filepath = "res/meshes/sphere.glb";
 		auto p_data = AssetLoader::LoadMeshDataFromRawFile("res/meshes/sphere.glb", false);
-		AssetLoader::LoadMeshFromData(mesh->data, *p_data);
+		AssetManager::Get().mesh_buffer_manager.LoadMeshFromData(mesh->data.get(), *p_data);
 		mesh->data->materials.push_back(material);
 	}
 

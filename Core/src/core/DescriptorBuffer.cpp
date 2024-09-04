@@ -10,17 +10,12 @@ void DescriptorBuffer::CreateBuffer(uint32_t num_sets) {
 	SNK_ASSERT(mp_descriptor_spec->m_layout_bindings.size() != 0);
 
 	for (const auto& binding : mp_descriptor_spec->m_layout_bindings) {
-		if (binding.descriptorType == vk::DescriptorType::eUniformBuffer || binding.descriptorType == vk::DescriptorType::eStorageBuffer)
-			m_usage_flags |= vk::BufferUsageFlagBits::eResourceDescriptorBufferEXT;
-		else if (binding.descriptorType == vk::DescriptorType::eCombinedImageSampler)
+		if (binding.descriptorType == vk::DescriptorType::eCombinedImageSampler)
 			m_usage_flags |= vk::BufferUsageFlagBits::eSamplerDescriptorBufferEXT;
-		else if (binding.descriptorType == vk::DescriptorType::eAccelerationStructureKHR)
-			m_usage_flags |= vk::BufferUsageFlagBits::eResourceDescriptorBufferEXT;
-		else if (binding.descriptorType == vk::DescriptorType::eStorageImage)
-			m_usage_flags |= vk::BufferUsageFlagBits::eResourceDescriptorBufferEXT;
 		else
-			SNK_BREAK("Unsupported descriptorType in descriptor layout binding");
+			m_usage_flags |= vk::BufferUsageFlagBits::eResourceDescriptorBufferEXT;
 	}
+
 	descriptor_buffer.CreateBuffer(mp_descriptor_spec->m_aligned_size * num_sets,
 		m_usage_flags | vk::BufferUsageFlagBits::eShaderDeviceAddress, VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT);
 }
@@ -46,6 +41,9 @@ void DescriptorBuffer::LinkResource(vk::DescriptorGetInfoEXT* resource_info, uns
 		break;
 	case vk::DescriptorType::eStorageImage:
 		size = descriptor_buffer_properties.storageImageDescriptorSize;
+		break;
+	case vk::DescriptorType::eStorageBufferDynamic:
+		size = descriptor_buffer_properties.storageBufferDescriptorSize;
 		break;
 	default:
 		SNK_BREAK("LinkResource failed, unsupported descriptor type used");

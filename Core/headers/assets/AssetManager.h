@@ -4,6 +4,7 @@
 #include "core/DescriptorBuffer.h"
 #include "assets/ResourceBufferManagers.h"
 #include "assets/MeshData.h"
+#include "rendering/MeshBufferManager.h"
 
 namespace SNAKE {
 	enum class AssetEventType {
@@ -148,6 +149,7 @@ namespace SNAKE {
 			return Get().m_global_material_buffer_manager.descriptor_buffers[current_frame]->GetBindingInfo();
 		}
 
+		MeshBufferManager mesh_buffer_manager{};
 
 	private:
 		static constexpr size_t NUM_CORE_ASSETS = 4;

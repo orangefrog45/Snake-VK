@@ -27,9 +27,9 @@ namespace SNAKE {
 
 		void CreateBuffer(vk::DeviceSize size, vk::BufferUsageFlags usage, VmaAllocationCreateFlags flags = 0);
 
-		std::pair<vk::DescriptorGetInfoEXT, std::shared_ptr<vk::DescriptorAddressInfoEXT>> CreateDescriptorGetInfo();
+		std::pair<vk::DescriptorGetInfoEXT, std::shared_ptr<vk::DescriptorAddressInfoEXT>> CreateDescriptorGetInfo() const;
 
-		vk::DeviceAddress GetDeviceAddress() {
+		vk::DeviceAddress GetDeviceAddress() const {
 			vk::BufferDeviceAddressInfo buffer_addr_info{};
 			buffer_addr_info.buffer = buffer;
 			return VkContext::GetLogicalDevice().device->getBufferAddress(buffer_addr_info);

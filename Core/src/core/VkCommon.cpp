@@ -170,12 +170,12 @@ namespace SNAKE {
 		return required_extensions.empty();
 	}
 
-	void CopyBuffer(vk::Buffer src, vk::Buffer dst, vk::DeviceSize size) {
+	void CopyBuffer(vk::Buffer src, vk::Buffer dst, vk::DeviceSize size, vk::DeviceSize src_offset, vk::DeviceSize dst_offset) {
 		vk::UniqueCommandBuffer cmd_buf = BeginSingleTimeCommands();
 
 		vk::BufferCopy copy_region{};
-		copy_region.srcOffset = 0;
-		copy_region.dstOffset = 0;
+		copy_region.srcOffset = src_offset;
+		copy_region.dstOffset = dst_offset;
 		copy_region.size = size;
 
 		cmd_buf->copyBuffer(src, dst, copy_region);

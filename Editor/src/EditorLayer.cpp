@@ -21,7 +21,9 @@ void CreateLargeEntity(Scene& scene) {
 		for (int j = 0; j < 10; j++) {
 			auto& p_current = scene.CreateEntity();
 			p_current.AddComponent<StaticMeshComponent>();
-			p_current.GetComponent<TransformComponent>()->SetPosition(rand() % 300 - 150, rand() % 300 - 150, rand() % 300 - 150);
+			glm::vec3 rand_pos{ rand() % 300 - 150, rand() % 300 - 150, rand() % 300 - 150 };
+			rand_pos *= 0.25f;
+			p_current.GetComponent<TransformComponent>()->SetPosition(rand_pos);
 			p_current.SetParent(child);
 		}
 	}
@@ -249,10 +251,10 @@ void EditorLayer::OnInit() {
 	p_cam_ent->AddComponent<RelationshipComponent>();
 	p_cam_ent->AddComponent<CameraComponent>()->MakeActive();
 
-	//LoadProject("res/project-template");
+	LoadProject("res/project-template");
 
 	for (int i = 0; i < 10; i++) {
-		CreateLargeEntity(scene);
+	//	CreateLargeEntity(scene);
 	}
 	raytracing.Init(scene, render_image, scene.GetSystem<SceneInfoBufferSystem>()->descriptor_buffers[0].GetDescriptorSpec()->GetLayout());
 
@@ -282,7 +284,14 @@ void EditorLayer::OnUpdate() {
 	if (p_window->input.IsKeyDown('a'))
 		move -= p_transform->right;
 
-	p_transform->SetPosition(p_transform->GetPosition() + move * 0.1f);
+	float speed = 0.1f;
+	if (p_window->input.IsKeyDown(Key::LeftControl))
+		speed *= 0.1f;
+
+	if (p_window->input.IsKeyDown(Key::Shift))
+		speed *= 10.f;
+
+	p_transform->SetPosition(p_transform->GetPosition() + move * speed);
 }
 
 void EditorLayer::OnRender() {

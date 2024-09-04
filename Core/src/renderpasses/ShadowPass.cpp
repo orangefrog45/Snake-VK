@@ -1,6 +1,7 @@
 #include "renderpasses/ShadowPass.h"
 #include "scene/Scene.h"
 #include "scene/LightBufferSystem.h"
+#include "scene/TransformBufferSystem.h"
 #include "components/MeshComponent.h"
 #include "core/JobSystem.h"
 
@@ -101,22 +102,36 @@ namespace SNAKE {
 		light_buffer_binding_info.address = scene.GetSystem<LightBufferSystem>()->light_descriptor_buffers[frame_idx].descriptor_buffer.GetDeviceAddress();
 		light_buffer_binding_info.usage = vk::BufferUsageFlagBits::eResourceDescriptorBufferEXT;
 
+		vk::DescriptorBufferBindingInfoEXT transform_binding_info{};
+		transform_binding_info.address = scene.GetSystem<TransformBufferSystem>()->GetTransformStorageBuffer(VkContext::GetCurrentFIF()).GetDeviceAddress();
+		transform_binding_info.usage = vk::BufferUsageFlagBits::eResourceDescriptorBufferEXT;
+
+		auto binding_infos = util::array(transform_binding_info, light_buffer_binding_info);
+
 		cmd.bindDescriptorBuffersEXT(light_buffer_binding_info);
-		std::array<uint32_t, 1> buffer_indices = { 0 };
-		std::array<vk::DeviceSize, 1> buffer_offsets = { 0 };
+		std::array<uint32_t, 2> buffer_indices = { 0, 1 };
+		std::array<vk::DeviceSize, 2> buffer_offsets = { 0, 0 };
 
 		cmd.setDescriptorBufferOffsetsEXT(vk::PipelineBindPoint::eGraphics, m_pipeline.pipeline_layout.GetPipelineLayout(), (uint32_t)DescriptorSetIndices::LIGHTS, buffer_indices, buffer_offsets);
+		
+		auto& asset_manager = AssetManager::Get();
+		auto buffers = asset_manager.mesh_buffer_manager.GetMeshBuffers();
+
+		std::vector<vk::Buffer> vert_buffers = { buffers.position_buf.buffer, buffers.normal_buf.buffer, buffers.tex_coord_buf.buffer, buffers.tangent_buf.buffer };
+		std::vector<vk::Buffer> index_buffers = { buffers.indices_buf.buffer };
 
 		for (auto& range : snapshot.mesh_ranges) {
 			auto mesh_asset = AssetManager::GetAsset<StaticMeshAsset>(range.mesh_uuid);
-			std::vector<vk::Buffer> vert_buffers = { mesh_asset->data->position_buf.buffer, mesh_asset->data->normal_buf.buffer, mesh_asset->data->tex_coord_buf.buffer };
-			std::vector<vk::Buffer> index_buffers = { mesh_asset->data->index_buf.buffer };
-			std::vector<vk::DeviceSize> offsets = { 0, 0, 0 };
+			auto& mesh_buffer_entry_data = asset_manager.mesh_buffer_manager.GetEntryData(mesh_asset->data.get());
+
+			std::vector<vk::DeviceSize> offsets = { mesh_buffer_entry_data.data_start_vertex_idx, mesh_buffer_entry_data.data_start_vertex_idx,
+				mesh_buffer_entry_data.data_start_vertex_idx, mesh_buffer_entry_data.data_start_vertex_idx };
+
 			cmd.bindVertexBuffers(0, 3, vert_buffers.data(), offsets.data());
-			cmd.bindIndexBuffer(mesh_asset->data->index_buf.buffer, 0, vk::IndexType::eUint32);
+			cmd.bindIndexBuffer(index_buffers[0], mesh_buffer_entry_data.data_start_indices_idx, vk::IndexType::eUint32);
 
 			for (uint32_t i = range.start_idx; i < range.start_idx + range.count; i++) {
-				cmd.pushConstants(m_pipeline.pipeline_layout.GetPipelineLayout(), vk::ShaderStageFlagBits::eAllGraphics, 0, sizeof(glm::mat4), &snapshot.static_mesh_data[i].transform);
+				cmd.pushConstants(m_pipeline.pipeline_layout.GetPipelineLayout(), vk::ShaderStageFlagBits::eAllGraphics, 0, sizeof(unsigned), &i);
 				for (auto& submesh : mesh_asset->data->submeshes) {
 					cmd.drawIndexed(submesh.num_indices, 1, submesh.base_index, submesh.base_vertex, 0);
 				}
