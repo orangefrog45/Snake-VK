@@ -8,6 +8,7 @@
 #include "scene/SceneInfoBufferSystem.h"
 #include "util/UI.h"
 #include "core/JobSystem.h"
+#include "scene/RaytracingBufferSystem.h"
 
 using namespace SNAKE;
 

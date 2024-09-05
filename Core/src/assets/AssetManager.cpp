@@ -22,8 +22,8 @@ namespace SNAKE {
 			descriptor_buffers[i]->SetDescriptorSpec(p_descriptor_spec);
 
 			p_descriptor_spec->AddDescriptor(0, vk::DescriptorType::eStorageBuffer,
-				vk::ShaderStageFlagBits::eAllGraphics, 1)
-				.AddDescriptor(1, vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eAllGraphics, 4096);
+				vk::ShaderStageFlagBits::eAll, 1)
+				.AddDescriptor(1, vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eAll, 4096);
 
 			p_descriptor_spec->GenDescriptorLayout();
 

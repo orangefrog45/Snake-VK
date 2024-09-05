@@ -250,7 +250,8 @@ MaterialAsset* AssetLoader::DeserializeMaterial(const std::string& filepath) {
 	asset.roughness_tex = texture_uuids[2] == UUID<uint64_t>::INVALID_UUID ? nullptr : AssetManager::GetAsset<Texture2DAsset>(texture_uuids[2]);
 	asset.metallic_tex = texture_uuids[3] == UUID<uint64_t>::INVALID_UUID ? nullptr : AssetManager::GetAsset<Texture2DAsset>(texture_uuids[3]);
 	asset.ao_tex = texture_uuids[4] == UUID<uint64_t>::INVALID_UUID ? nullptr : AssetManager::GetAsset<Texture2DAsset>(texture_uuids[4]);
-	
+
+	asset.DispatchUpdateEvent();
 	return &asset;
 }
 
@@ -359,6 +360,7 @@ std::unique_ptr<MeshData> AssetLoader::LoadMeshDataFromRawFile(const std::string
 		sm.base_index = p_data->num_indices;
 		sm.base_vertex = p_data->num_vertices;
 		sm.num_indices = p_submesh->mNumFaces * 3;
+		sm.num_vertices = p_submesh->mNumVertices;
 		sm.material_index = p_submesh->mMaterialIndex;
 
 		p_data->num_vertices += p_submesh->mNumVertices;

@@ -15,7 +15,7 @@ layout(location = 5) in mat3 vs_tbn;
 #include "TexMatBuffers.glsl"
 
 layout(push_constant) uniform pc {
-    mat4 transform;
+    uint transform_idx;
     uint material_idx;
 } push;
 

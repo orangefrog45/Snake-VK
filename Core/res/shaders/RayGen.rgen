@@ -11,7 +11,7 @@ struct RayPayload {
 
 layout(location = 0) rayPayloadEXT RayPayload payload;
 
-layout(binding = 0, set = 1) uniform accelerationStructureEXT as;
+layout(set = 1, binding = 0) uniform accelerationStructureEXT as;
 
 layout(set = 1, binding = 1, rgba8) uniform image2D img;
 

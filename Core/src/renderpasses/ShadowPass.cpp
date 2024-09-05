@@ -41,14 +41,9 @@ namespace SNAKE {
 
 		m_pipeline.Init(builder);
 
-		auto alloc_cmd_bufs_job = JobSystem::CreateWaitedOnJob();
-		alloc_cmd_bufs_job->func = [&](Job const*) {
-			for (auto& buf : m_cmd_buffers) {
-				buf.Init(vk::CommandBufferLevel::ePrimary);
-			}
-		};
-		JobSystem::Execute(alloc_cmd_bufs_job);
-		JobSystem::WaitOn(alloc_cmd_bufs_job);
+		for (auto& buf : m_cmd_buffers) {
+			buf.Init(vk::CommandBufferLevel::ePrimary);
+		}
 	}
 
 	void ShadowPass::RecordCommandBuffers(Scene& scene, const SceneSnapshotData& snapshot) {

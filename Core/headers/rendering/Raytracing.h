@@ -8,14 +8,15 @@
 #include "assets/MeshData.h"
 #include "components/TransformComponent.h"
 #include "scene/Scene.h"
-#include "components/MeshComponent.h"
 
 namespace SNAKE {
 	class BLAS {
 	public:
-		void GenerateFromMeshData(MeshData& mesh_data);
+		void GenerateFromMeshData(MeshData& mesh_data, uint32_t submesh_index);
 
 		vk::AccelerationStructureInstanceKHR GenerateInstance(TransformComponent& comp);
+	private:
+		uint32_t m_submesh_index = std::numeric_limits<uint32_t>::max();
 
 		S_VkBuffer m_blas_buf;
 		vk::UniqueAccelerationStructureKHR mp_blas;
@@ -38,7 +39,7 @@ namespace SNAKE {
 
 		void CreateShaderBindingTable();
 	private:
-		std::unordered_map<MeshDataAsset*, BLAS> m_blas_map;
+		std::unordered_map<class MeshDataAsset*, BLAS> m_blas_map;
 
 		EventListener frame_start_listener;
 

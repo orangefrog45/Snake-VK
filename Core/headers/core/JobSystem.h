@@ -9,6 +9,7 @@ namespace SNAKE {
 		std::atomic_uint32_t unfinished_jobs = 1;
 
 		const bool is_waited_on;
+		bool being_processed = false;
 
 		Job* p_parent = nullptr;
 		std::byte* data;
@@ -27,7 +28,7 @@ namespace SNAKE {
 		}
 
 		static bool IsBusy() {
-			return Get().m_finished_jobs.load() < Get().m_assigned_jobs;
+			return Get().m_finished_jobs.load() < Get().m_assigned_jobs.load();
 		}
 
 		static void Execute(Job* job) {
@@ -68,6 +69,7 @@ namespace SNAKE {
 
 			return ret;
 		}
+		tsQueue<Job*> m_job_queue;
 
 		[[nodiscard]] static Job* CreateJob() {
 			auto job = new Job(false);
@@ -94,8 +96,12 @@ namespace SNAKE {
 
 		void WaitImpl() {
 			while (IsBusy()) {
-				if (!m_job_queue.empty())
+				if (!m_job_queue.empty()) {
+					if (auto job = m_job_queue.pop_front()) {
+						ProcessJob(job, std::this_thread::get_id());
+					}
 					m_wake_condition.notify_one();
+				}
 
 				std::this_thread::yield();
 			}
@@ -112,8 +118,32 @@ namespace SNAKE {
 			m_wake_condition.notify_one();
 		}
 
+		void ProcessJob(Job* job, std::thread::id id) {
+			job->being_processed = true;
+			m_thread_jobs[id] = job;
+
+			job->func(job);
+
+			while (job->unfinished_jobs.load() != 1) {
+				std::this_thread::yield();
+			}
+
+			job->unfinished_jobs.fetch_sub(1);
+
+			m_thread_jobs[id] = nullptr;
+
+			if (!job->is_waited_on) {
+				if (job->p_parent)
+					job->p_parent->unfinished_jobs.fetch_sub(1);
+
+				m_finished_jobs.fetch_add(1);
+				delete job;
+			}
+		}
+
 		void InitImpl() {
 			auto num_threads_to_create = std::thread::hardware_concurrency() - 1;
+			m_thread_jobs.reserve(num_threads_to_create + 1);
 
 			for (unsigned i = 0; i < num_threads_to_create; i++) {
 				m_threads.push_back(std::thread([this] {
@@ -121,26 +151,7 @@ namespace SNAKE {
 
 					while (m_is_running) {
 						if (auto job = m_job_queue.pop_front()) {
-							m_thread_jobs[id] = job;
-
-							job->func(job);
-
-							while (job->unfinished_jobs.load() != 1) {
-								std::this_thread::yield();
-							}
-
-							job->unfinished_jobs.fetch_sub(1);
-
-							m_thread_jobs[id] = nullptr;
-
-							if (!job->is_waited_on) {
-								if (job->p_parent)
-									job->p_parent->unfinished_jobs.fetch_sub(1);
-
-								delete job;
-								m_finished_jobs.fetch_add(1);
-							}
-
+							ProcessJob(job, id);
 						}
 						else {
 							std::unique_lock<std::mutex> lock(m_wake_mutex);
@@ -166,6 +177,5 @@ namespace SNAKE {
 		// Thread-safe, each element only accessed by worker thread with id = key
 		std::unordered_map<std::thread::id, Job*> m_thread_jobs;
 
-		tsQueue<Job*> m_job_queue;
 	};
 }

@@ -18,11 +18,17 @@ namespace SNAKE {
 		inline static constexpr uint32_t material_size = sizeof(uint32_t) * 8 * 2;
 
 		std::array<std::shared_ptr<DescriptorBuffer>, MAX_FRAMES_IN_FLIGHT> descriptor_buffers{};
+
+		S_VkBuffer& GetMaterialUBO(FrameInFlightIndex idx) {
+			return material_ubos[idx];
+		}
+
 	private:
 		std::array<S_VkBuffer, MAX_FRAMES_IN_FLIGHT> material_ubos;
 
 		void UpdateMaterialUBO();
 
+		EventListener m_material_asset_event_listener;
 		EventListener m_material_update_event_listener;
 		EventListener m_frame_start_listener;
 		// Current index to write to 

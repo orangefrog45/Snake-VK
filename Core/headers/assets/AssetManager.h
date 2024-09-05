@@ -149,6 +149,10 @@ namespace SNAKE {
 			return Get().m_global_material_buffer_manager.descriptor_buffers[current_frame]->GetBindingInfo();
 		}
 
+		static vk::DescriptorSetLayout GetGlobalTexMatBufDescriptorSetLayout(uint32_t current_frame) {
+			return Get().m_global_material_buffer_manager.descriptor_buffers[current_frame]->GetDescriptorSpec()->GetLayout();
+		}
+
 		MeshBufferManager mesh_buffer_manager{};
 
 	private:
@@ -158,9 +162,9 @@ namespace SNAKE {
 
 		void InitGlobalBufferManagers();
 
-		std::unordered_map<uint64_t, Asset*> m_assets;
-
 		GlobalTextureBufferManager m_global_tex_buffer_manager;
 		GlobalMaterialBufferManager m_global_material_buffer_manager;
+		std::unordered_map<uint64_t, Asset*> m_assets;
+
 	};
 }

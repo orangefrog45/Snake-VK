@@ -28,6 +28,28 @@ struct Spotlight {
 
 #define PI 3.1415926
 
+#ifdef LIGHT_BUFFER_DESCRIPTOR_SET_BINDING_OVERRIDE
+
+#ifndef LIGHT_BUFFER_DESCRIPTOR_SET_IDX
+#error LIGHT_BUFFER_DESCRIPTOR_SET_IDX must be defined
+#endif
+
+#ifndef LIGHT_BUFFER_DESCRIPTOR_BINDING
+#error LIGHT_BUFFER_DESCRIPTOR_BINDING must be defined
+#endif
+
+layout(set = LIGHT_BUFFER_DESCRIPTOR_SET_IDX, binding = LIGHT_BUFFER_DESCRIPTOR_BINDING) readonly buffer LightData {
+    DirectionalLight dir_light;
+    uint num_pointlights;
+    uint num_spotlights;
+	float pad0;
+	float pad1;
+    Pointlight pointlights[1024];
+    Spotlight spotlights[1024];
+} ssbo_light_data;
+
+#else
+
 layout(set = 2, binding = 0) readonly buffer LightData {
     DirectionalLight dir_light;
     uint num_pointlights;
@@ -37,6 +59,8 @@ layout(set = 2, binding = 0) readonly buffer LightData {
     Pointlight pointlights[1024];
     Spotlight spotlights[1024];
 } ssbo_light_data;
+
+#endif
 
 vec3 FresnelSchlick(float cos_theta, vec3 f0) {
 	return f0 + (1.0 - f0) * pow(clamp(1.0 - cos_theta, 0.0, 1.0), 5.0);

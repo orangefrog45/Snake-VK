@@ -16,6 +16,10 @@ layout(push_constant) uniform pc {
 #endif
 } push;
 
+#ifdef EXTRA_COLOUR
+
+#endif
+
 #ifdef LINE
 out layout(location = 0) vec4 vs_colour;
 #endif

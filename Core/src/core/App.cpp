@@ -67,6 +67,40 @@ void App::Init(const char* app_name) {
 
 void App::MainLoop() {
 	while (!glfwWindowShouldClose(window.GetGLFWwindow())) {
+		//std::vector<Job*> jobs;
+		//for (int i = 0; i < 20; i++) {
+		//	auto* p_job = JobSystem::CreateJob();
+
+		//	p_job->func = [=](const Job*) { 
+		//		std::this_thread::sleep_for(std::chrono::milliseconds(rand() % 50));
+		//		SNK_CORE_WARN(i);
+
+		//		auto* p_parent_job = JobSystem::CreateWaitedOnJob();
+
+		//		p_parent_job->func = [](const Job*) {
+		//			for (int y = 30; y < 60; y++) {
+		//				auto* p_job2 = JobSystem::CreateWaitedOnJob();
+		//				p_job2->func = [=](const Job*) {
+		//					SNK_CORE_INFO(y);
+		//					};
+		//				JobSystem::Execute(p_job2);
+		//				JobSystem::WaitOn(p_job2);
+		//			}
+		//		};
+
+		//		JobSystem::Execute(p_parent_job);
+		//		JobSystem::WaitOn(p_parent_job);
+		//	};
+
+
+		//	JobSystem::Execute(p_job);
+		//}
+
+
+		//JobSystem::WaitAll();
+
+		//SNK_CORE_CRITICAL(JobSystem::Get().m_job_queue.size());
+
 		EventManagerG::DispatchEvent(FrameSyncFenceEvent{ });
 
 		EventManagerG::DispatchEvent(FrameStartEvent{ });

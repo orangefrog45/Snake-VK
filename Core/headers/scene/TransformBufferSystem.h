@@ -6,6 +6,13 @@
 #include "Entity.h"
 #include "Scene.h"
 
+
+/* 
+This system manages mesh transforms if the raster pipeline is active 
+If the raytracing pipeline is active, RaytracingBufferSystem manages instance data instead
+*/
+
+
 namespace SNAKE {
 	struct TransformBufferIdxComponent : public Component {
 		TransformBufferIdxComponent(Entity* p_ent) : Component(p_ent) {}

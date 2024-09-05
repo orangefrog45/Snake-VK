@@ -1,6 +1,8 @@
 #include "pch/pch.h"
 #include "rendering/Raytracing.h"
-#include "scene/TransformBufferSystem.h"
+#include "scene/RaytracingBufferSystem.h"
+#include "components/Components.h"
+#include "scene/LightBufferSystem.h"
 
 using namespace SNAKE;
 
@@ -22,7 +24,9 @@ void RT::InitTLAS(Scene& scene, FrameInFlightIndex idx) {
 		return;
 
 	for (auto [entity, mesh] : mesh_view.each()) {
-		instances.push_back(mesh.mesh_asset->data->p_blas->GenerateInstance(reg.get<TransformComponent>(entity)));
+		for (auto& blas : mesh.mesh_asset->data->submesh_blas_array) {
+			instances.push_back(blas->GenerateInstance(reg.get<TransformComponent>(entity)));
+		}
 	}
 
 	// Buffer to hold instance data e.g transform, blas
@@ -147,11 +151,14 @@ void RT::UpdateTLAS() {
 void RT::InitDescriptorBuffers(Image2D& output_image, Scene& scene) {
 	rt_descriptor_set_spec = std::make_shared<DescriptorSetSpec>();
 	rt_descriptor_set_spec->AddDescriptor(0, vk::DescriptorType::eAccelerationStructureKHR, vk::ShaderStageFlagBits::eAll)
-		.AddDescriptor(1, vk::DescriptorType::eStorageImage, vk::ShaderStageFlagBits::eRaygenKHR)
-		.AddDescriptor(2, vk::DescriptorType::eStorageBuffer, vk::ShaderStageFlagBits::eClosestHitKHR)
-		.AddDescriptor(3, vk::DescriptorType::eStorageBuffer, vk::ShaderStageFlagBits::eClosestHitKHR)
-		.AddDescriptor(4, vk::DescriptorType::eStorageBuffer, vk::ShaderStageFlagBits::eClosestHitKHR)
-		.AddDescriptor(5, vk::DescriptorType::eStorageBuffer, vk::ShaderStageFlagBits::eClosestHitKHR)
+		.AddDescriptor(1, vk::DescriptorType::eStorageImage, vk::ShaderStageFlagBits::eRaygenKHR) // Output image
+		.AddDescriptor(2, vk::DescriptorType::eStorageBuffer, vk::ShaderStageFlagBits::eClosestHitKHR) // Vertex position buffer
+		.AddDescriptor(3, vk::DescriptorType::eStorageBuffer, vk::ShaderStageFlagBits::eClosestHitKHR) // Vertex index buffer
+		.AddDescriptor(4, vk::DescriptorType::eStorageBuffer, vk::ShaderStageFlagBits::eClosestHitKHR) // Vertex normal buffer
+		.AddDescriptor(5, vk::DescriptorType::eStorageBuffer, vk::ShaderStageFlagBits::eClosestHitKHR) // Vertex tex coord buffer
+		.AddDescriptor(6, vk::DescriptorType::eStorageBuffer, vk::ShaderStageFlagBits::eClosestHitKHR) // Vertex tangent buffer
+		.AddDescriptor(7, vk::DescriptorType::eStorageBuffer, vk::ShaderStageFlagBits::eClosestHitKHR) // Raytracing instance buffer
+		.AddDescriptor(8, vk::DescriptorType::eStorageBuffer, vk::ShaderStageFlagBits::eClosestHitKHR) // Light buffer
 		.GenDescriptorLayout();
 
 	for (FrameInFlightIndex i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
@@ -175,20 +182,27 @@ void RT::InitDescriptorBuffers(Image2D& output_image, Scene& scene) {
 		auto [get_info_position_buf, a] = mesh_buffers.position_buf.CreateDescriptorGetInfo();
 		auto [get_info_index_buf, b] = mesh_buffers.indices_buf.CreateDescriptorGetInfo();
 		auto [get_info_normal_buf, c] = mesh_buffers.normal_buf.CreateDescriptorGetInfo();
-		auto [get_info_transform_buf, d] = scene.GetSystem<TransformBufferSystem>()->GetTransformStorageBuffer(i).CreateDescriptorGetInfo();
+		auto [get_info_tex_coord_buf, d] = mesh_buffers.tex_coord_buf.CreateDescriptorGetInfo();
+		auto [get_info_tangent_buf, e] = mesh_buffers.tangent_buf.CreateDescriptorGetInfo();
+		auto [get_info_instance_buf, f] = scene.GetSystem<RaytracingInstanceBufferSystem>()->GetStorageBuffer(i).CreateDescriptorGetInfo();
+		auto [get_info_light_buf, g] = scene.GetSystem<LightBufferSystem>()->light_ssbos[i].CreateDescriptorGetInfo();
 
 		rt_descriptor_buffers[i].LinkResource(&get_info, 0, 0);
 		rt_descriptor_buffers[i].LinkResource(&get_info_image, 1, 0);
 		rt_descriptor_buffers[i].LinkResource(&get_info_position_buf, 2, 0);
 		rt_descriptor_buffers[i].LinkResource(&get_info_index_buf, 3, 0);
 		rt_descriptor_buffers[i].LinkResource(&get_info_normal_buf, 4, 0);
-		rt_descriptor_buffers[i].LinkResource(&get_info_transform_buf, 5, 0);
+		rt_descriptor_buffers[i].LinkResource(&get_info_tex_coord_buf, 5, 0);
+		rt_descriptor_buffers[i].LinkResource(&get_info_tangent_buf, 6, 0);
+		rt_descriptor_buffers[i].LinkResource(&get_info_instance_buf, 7, 0);
+		rt_descriptor_buffers[i].LinkResource(&get_info_light_buf, 8, 0);
 	}
 }
 
 void RT::InitPipeline(vk::DescriptorSetLayout common_ubo_set_layout) {
 	{
-		auto layouts = util::array(common_ubo_set_layout, rt_descriptor_buffers[0].GetDescriptorSpec()->GetLayout());
+		auto layouts = util::array(common_ubo_set_layout, rt_descriptor_buffers[0].GetDescriptorSpec()->GetLayout(), 
+			AssetManager::GetGlobalTexMatBufDescriptorSetLayout(0));
 
 		vk::PipelineLayoutCreateInfo pipeline_layout_info{};
 		pipeline_layout_info.setLayoutCount = layouts.size();
@@ -305,10 +319,11 @@ void RT::RecordRenderCmdBuf(vk::CommandBuffer cmd, Image2D& output_image, Descri
 		vk::PipelineStageFlagBits::eRayTracingShaderKHR, 0, 1, cmd);
 
 	cmd.bindPipeline(vk::PipelineBindPoint::eRayTracingKHR, *rt_pipeline);
-	std::array<uint32_t, 2> db_indices = { 0, 1 };
-	std::array<vk::DeviceSize, 2> db_offsets = { 0, 0 };
+	std::array<uint32_t, 3> db_indices = { 0, 1, 2 };
+	std::array<vk::DeviceSize, 3> db_offsets = { 0, 0, 0 };
 
-	auto binding_infos = util::array(common_ubo_db.GetBindingInfo(), rt_descriptor_buffers[VkContext::GetCurrentFIF()].GetBindingInfo());
+	auto binding_infos = util::array(common_ubo_db.GetBindingInfo(), rt_descriptor_buffers[VkContext::GetCurrentFIF()].GetBindingInfo(), 
+		AssetManager::GetGlobalTexMatBufBindingInfo(VkContext::GetCurrentFIF()));
 
 	cmd.bindDescriptorBuffersEXT(binding_infos);
 	cmd.setDescriptorBufferOffsetsEXT(vk::PipelineBindPoint::eRayTracingKHR, *rt_pipeline_layout, 0, db_indices, db_offsets);
@@ -335,7 +350,9 @@ void RT::Init(Scene& scene, Image2D& output_image, vk::DescriptorSetLayout commo
 	CreateShaderBindingTable();
 }
 
-void BLAS::GenerateFromMeshData(MeshData& mesh_data) {
+void BLAS::GenerateFromMeshData(MeshData& mesh_data, uint32_t submesh_index) {
+	m_submesh_index = submesh_index;
+
 	auto& logical_device = VkContext::GetLogicalDevice();
 	vk::AccelerationStructureGeometryKHR as_geom_info{};
 	as_geom_info.flags = vk::GeometryFlagBitsKHR::eOpaque;
@@ -344,19 +361,20 @@ void BLAS::GenerateFromMeshData(MeshData& mesh_data) {
 	S_VkBuffer position_buf{};
 	S_VkBuffer index_buf{};
 
-	position_buf.CreateBuffer(mesh_data.num_vertices * sizeof(aiVector3D), vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eAccelerationStructureBuildInputReadOnlyKHR,
+	auto& submesh = mesh_data.submeshes[submesh_index];
+	position_buf.CreateBuffer(submesh.num_vertices * sizeof(aiVector3D), vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eAccelerationStructureBuildInputReadOnlyKHR,
 		VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT);
 
-	index_buf.CreateBuffer(mesh_data.num_indices * sizeof(unsigned), vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eAccelerationStructureBuildInputReadOnlyKHR,
+	index_buf.CreateBuffer(submesh.num_indices * sizeof(unsigned), vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eAccelerationStructureBuildInputReadOnlyKHR,
 		VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT);
 
-	memcpy(position_buf.Map(), mesh_data.positions, mesh_data.num_vertices * sizeof(aiVector3D));
-	memcpy(index_buf.Map(), mesh_data.indices, mesh_data.num_indices * sizeof(unsigned));
+	memcpy(position_buf.Map(), mesh_data.positions + submesh.base_vertex, submesh.num_vertices * sizeof(aiVector3D));
+	memcpy(index_buf.Map(), mesh_data.indices + submesh.base_index, submesh.num_indices * sizeof(unsigned));
 
 	as_geom_info.geometry.triangles.vertexData = position_buf.GetDeviceAddress();
 	as_geom_info.geometry.triangles.indexData = index_buf.GetDeviceAddress();
 	as_geom_info.geometry.triangles.vertexFormat = vk::Format::eR32G32B32Sfloat;
-	as_geom_info.geometry.triangles.maxVertex = mesh_data.num_vertices;
+	as_geom_info.geometry.triangles.maxVertex = submesh.num_vertices;
 	as_geom_info.geometry.triangles.vertexStride = sizeof(glm::vec3);
 	as_geom_info.geometry.triangles.indexType = vk::IndexType::eUint32;
 
@@ -367,7 +385,7 @@ void BLAS::GenerateFromMeshData(MeshData& mesh_data) {
 	as_build_geom_info.pGeometries = &as_geom_info;
 
 	vk::AccelerationStructureBuildSizesInfoKHR as_build_sizes_info = logical_device.device->getAccelerationStructureBuildSizesKHR(
-		vk::AccelerationStructureBuildTypeKHR::eDevice, as_build_geom_info, mesh_data.num_indices / 3);
+		vk::AccelerationStructureBuildTypeKHR::eDevice, as_build_geom_info, submesh.num_indices);
 
 	m_blas_buf.CreateBuffer(as_build_sizes_info.accelerationStructureSize, vk::BufferUsageFlagBits::eAccelerationStructureStorageKHR |
 		vk::BufferUsageFlagBits::eShaderDeviceAddress);
@@ -394,7 +412,7 @@ void BLAS::GenerateFromMeshData(MeshData& mesh_data) {
 	as_build_geom_info_scratch.scratchData.deviceAddress = blas_scratch_buf.GetDeviceAddress();
 
 	vk::AccelerationStructureBuildRangeInfoKHR as_build_range_info{};
-	as_build_range_info.primitiveCount = mesh_data.num_indices / 3;
+	as_build_range_info.primitiveCount = submesh.num_indices / 3;
 	as_build_range_info.primitiveOffset = 0;
 	as_build_range_info.firstVertex = 0;
 	as_build_range_info.transformOffset = 0;
@@ -416,7 +434,7 @@ vk::AccelerationStructureInstanceKHR BLAS::GenerateInstance(TransformComponent& 
 	instance.mask = 0xFF;
 	instance.instanceShaderBindingTableRecordOffset = 0;
 	instance.flags = 0;
-	instance.instanceCustomIndex = comp.GetEntity()->GetComponent<TransformBufferIdxComponent>()->idx;
+	instance.instanceCustomIndex = comp.GetEntity()->GetComponent<RaytracingInstanceBufferIdxComponent>()->idx + m_submesh_index;
 	instance.accelerationStructureReference = m_blas_handle; // Handle of BLAS for the sphere mesh
 
 	auto t = transpose(comp.GetMatrix());

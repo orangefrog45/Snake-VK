@@ -1,3 +1,9 @@
+5/9/24:
+-Exposed materials/textures to raytracing pipeline
+-Raytracing instance buffer system
+-More flexible descriptor layouts for lights/textures/materials
+
+
 3/9/24:
 -Multi-bounce raytraced reflections
 -Using storage buffer for transforms instead of push constants for availability in raytracing shaders
