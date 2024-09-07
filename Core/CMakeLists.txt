@@ -65,13 +65,13 @@ add_library(SNAKE_VK_CORE
  "src/core/VkContext.cpp" 
  "headers/core/VkIncl.h" 
  "src/misc/stb.cpp" 
- "headers/images/Images.h" 
- "src/images/Images.cpp" 
+ "headers/resources/Images.h" 
+ "src/resources/Images.cpp" 
  "src/misc/vma.cpp"
  "src/assets/MeshData.cpp" 
  "headers/assets/MeshData.h" 
- "headers/core/S_VkBuffer.h" 
- "src/core/S_VkBuffer.cpp" 
+ "headers/resources/S_VkBuffer.h" 
+ "src/resources/S_VkBuffer.cpp" 
  "headers/core/DescriptorBuffer.h" 
  "headers/core/Pipelines.h" 
  "headers/shaders/ShaderLibrary.h" 
@@ -112,7 +112,7 @@ add_library(SNAKE_VK_CORE
  "headers/assets/MaterialAsset.h" 
  "src/core/DescriptorBuffer.cpp" 
  "src/core/App.cpp"
- "src/scene/Scene.cpp" "headers/components/Components.h" "src/rendering/VkRenderer.cpp" "headers/layers/ImGuiLayer.h" "src/layers/LayerManager.cpp" "src/layers/ImGuiLayer.cpp" "src/scene/Entity.cpp" "src/scene/TransformSystem.cpp" "headers/scene/TransformSystem.h" "headers/scene/SceneSerializer.h" "src/scene/SceneSerializer.cpp"  "src/util/UI.cpp" "headers/util/UI.h" "headers/core/JobSystem.h" "headers/util/TsQueue.h" "headers/rendering/RenderCommon.h" "src/rendering/VkSceneRenderer.cpp" "headers/util/ByteSerializer.h" "headers/assets/AssetLoader.h" "src/assets/AssetLoader.cpp" "headers/rendering/Raytracing.h" "headers/rendering/MeshBufferManager.h" "src/rendering/MeshBufferManager.cpp" "headers/scene/TransformBufferSystem.h" "src/rendering/Raytracing.cpp" "headers/scene/RaytracingBufferSystem.h" "src/scene/RaytracingBufferSystem.cpp")
+ "src/scene/Scene.cpp" "headers/components/Components.h" "src/rendering/VkRenderer.cpp" "headers/layers/ImGuiLayer.h" "src/layers/LayerManager.cpp" "src/layers/ImGuiLayer.cpp" "src/scene/Entity.cpp" "src/scene/TransformSystem.cpp" "headers/scene/TransformSystem.h" "headers/scene/SceneSerializer.h" "src/scene/SceneSerializer.cpp"  "src/util/UI.cpp" "headers/util/UI.h" "headers/core/JobSystem.h" "headers/util/TsQueue.h" "headers/rendering/RenderCommon.h" "src/rendering/VkSceneRenderer.cpp" "headers/util/ByteSerializer.h" "headers/assets/AssetLoader.h" "src/assets/AssetLoader.cpp" "headers/rendering/Raytracing.h" "headers/rendering/MeshBufferManager.h" "src/rendering/MeshBufferManager.cpp" "headers/scene/TransformBufferSystem.h" "src/rendering/Raytracing.cpp" "headers/scene/RaytracingBufferSystem.h" "src/scene/RaytracingBufferSystem.cpp" "headers/resources/S_VkResource.h" "headers/resources/TLAS.h" "src/resources/TLAS.cpp")
 
 
 target_link_options(SNAKE_VK_CORE PRIVATE -INCREMENTAL -ZI)

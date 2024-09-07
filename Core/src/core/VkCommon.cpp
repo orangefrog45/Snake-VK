@@ -50,7 +50,6 @@ namespace SNAKE {
 			device.graphics_queue.submit(submit_info)
 		);
 
-		// Wait for queue to become idle
 		SNK_CHECK_VK_RESULT(device.graphics_queue.waitIdle());
 	}
 

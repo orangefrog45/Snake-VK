@@ -1,6 +1,7 @@
 #pragma once
 #include "core/VkIncl.h"
 #include "core/VkCommon.h"
+#include "resources/S_VkResource.h"
 #include "events/EventsCommon.h"
 
 namespace SNAKE {
@@ -17,7 +18,7 @@ namespace SNAKE {
 		glm::uvec2 size{ 0, 0 };
 	};
 
-	class Image2D {
+	class Image2D : public S_VkResource {
 	public:
 		Image2D() = default;
 
@@ -55,6 +56,8 @@ namespace SNAKE {
 
 		void GenerateMipmaps(vk::ImageLayout start_layout);
 
+		void RefreshDescriptorGetInfo(DescriptorGetInfo& info) const override;
+
 		// Returns an image view created with format 'fmt' (if provided) or (if not provided) image.m_spec.format
 		[[nodiscard]] static vk::UniqueImageView CreateImageView(const Image2D& image, std::optional<vk::Format> fmt = std::nullopt);
 
@@ -72,7 +75,7 @@ namespace SNAKE {
 
 		void CreateSampler();
 
-		std::pair<vk::DescriptorGetInfoEXT, std::shared_ptr<vk::DescriptorImageInfo>> CreateDescriptorGetInfo(vk::ImageLayout layout) const;
+		DescriptorGetInfo CreateDescriptorGetInfo(vk::ImageLayout layout, vk::DescriptorType type) const;
 
 		void TransitionImageLayout(vk::ImageLayout old_layout, vk::ImageLayout new_layout, unsigned mip_level = 0, unsigned level_count = 1, vk::CommandBuffer buf = {});
 
@@ -108,6 +111,8 @@ namespace SNAKE {
 	public:
 		FullscreenImage2D();
 	private:
+		std::optional<SwapchainInvalidateEvent> m_swapchain_invalidate_event_data;
+		EventListener m_frame_start_listener;
 		EventListener m_swapchain_invalidate_listener;
 	};
 

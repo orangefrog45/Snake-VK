@@ -1,6 +1,6 @@
 #pragma once
 #include "components/Component.h"
-#include "core/S_VkBuffer.h"
+#include "resources/S_VkBuffer.h"
 #include "System.h"
 #include "Entity.h"
 
@@ -43,6 +43,7 @@ namespace SNAKE {
 		uint32_t m_current_buffer_idx = 0;
 
 		EventListener m_mesh_event_listener;
+		EventListener m_transform_event_listener;
 		EventListener m_frame_start_event_listener;
 	};
 

@@ -1,7 +1,7 @@
-#include "core/S_VkBuffer.h"
 #include "core/VkCommon.h"
 #include "core/VkContext.h"
-#include "images/Images.h"
+#include "resources/S_VkBuffer.h"
+#include "resources/Images.h"
 #include "rendering/VkRenderer.h"
 #include "util/util.h"
 
@@ -109,7 +109,7 @@ void Image2D::CreateImage(VmaAllocationCreateFlags flags) {
 	alloc_info.usage = VMA_MEMORY_USAGE_AUTO;
 	alloc_info.flags = flags;
 
-	SNK_CHECK_VK_RESULT(vmaCreateImage(VkContext::GetAllocator(), &im_info, &alloc_info, reinterpret_cast<VkImage*>(&m_image), &m_allocation, nullptr));
+	SNK_CHECK_VK_RESULT(vmaCreateImage(VkContext::GetAllocator(), &im_info, &alloc_info, reinterpret_cast<VkImage*>(&m_image), &m_allocation, nullptr));	
 }
 
 void Image2D::GenerateMipmaps(vk::ImageLayout start_layout) {
@@ -129,19 +129,27 @@ void Image2D::DestroyImage() {
 
 	if (m_view)
 		m_view.release();
+
+	DispatchResourceEvent(S_VkResourceEvent::ResourceEventType::DELETE);
 }
 
-std::pair<vk::DescriptorGetInfoEXT, std::shared_ptr<vk::DescriptorImageInfo>> Image2D::CreateDescriptorGetInfo(vk::ImageLayout layout) const {
-	auto image_info = std::make_shared<vk::DescriptorImageInfo>();
-	image_info->setImageLayout(layout)
+void Image2D::RefreshDescriptorGetInfo(DescriptorGetInfo& info) const {
+	auto& image_info = std::get<vk::DescriptorImageInfo>(info.resource_info);
+	image_info.imageView = *m_view;
+	image_info.sampler = *m_sampler;
+}
+
+DescriptorGetInfo Image2D::CreateDescriptorGetInfo(vk::ImageLayout layout, vk::DescriptorType type) const {
+	vk::DescriptorImageInfo image_info;
+	image_info.setImageLayout(layout)
 		.setImageView(GetImageView())
 		.setSampler(GetSampler());
 
-	vk::DescriptorGetInfoEXT image_descriptor_info{};
-	image_descriptor_info.setType(vk::DescriptorType::eCombinedImageSampler)
-		.setData(&*image_info);
+	DescriptorGetInfo ret;
+	ret.resource_info = image_info;
+	ret.get_info.type = type;
 
-	return std::make_pair(image_descriptor_info, image_info);
+	return ret;
 }
 
 void Image2D::TransitionImageLayout(vk::ImageLayout old_layout, vk::ImageLayout new_layout,
@@ -250,16 +258,27 @@ void Image2D::CreateImageView() {
 FullscreenImage2D::FullscreenImage2D() {
 	m_swapchain_invalidate_listener.callback = [this](Event const* p_event) {
 		auto* p_casted = dynamic_cast<SwapchainInvalidateEvent const*>(p_event);
+		m_swapchain_invalidate_event_data = *p_casted;
+	};
+
+	m_frame_start_listener.callback = [this]([[maybe_unused]] Event const* p_event) {
+		if (!m_swapchain_invalidate_event_data.has_value())
+			return;
+
 		bool has_sampler = static_cast<bool>(m_sampler);
 		bool has_view = static_cast<bool>(m_view);
-		m_spec.size = p_casted->new_swapchain_extents;
+		m_spec.size = m_swapchain_invalidate_event_data.value().new_swapchain_extents;
 
 		DestroyImage();
 
 		CreateImage();
 		if (has_sampler) CreateSampler();
 		if (has_view) CreateImageView();
+
+		DispatchResourceEvent(S_VkResourceEvent::ResourceEventType::CREATE);
+		m_swapchain_invalidate_event_data.reset();
 	};
 
 	EventManagerG::RegisterListener<SwapchainInvalidateEvent>(m_swapchain_invalidate_listener);
+	EventManagerG::RegisterListener<FrameStartEvent>(m_frame_start_listener);
 }

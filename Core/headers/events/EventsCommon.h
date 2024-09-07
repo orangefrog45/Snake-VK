@@ -18,6 +18,11 @@ namespace SNAKE {
 		uint32_t new_height = 0;
 	};
 
+	struct SwapchainInvalidateEvent : public Event {
+		SwapchainInvalidateEvent(glm::vec2 new_extents) : new_swapchain_extents(new_extents) {};
+		glm::vec2 new_swapchain_extents{ 0, 0 };
+	};
+
 	struct FrameSyncFenceEvent : public Event {
 	};
 

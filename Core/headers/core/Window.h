@@ -2,7 +2,7 @@
 #include "VkCommon.h"
 #include "core/VkIncl.h"
 #include "core/Input.h"
-#include "images/Images.h"
+#include "resources/Images.h"
 
 
 struct GLFWwindow;

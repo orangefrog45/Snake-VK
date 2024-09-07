@@ -13,6 +13,7 @@ set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /MD /MP /O2" CACHE INTER
 
 add_subdirectory("Core")
 add_subdirectory("Editor")
+add_subdirectory("shader-permutation-helper")
 
 if(MSVC)
     target_compile_options(SNAKE_VK_CORE PRIVATE /W4)

@@ -3,7 +3,7 @@
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
 #include "util/Logger.h"
-#include "core/S_VkBuffer.h"
+#include "resources/S_VkBuffer.h"
 #include "core/VkCommon.h"
 #include "assets/MaterialAsset.h"
 

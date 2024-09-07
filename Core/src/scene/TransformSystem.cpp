@@ -109,6 +109,8 @@ void TransformSystem::RebuildMatrix(TransformComponent* p_comp) {
 	UpdateAbsTransforms(p_comp);
 
 	UpdateChildren(p_comp);
+
+	EventManagerG::DispatchEvent(ComponentEvent<TransformComponent>(p_comp, ComponentEventType::UPDATED));
 }
 
 void TransformSystem::UpdateChildren(TransformComponent* p_comp) {

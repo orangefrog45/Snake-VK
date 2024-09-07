@@ -20,8 +20,38 @@ void DescriptorBuffer::CreateBuffer(uint32_t num_sets) {
 		m_usage_flags | vk::BufferUsageFlagBits::eShaderDeviceAddress, VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT);
 }
 
-void DescriptorBuffer::LinkResource(vk::DescriptorGetInfoEXT* resource_info, unsigned binding_idx, unsigned set_buffer_idx, uint32_t array_idx) {
+#include "resources/Images.h"
+void DescriptorBuffer::LinkResource(S_VkResource const* p_resource, DescriptorGetInfo& get_info, unsigned binding_idx, unsigned set_buffer_idx, uint32_t array_idx) {
 	auto& descriptor_buffer_properties = VkContext::GetPhysicalDevice().buffer_properties;
+
+	if (m_resource_link_infos.size() <= set_buffer_idx) {
+		m_resource_link_infos.resize(set_buffer_idx + 1);
+	}
+
+	auto& resource_link_info = m_resource_link_infos[set_buffer_idx][binding_idx];
+
+	resource_link_info.get_info = get_info;
+	resource_link_info.p_resource = p_resource;
+	if (!resource_link_info.p_resource_event_listener) {
+		resource_link_info.p_resource_event_listener = std::make_shared<EventListener>();
+
+		resource_link_info.p_resource_event_listener->callback = [=, this](Event const* p_event) {
+			auto* p_casted = dynamic_cast<S_VkResourceEvent const*>(p_event);
+			if (p_casted->p_resource != p_resource)
+				return;
+
+			if (p_casted->event_type == S_VkResourceEvent::ResourceEventType::CREATE) {
+				if (auto* p_test = dynamic_cast<Image2D*>(p_casted->p_resource))
+					SNK_CORE_ERROR("IMAGE");
+				p_casted->p_resource->RefreshDescriptorGetInfo(m_resource_link_infos[set_buffer_idx][binding_idx].get_info);
+
+				LinkResource(p_resource, m_resource_link_infos[set_buffer_idx][binding_idx].get_info, binding_idx, set_buffer_idx, array_idx);
+			}
+		};
+		EventManagerG::RegisterListener<S_VkResourceEvent>(*resource_link_info.p_resource_event_listener);
+	}
+
+	get_info.Bind();
 
 	size_t size = 0;
 	auto descriptor_type = mp_descriptor_spec->GetDescriptorTypeAtBinding(binding_idx);
@@ -50,7 +80,7 @@ void DescriptorBuffer::LinkResource(vk::DescriptorGetInfoEXT* resource_info, uns
 		break;
 	}
 
-	VkContext::GetLogicalDevice().device->getDescriptorEXT(resource_info, size,
+	VkContext::GetLogicalDevice().device->getDescriptorEXT(get_info.get_info, size,
 		reinterpret_cast<std::byte*>(descriptor_buffer.Map()) + mp_descriptor_spec->GetBindingOffset(binding_idx) + size * array_idx + mp_descriptor_spec->m_aligned_size * set_buffer_idx);
 }
 

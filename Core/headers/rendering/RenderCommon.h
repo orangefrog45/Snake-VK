@@ -12,8 +12,8 @@ namespace SNAKE {
 		};
 
 		struct MeshRenderData {
-			MeshRenderData(std::vector<AssetRef<MaterialAsset>>* m) : material_vec(m) {}
-			std::vector<AssetRef<MaterialAsset>>* material_vec;
+			MeshRenderData(std::vector<AssetRef<MaterialAsset>> const* m) : material_vec(m) {}
+			std::vector<AssetRef<MaterialAsset>> const* material_vec;
 		};
 
 		void Reset() {

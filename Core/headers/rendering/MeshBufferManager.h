@@ -1,5 +1,5 @@
 #pragma once
-#include "core/S_VkBuffer.h"
+#include "resources/S_VkBuffer.h"
 
 namespace SNAKE {
 	struct MeshEntryData {

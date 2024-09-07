@@ -78,7 +78,7 @@ void App::MainLoop() {
 		//		auto* p_parent_job = JobSystem::CreateWaitedOnJob();
 
 		//		p_parent_job->func = [](const Job*) {
-		//			for (int y = 30; y < 60; y++) {
+		//			for (int y = 30; y < 31; y++) {
 		//				auto* p_job2 = JobSystem::CreateWaitedOnJob();
 		//				p_job2->func = [=](const Job*) {
 		//					SNK_CORE_INFO(y);
@@ -105,16 +105,19 @@ void App::MainLoop() {
 
 		EventManagerG::DispatchEvent(FrameStartEvent{ });
 
-		Job* update_job = JobSystem::CreateWaitedOnJob();
-		update_job->func = [this]([[maybe_unused]] Job const* job) {layers.OnUpdate(); };
+		Job* update_job = JobSystem::CreateJob();
+		update_job->func = [this]([[maybe_unused]] Job const* job) {
+			layers.OnUpdate();  
+			EventManagerG::DispatchEvent(EngineUpdateEvent{ });
+		};
 		JobSystem::Execute(update_job);
-		JobSystem::WaitOn(update_job);
-		EventManagerG::DispatchEvent(EngineUpdateEvent{ });
 
 		Job* render_job = JobSystem::CreateJob();
-		render_job->func = [this]([[maybe_unused]] Job const* job) {layers.OnRender(); };
+		render_job->func = [this]([[maybe_unused]] Job const* job) {
+			layers.OnRender();
+			EventManagerG::DispatchEvent(EngineRenderEvent{ });
+		};
 		JobSystem::Execute(render_job);
-		EventManagerG::DispatchEvent(EngineRenderEvent{ });
 
 		JobSystem::WaitAll();
 		layers.OnImGuiRender();

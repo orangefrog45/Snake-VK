@@ -34,7 +34,7 @@ namespace SNAKE {
 			light_descriptor_buffers[i].SetDescriptorSpec(descriptor_spec);
 			light_descriptor_buffers[i].CreateBuffer(1);
 			auto storage_buffer_info = light_ssbos[i].CreateDescriptorGetInfo();
-			light_descriptor_buffers[i].LinkResource(&storage_buffer_info.first, 0, 0);
+			light_descriptor_buffers[i].LinkResource(&light_ssbos[i], storage_buffer_info, 0, 0);
 		}
 	}
 

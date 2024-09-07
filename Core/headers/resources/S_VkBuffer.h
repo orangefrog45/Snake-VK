@@ -2,9 +2,10 @@
 #include <vk_mem_alloc.h>
 #include "core/VkContext.h"
 #include "core/VkIncl.h"
+#include "resources/S_VkResource.h"
 
 namespace SNAKE {
-	class S_VkBuffer {
+	class S_VkBuffer : public S_VkResource {
 	public:
 		S_VkBuffer() = default;
 		S_VkBuffer(const S_VkBuffer& other) = delete;
@@ -23,11 +24,15 @@ namespace SNAKE {
 
 			if (buffer)
 				vmaDestroyBuffer(VkContext::GetAllocator(), buffer, allocation);
+
+			DispatchResourceEvent(S_VkResourceEvent::ResourceEventType::DELETE);
 		}
 
 		void CreateBuffer(vk::DeviceSize size, vk::BufferUsageFlags usage, VmaAllocationCreateFlags flags = 0);
+		
+		void RefreshDescriptorGetInfo(DescriptorGetInfo& info) const override;
 
-		std::pair<vk::DescriptorGetInfoEXT, std::shared_ptr<vk::DescriptorAddressInfoEXT>> CreateDescriptorGetInfo() const;
+		DescriptorGetInfo CreateDescriptorGetInfo() const;
 
 		vk::DeviceAddress GetDeviceAddress() const {
 			vk::BufferDeviceAddressInfo buffer_addr_info{};

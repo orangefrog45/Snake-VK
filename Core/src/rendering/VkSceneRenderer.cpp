@@ -15,16 +15,16 @@ void VkSceneRenderer::TakeGameStateSnapshot() {
 	}
 
 	// Order meshes based on their data
-	std::ranges::sort(comps, [](const auto& mesh0, const auto& mesh1) -> bool { return mesh0->mesh_asset->uuid() < mesh1->mesh_asset->uuid(); });
+	std::ranges::sort(comps, [](const auto& mesh0, const auto& mesh1) -> bool { return mesh0->GetMeshAsset()->uuid() < mesh1->GetMeshAsset()->uuid(); });
 
-	StaticMeshAsset* p_current_mesh = comps.empty() ? nullptr : comps[0]->mesh_asset.get();
+	StaticMeshAsset* p_current_mesh = comps.empty() ? nullptr : comps[0]->GetMeshAsset();
 	uint32_t mesh_change_index = 0;
 	uint32_t same_mesh_count = 0;
 
 	for (uint32_t i = 0; i < comps.size(); i++) {
 		auto* p_mesh = comps[i];
 
-		if (auto* p_new_mesh = p_mesh->mesh_asset.get(); p_new_mesh != p_current_mesh) {
+		if (auto* p_new_mesh = p_mesh->GetMeshAsset(); p_new_mesh != p_current_mesh) {
 			m_snapshot_data.mesh_ranges.emplace_back(p_current_mesh->uuid(), mesh_change_index, same_mesh_count);
 			p_current_mesh = p_new_mesh;
 			same_mesh_count = 0;
@@ -34,7 +34,7 @@ void VkSceneRenderer::TakeGameStateSnapshot() {
 		same_mesh_count++;
 		// TODO: reduce jumping through memory
 		auto* p_ent = p_mesh->GetEntity();
-		m_snapshot_data.static_mesh_data.emplace_back(&p_mesh->materials);
+		m_snapshot_data.static_mesh_data.emplace_back(&p_mesh->GetMaterials());
 	}
 
 	if (p_current_mesh)

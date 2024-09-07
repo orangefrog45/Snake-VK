@@ -27,7 +27,7 @@ namespace SNAKE {
 			descriptor_buffers[i].SetDescriptorSpec(descriptor_spec);
 			descriptor_buffers[i].CreateBuffer(1);
 			auto storage_buffer_info = ubos[i].CreateDescriptorGetInfo();
-			descriptor_buffers[i].LinkResource(&storage_buffer_info.first, 0, 0);
+			descriptor_buffers[i].LinkResource(&ubos[i], storage_buffer_info, 0, 0);
 		}
 	}
 

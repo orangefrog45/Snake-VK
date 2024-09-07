@@ -9,7 +9,6 @@ namespace SNAKE {
 		std::atomic_uint32_t unfinished_jobs = 1;
 
 		const bool is_waited_on;
-		bool being_processed = false;
 
 		Job* p_parent = nullptr;
 		std::byte* data;
@@ -119,7 +118,6 @@ namespace SNAKE {
 		}
 
 		void ProcessJob(Job* job, std::thread::id id) {
-			job->being_processed = true;
 			m_thread_jobs[id] = job;
 
 			job->func(job);

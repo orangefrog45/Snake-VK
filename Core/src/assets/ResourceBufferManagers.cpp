@@ -12,7 +12,7 @@ void GlobalMaterialBufferManager::Init(const std::array<std::shared_ptr<Descript
 			VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT);
 
 		auto info = m_material_ubos[i].CreateDescriptorGetInfo();
-		descriptor_buffers[i]->LinkResource(&info.first, 0, 0);
+		descriptor_buffers[i]->LinkResource(&m_material_ubos[i], info, 0, 0);
 	}
 
 	m_material_update_event_listener.callback = [this](Event const* p_event) {
@@ -101,8 +101,8 @@ void GlobalTextureBufferManager::RegisterTexturesInternal() {
 	auto frame_in_flight_idx = VkContext::GetCurrentFIF();
 
 	for (auto& tex : m_textures_to_register[frame_in_flight_idx]) {
-		auto info = tex->image.CreateDescriptorGetInfo(vk::ImageLayout::eShaderReadOnlyOptimal);
-		descriptor_buffers[frame_in_flight_idx]->LinkResource(&info.first, 1, 0, tex->GetGlobalIndex());
+		auto info = tex->image.CreateDescriptorGetInfo(vk::ImageLayout::eShaderReadOnlyOptimal, vk::DescriptorType::eCombinedImageSampler);
+		descriptor_buffers[frame_in_flight_idx]->LinkResource(&tex->image, info, 1, 0, tex->GetGlobalIndex());
 		
 	}
 

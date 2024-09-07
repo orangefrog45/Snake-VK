@@ -1,5 +1,5 @@
 #pragma once
-#include "images/Images.h"
+#include "resources/Images.h"
 #include "Asset.h"
 
 namespace SNAKE {

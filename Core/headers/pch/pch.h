@@ -18,3 +18,4 @@
 #include <map>
 #include <deque>
 #include <mutex>
+#include <variant>

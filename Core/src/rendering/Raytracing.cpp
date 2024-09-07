@@ -8,10 +8,8 @@ using namespace SNAKE;
 
 void RT::InitTLAS(Scene& scene, FrameInFlightIndex idx) {
 
-	if (tlas_arr[idx]) {
-		tlas_arr[idx].release();
-		tlas_buf_arr[idx].DestroyBuffer();
-		instance_buffers[idx].DestroyBuffer();
+	if (tlas_array[idx].GetAS()) {
+		tlas_array[idx].Destroy();
 	}
 
 	auto& logical_device = VkContext::GetLogicalDevice();
@@ -24,70 +22,12 @@ void RT::InitTLAS(Scene& scene, FrameInFlightIndex idx) {
 		return;
 
 	for (auto [entity, mesh] : mesh_view.each()) {
-		for (auto& blas : mesh.mesh_asset->data->submesh_blas_array) {
+		for (auto& blas : mesh.GetMeshAsset()->data->submesh_blas_array) {
 			instances.push_back(blas->GenerateInstance(reg.get<TransformComponent>(entity)));
 		}
 	}
 
-	// Buffer to hold instance data e.g transform, blas
-	instance_buffers[idx].CreateBuffer(sizeof(vk::AccelerationStructureInstanceKHR) * instances.size(), vk::BufferUsageFlagBits::eShaderDeviceAddress |
-		vk::BufferUsageFlagBits::eAccelerationStructureBuildInputReadOnlyKHR, VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT);
-	auto* p_instance_data = instance_buffers[idx].Map();
-	memcpy(p_instance_data, instances.data(), sizeof(vk::AccelerationStructureInstanceKHR) * instances.size());
-
-	vk::AccelerationStructureGeometryKHR as_geom_info{};
-	as_geom_info.flags = vk::GeometryFlagBitsKHR::eOpaque;
-	as_geom_info.geometryType = vk::GeometryTypeKHR::eInstances;
-	as_geom_info.geometry.instances.arrayOfPointers = false;
-	as_geom_info.geometry.instances.data = instance_buffers[idx].GetDeviceAddress();
-	as_geom_info.geometry.instances.sType = vk::StructureType::eAccelerationStructureGeometryInstancesDataKHR;
-
-	vk::AccelerationStructureBuildGeometryInfoKHR as_build_size_geom_info{};
-	as_build_size_geom_info.type = vk::AccelerationStructureTypeKHR::eTopLevel;
-	as_build_size_geom_info.flags = vk::BuildAccelerationStructureFlagBitsKHR::ePreferFastTrace;
-	as_build_size_geom_info.geometryCount = 1;
-	as_build_size_geom_info.pGeometries = &as_geom_info;
-
-	vk::AccelerationStructureBuildSizesInfoKHR as_build_size_info = logical_device.device->getAccelerationStructureBuildSizesKHR(
-		vk::AccelerationStructureBuildTypeKHR::eDevice, as_build_size_geom_info, 3800);
-
-	tlas_buf_arr[idx].CreateBuffer(as_build_size_info.accelerationStructureSize, vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eAccelerationStructureStorageKHR);
-
-	vk::AccelerationStructureCreateInfoKHR as_info{};
-	as_info.buffer = tlas_buf_arr[idx].buffer;
-	as_info.size = as_build_size_info.accelerationStructureSize;
-	as_info.type = vk::AccelerationStructureTypeKHR::eTopLevel;
-
-	auto [res, value] = logical_device.device->createAccelerationStructureKHRUnique(as_info);
-	SNK_CHECK_VK_RESULT(res);
-	tlas_arr[idx] = std::move(value);
-
-	S_VkBuffer tlas_scratch_buf;
-	tlas_scratch_buf.CreateBuffer(as_build_size_info.buildScratchSize, vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress);
-
-	vk::AccelerationStructureBuildGeometryInfoKHR as_build_geom_info{};
-	as_build_geom_info.type = vk::AccelerationStructureTypeKHR::eTopLevel;
-	as_build_geom_info.mode = vk::BuildAccelerationStructureModeKHR::eBuild;
-	as_build_geom_info.dstAccelerationStructure = *tlas_arr[idx];
-	as_build_geom_info.geometryCount = 1;
-	as_build_geom_info.pGeometries = &as_geom_info;
-	as_build_geom_info.scratchData.deviceAddress = tlas_scratch_buf.GetDeviceAddress();
-	as_build_geom_info.flags = vk::BuildAccelerationStructureFlagBitsKHR::eAllowUpdate;
-
-	vk::AccelerationStructureBuildRangeInfoKHR as_build_range_info{};
-	as_build_range_info.primitiveCount = instances.size();
-	as_build_range_info.primitiveOffset = 0;
-	as_build_range_info.firstVertex = 0;
-	as_build_range_info.transformOffset = 0;
-
-	auto cmd = BeginSingleTimeCommands();
-	cmd->buildAccelerationStructuresKHR(as_build_geom_info, &as_build_range_info);
-	EndSingleTimeCommands(*cmd);
-
-	vk::AccelerationStructureDeviceAddressInfoKHR device_address_info{};
-	device_address_info.accelerationStructure = *tlas_arr[idx];
-	tlas_handles[idx] = logical_device.device->getAccelerationStructureAddressKHR(device_address_info);
-	SNK_ASSERT(tlas_handles[idx]);
+	tlas_array[idx].BuildFromInstances(instances);
 }
 
 
@@ -163,39 +103,28 @@ void RT::InitDescriptorBuffers(Image2D& output_image, Scene& scene) {
 
 	for (FrameInFlightIndex i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
 		rt_descriptor_buffers[i].SetDescriptorSpec(rt_descriptor_set_spec);
-
 		rt_descriptor_buffers[i].CreateBuffer(1);
-		vk::DescriptorGetInfoEXT get_info{};
-		get_info.type = vk::DescriptorType::eAccelerationStructureKHR;
-		get_info.data.accelerationStructure = tlas_handles[i];
-
-		vk::DescriptorImageInfo image_info{};
-		image_info.imageLayout = vk::ImageLayout::eGeneral;
-		image_info.imageView = output_image.GetImageView();
-		image_info.sampler = output_image.GetSampler();
-
-		vk::DescriptorGetInfoEXT get_info_image{};
-		get_info_image.type = vk::DescriptorType::eStorageImage;
-		get_info_image.data.pStorageImage = &image_info;
 
 		auto mesh_buffers = AssetManager::Get().mesh_buffer_manager.GetMeshBuffers();
-		auto [get_info_position_buf, a] = mesh_buffers.position_buf.CreateDescriptorGetInfo();
-		auto [get_info_index_buf, b] = mesh_buffers.indices_buf.CreateDescriptorGetInfo();
-		auto [get_info_normal_buf, c] = mesh_buffers.normal_buf.CreateDescriptorGetInfo();
-		auto [get_info_tex_coord_buf, d] = mesh_buffers.tex_coord_buf.CreateDescriptorGetInfo();
-		auto [get_info_tangent_buf, e] = mesh_buffers.tangent_buf.CreateDescriptorGetInfo();
-		auto [get_info_instance_buf, f] = scene.GetSystem<RaytracingInstanceBufferSystem>()->GetStorageBuffer(i).CreateDescriptorGetInfo();
-		auto [get_info_light_buf, g] = scene.GetSystem<LightBufferSystem>()->light_ssbos[i].CreateDescriptorGetInfo();
+		auto get_info_tlas = tlas_array[i].CreateDescriptorGetInfo();
+		auto get_info_image = output_image.CreateDescriptorGetInfo(vk::ImageLayout::eGeneral, vk::DescriptorType::eStorageImage);
+		auto get_info_position_buf = mesh_buffers.position_buf.CreateDescriptorGetInfo();
+		auto get_info_index_buf = mesh_buffers.indices_buf.CreateDescriptorGetInfo();
+		auto get_info_normal_buf = mesh_buffers.normal_buf.CreateDescriptorGetInfo();
+		auto get_info_tex_coord_buf = mesh_buffers.tex_coord_buf.CreateDescriptorGetInfo();
+		auto get_info_tangent_buf = mesh_buffers.tangent_buf.CreateDescriptorGetInfo();
+		auto get_info_instance_buf = scene.GetSystem<RaytracingInstanceBufferSystem>()->GetStorageBuffer(i).CreateDescriptorGetInfo();
+		auto get_info_light_buf = scene.GetSystem<LightBufferSystem>()->light_ssbos[i].CreateDescriptorGetInfo();
 
-		rt_descriptor_buffers[i].LinkResource(&get_info, 0, 0);
-		rt_descriptor_buffers[i].LinkResource(&get_info_image, 1, 0);
-		rt_descriptor_buffers[i].LinkResource(&get_info_position_buf, 2, 0);
-		rt_descriptor_buffers[i].LinkResource(&get_info_index_buf, 3, 0);
-		rt_descriptor_buffers[i].LinkResource(&get_info_normal_buf, 4, 0);
-		rt_descriptor_buffers[i].LinkResource(&get_info_tex_coord_buf, 5, 0);
-		rt_descriptor_buffers[i].LinkResource(&get_info_tangent_buf, 6, 0);
-		rt_descriptor_buffers[i].LinkResource(&get_info_instance_buf, 7, 0);
-		rt_descriptor_buffers[i].LinkResource(&get_info_light_buf, 8, 0);
+		rt_descriptor_buffers[i].LinkResource(&tlas_array[i], get_info_tlas, 0, 0);
+		rt_descriptor_buffers[i].LinkResource(&output_image, get_info_image, 1, 0);
+		rt_descriptor_buffers[i].LinkResource(&mesh_buffers.position_buf, get_info_position_buf, 2, 0);
+		rt_descriptor_buffers[i].LinkResource(&mesh_buffers.indices_buf, get_info_index_buf, 3, 0);
+		rt_descriptor_buffers[i].LinkResource(&mesh_buffers.normal_buf, get_info_normal_buf, 4, 0);
+		rt_descriptor_buffers[i].LinkResource(&mesh_buffers.tex_coord_buf, get_info_tex_coord_buf, 5, 0);
+		rt_descriptor_buffers[i].LinkResource(&mesh_buffers.tangent_buf, get_info_tangent_buf, 6, 0);
+		rt_descriptor_buffers[i].LinkResource(&scene.GetSystem<RaytracingInstanceBufferSystem>()->GetStorageBuffer(i), get_info_instance_buf, 7, 0);
+		rt_descriptor_buffers[i].LinkResource(&scene.GetSystem<LightBufferSystem>()->light_ssbos[i], get_info_light_buf, 8, 0);
 	}
 }
 
@@ -337,7 +266,7 @@ void RT::RecordRenderCmdBuf(vk::CommandBuffer cmd, Image2D& output_image, Descri
 
 void RT::Init(Scene& scene, Image2D& output_image, vk::DescriptorSetLayout common_ubo_set_layout) {
 	frame_start_listener.callback = [&](Event const* p_event) {
-		//InitTLAS(scene, VkContext::GetCurrentFIF());
+		InitTLAS(scene, VkContext::GetCurrentFIF());
 		};
 	EventManagerG::RegisterListener<FrameStartEvent>(frame_start_listener);
 
@@ -437,7 +366,7 @@ vk::AccelerationStructureInstanceKHR BLAS::GenerateInstance(TransformComponent& 
 	instance.instanceCustomIndex = comp.GetEntity()->GetComponent<RaytracingInstanceBufferIdxComponent>()->idx + m_submesh_index;
 	instance.accelerationStructureReference = m_blas_handle; // Handle of BLAS for the sphere mesh
 
-	auto t = transpose(comp.GetMatrix());
+	auto t = glm::transpose(comp.GetMatrix());
 	memcpy(instance.transform.matrix.data(), &t, sizeof(float) * 3 * 4);
 
 	return instance;

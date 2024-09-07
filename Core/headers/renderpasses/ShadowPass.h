@@ -1,7 +1,7 @@
 #pragma once
 #include "core/VkCommon.h"
 #include "core/VkCommands.h"
-#include "images/Images.h"
+#include "resources/Images.h"
 #include "core/Pipelines.h"
 #include "assets/MeshData.h"
 #include "components/Component.h"

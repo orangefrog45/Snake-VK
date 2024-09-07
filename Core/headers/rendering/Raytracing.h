@@ -1,13 +1,14 @@
 #pragma once
 #include "core/VkCommon.h"
 #include "core/VkContext.h"
-#include "core/S_VkBuffer.h"
+#include "resources/S_VkBuffer.h"
 #include "assets/AssetManager.h"
 #include "core/VkCommands.h"
 #include "shaders/ShaderLibrary.h"
 #include "assets/MeshData.h"
 #include "components/TransformComponent.h"
 #include "scene/Scene.h"
+#include "resources/TLAS.h"
 
 namespace SNAKE {
 	class BLAS {
@@ -56,9 +57,6 @@ namespace SNAKE {
 		S_VkBuffer sbt_ray_miss_buffer;
 		S_VkBuffer sbt_ray_hit_buffer;
 
-		std::array<S_VkBuffer, MAX_FRAMES_IN_FLIGHT> instance_buffers;
-		std::array<vk::DeviceAddress, MAX_FRAMES_IN_FLIGHT> tlas_handles;
-		std::array<S_VkBuffer, MAX_FRAMES_IN_FLIGHT> tlas_buf_arr;
-		std::array<vk::UniqueAccelerationStructureKHR, MAX_FRAMES_IN_FLIGHT> tlas_arr;
+		std::array<TLAS, MAX_FRAMES_IN_FLIGHT> tlas_array;
 	};
 }

@@ -21,7 +21,7 @@ namespace SNAKE {
 			main_pass_descriptor_set_spec->AddDescriptor(0, vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eAllGraphics)
 				.GenDescriptorLayout();
 
-			auto shadow_map_info = p_shadowmap_image->CreateDescriptorGetInfo(vk::ImageLayout::eShaderReadOnlyOptimal);
+			auto shadow_map_info = p_shadowmap_image->CreateDescriptorGetInfo(vk::ImageLayout::eShaderReadOnlyOptimal, vk::DescriptorType::eCombinedImageSampler);
 		}
 
 		// Create graphics pipeline

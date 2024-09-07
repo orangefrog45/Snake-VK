@@ -1,4 +1,4 @@
-#include "core/S_VkBuffer.h"
+#include "resources/S_VkBuffer.h"
 
 namespace SNAKE {
 	void S_VkBuffer::CreateBuffer(vk::DeviceSize size, vk::BufferUsageFlags usage, VmaAllocationCreateFlags flags) {
@@ -15,27 +15,29 @@ namespace SNAKE {
 		auto buf_info = static_cast<VkBufferCreateInfo>(buffer_info);
 		SNK_CHECK_VK_RESULT(vmaCreateBuffer(VkContext::GetAllocator(), &buf_info,
 			&alloc_create_info, reinterpret_cast<VkBuffer*>(&buffer), &allocation, &alloc_info));
+
+		DispatchResourceEvent(S_VkResourceEvent::ResourceEventType::CREATE);
 	}
 
-	std::pair<vk::DescriptorGetInfoEXT, std::shared_ptr<vk::DescriptorAddressInfoEXT>> S_VkBuffer::CreateDescriptorGetInfo() const {
-		vk::DescriptorType type;
+	void S_VkBuffer::RefreshDescriptorGetInfo(DescriptorGetInfo& info) const {
+		auto& address_info = std::get<vk::DescriptorAddressInfoEXT>(info.resource_info);
+		address_info.address = GetDeviceAddress();
+		address_info.range = alloc_info.size;
+	}
+
+	DescriptorGetInfo S_VkBuffer::CreateDescriptorGetInfo() const {
+		DescriptorGetInfo ret;
 
 		if (m_usage & vk::BufferUsageFlagBits::eStorageBuffer)
-			type = vk::DescriptorType::eStorageBuffer;
+			ret.get_info.type = vk::DescriptorType::eStorageBuffer;
 		else if (m_usage & vk::BufferUsageFlagBits::eUniformBuffer)
-			type = vk::DescriptorType::eUniformBuffer;
+			ret.get_info.type = vk::DescriptorType::eUniformBuffer;
 		else 
 			SNK_BREAK("Unsupported buffer type used for CreateDescriptorGetInfo");
 
-		auto addr_info = std::make_shared<vk::DescriptorAddressInfoEXT>();
-		addr_info->address = GetDeviceAddress(); 
-		addr_info->range = alloc_info.size;
+		ret.resource_info = vk::DescriptorAddressInfoEXT(GetDeviceAddress(), alloc_info.size);
 
-		vk::DescriptorGetInfoEXT buffer_descriptor_info{};
-		buffer_descriptor_info.type = type;
-		buffer_descriptor_info.data.pUniformBuffer = &*addr_info;
-
-		return std::make_pair(buffer_descriptor_info, addr_info);
+		return ret;
 	}
 
 }

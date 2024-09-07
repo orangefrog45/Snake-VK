@@ -5,10 +5,6 @@
 #include "core/Pipelines.h"
 
 namespace SNAKE {
-	struct SwapchainInvalidateEvent : public Event {
-		SwapchainInvalidateEvent(glm::vec2 new_extents) : new_swapchain_extents(new_extents) {};
-		glm::vec2 new_swapchain_extents{ 0, 0 };
-	};
 
 	struct Line {
 		Line(glm::vec4 c, glm::vec3 _p0, glm::vec3 _p1) : colour(c), p0(_p0), p1(_p1) {};

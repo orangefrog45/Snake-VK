@@ -1,5 +1,5 @@
 #pragma once
-#include "core/S_VkBuffer.h"
+#include "resources/S_VkBuffer.h"
 #include "events/EventManager.h"
 #include "events/EventsCommon.h"
 #include "assets/Asset.h"
@@ -58,7 +58,7 @@ namespace SNAKE {
 
 		void CreateBuffer(uint32_t num_sets);
 
-		void LinkResource(vk::DescriptorGetInfoEXT* resource_info, unsigned binding_idx, unsigned set_buffer_idx, uint32_t array_idx = 0 );
+		void LinkResource(S_VkResource const* p_resource, DescriptorGetInfo& get_info, unsigned binding_idx, unsigned set_buffer_idx, uint32_t array_idx = 0 );
 
 		vk::DescriptorBufferBindingInfoEXT GetBindingInfo();
 
@@ -70,8 +70,14 @@ namespace SNAKE {
 		S_VkBuffer descriptor_buffer;
 
 	private:
-		std::shared_ptr<DescriptorSetSpec> mp_descriptor_spec = nullptr;
+		struct ResourceLinkInfo {
+			DescriptorGetInfo get_info;
+			std::shared_ptr<EventListener> p_resource_event_listener = nullptr;
+			S_VkResource const* p_resource = nullptr;
+		};
 
+		std::shared_ptr<DescriptorSetSpec> mp_descriptor_spec = nullptr;
+		std::vector<std::unordered_map<uint32_t, ResourceLinkInfo>> m_resource_link_infos;
 		vk::BufferUsageFlags m_usage_flags;
 	};
 

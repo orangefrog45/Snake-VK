@@ -1,7 +1,7 @@
 #pragma once
 #include "components/Component.h"
 #include "components/TransformComponent.h"
-#include "core/S_VkBuffer.h"
+#include "resources/S_VkBuffer.h"
 #include "System.h"
 #include "Entity.h"
 #include "Scene.h"
