@@ -16,6 +16,6 @@ add_subdirectory("Editor")
 add_subdirectory("shader-permutation-helper")
 
 if(MSVC)
-    target_compile_options(SNAKE_VK_CORE PRIVATE /W4)
+    target_compile_options(SNAKE_VK_CORE PRIVATE /W4 /WX)
 endif()
 

@@ -21,7 +21,7 @@ namespace SNAKE {
 
 		S_VkBuffer m_blas_buf;
 		vk::UniqueAccelerationStructureKHR mp_blas;
-		vk::DeviceAddress m_blas_handle;
+		vk::DeviceAddress m_blas_handle = 0;
 	};
 
 	class RT {
@@ -40,7 +40,7 @@ namespace SNAKE {
 
 		void CreateShaderBindingTable();
 	private:
-		std::unordered_map<class MeshDataAsset*, BLAS> m_blas_map;
+		std::unordered_map<struct MeshDataAsset*, BLAS> m_blas_map;
 
 		EventListener frame_start_listener;
 

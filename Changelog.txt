@@ -1,4 +1,6 @@
 8/9/24:
+-Basic hardware accelerated pathtracing
+--
 -Made queue submissions thread-safe
 -Fixed descriptor links for mesh buffers
 -Fixed byte deserializer container bug

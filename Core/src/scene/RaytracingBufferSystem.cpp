@@ -14,11 +14,11 @@ void RaytracingInstanceBufferSystem::OnSystemAdd() {
 		if (p_casted->event_type == ComponentEventType::UPDATED)
 			m_instances_to_update.push_back(std::make_pair(p_ent->GetEnttHandle(), 0));
 		else if (p_casted->event_type == ComponentEventType::ADDED) {
-			p_ent->AddComponent<RaytracingInstanceBufferIdxComponent>()->idx = m_current_buffer_idx;
+			p_ent->AddComponent<RaytracingInstanceBufferIdxComponent>(m_current_buffer_idx);
 			m_instances_to_update.push_back(std::make_pair(p_ent->GetEnttHandle(), 0));
 
 			// Allocate space for submeshes
-			m_current_buffer_idx += p_casted->p_component->GetMeshAsset()->data->submeshes.size();
+			m_current_buffer_idx += (uint32_t)p_casted->p_component->GetMeshAsset()->data->submeshes.size();
 		}
 		};
 

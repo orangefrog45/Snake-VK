@@ -54,13 +54,13 @@ namespace SNAKE {
 			p_data = nullptr;
 		}
 
-		VmaAllocation allocation;
-		VmaAllocationInfo alloc_info;
+		VmaAllocation allocation = nullptr;
+		VmaAllocationInfo alloc_info{};
 		vk::Buffer buffer = VK_NULL_HANDLE;
 
 	private:
-		vk::BufferUsageFlags m_usage;
-		VmaAllocationCreateFlags m_alloc_create_flags;
+		vk::BufferUsageFlags m_usage = vk::BufferUsageFlagBits(0);
+		VmaAllocationCreateFlags m_alloc_create_flags = 0;
 		// Mapped ptr, nullptr if not mapped
 		void* p_data = nullptr;
 	};

@@ -14,7 +14,7 @@ namespace SNAKE {
 	public:
 		void Init();
 
-		void LoadMeshFromData(class MeshDataAsset* p_mesh_data_asset, class MeshData& data);
+		void LoadMeshFromData(struct MeshDataAsset* p_mesh_data_asset, struct MeshData& data);
 
 		void UnloadMesh(MeshDataAsset* p_mesh_data_asset);
 

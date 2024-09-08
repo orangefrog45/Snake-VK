@@ -18,7 +18,11 @@ namespace SNAKE {
 
 			SNK_ASSERT(files::PathExists(filepath));
 			std::vector<std::byte> output;
-			auto code = files::ReadBinaryFile(filepath, output);
+
+			if (!files::ReadBinaryFile(filepath, output)) {
+				SNK_BREAK("CreateShaderModule failed, failed to read file '{}'", filepath);
+			}
+
 			vk::ShaderModuleCreateInfo create_info{
 				vk::ShaderModuleCreateFlags{0},
 				output.size(), reinterpret_cast<const uint32_t*>(output.data())
@@ -80,7 +84,7 @@ namespace SNAKE {
 				size_t size = comp.get_declared_struct_size(type);
 
 				if (builder.push_constants.empty())
-					builder.AddPushConstant(0, size, vk::ShaderStageFlagBits::eAllGraphics);
+					builder.AddPushConstant(0u, (uint32_t)size, vk::ShaderStageFlagBits::eAllGraphics);
 			}
 
 			for (auto& [set_idx, set_spec] : descriptors) {

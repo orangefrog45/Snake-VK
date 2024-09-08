@@ -94,14 +94,14 @@ void App::MainLoop() {
 		glfwPollEvents();
 	}
 
-	VkContext::GetLogicalDevice().device->waitIdle();
+	SNK_CHECK_VK_RESULT(VkContext::GetLogicalDevice().device->waitIdle());
 	VkRenderer::Shutdown();
 	EventManagerG::DispatchEvent(EngineShutdownEvent{ });
 	layers.ShutdownLayers();
 	window.Shutdown();
 	AssetManager::Shutdown();
 	glfwTerminate();
-	VkContext::GetLogicalDevice().device->waitIdle();
+	SNK_CHECK_VK_RESULT(VkContext::GetLogicalDevice().device->waitIdle());
 
 	JobSystem::Shutdown();
 }

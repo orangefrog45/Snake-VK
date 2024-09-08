@@ -9,13 +9,11 @@
 
 namespace SNAKE {
 	struct Submesh {
-		Submesh() : num_indices(0), base_vertex(0), base_index(0), material_index(0) {};
-
-		unsigned int num_indices;
-		unsigned int num_vertices;
-		unsigned int base_vertex;
-		unsigned int base_index;
-		unsigned int material_index;
+		unsigned int num_indices = 0;
+		unsigned int num_vertices = 0;
+		unsigned int base_vertex = 0;
+		unsigned int base_index = 0;
+		unsigned int material_index = 0;
 	};
 
 	struct MeshData {

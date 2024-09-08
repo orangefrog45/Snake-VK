@@ -80,14 +80,7 @@ namespace SNAKE {
 			return std::ranges::find(container, value) != container.end();
 		}
 
-		static void StripNonAlphaNumChars(std::string& str) {
-			for (size_t i = 0; i < str.size(); i++) {
-				if (!std::isalnum(str[i])) {
-					str.erase(str.begin() + i);
-					i--;
-				}
-			}
-		}
+		static void StripNonAlphaNumChars(std::string& str);
 
 		/* Type ID Stuff */
 		using TypeID = uint16_t;

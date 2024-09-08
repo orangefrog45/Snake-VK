@@ -53,7 +53,7 @@ void VkRenderer::RenderImGuiAndPresentImpl(Window& window, Image2D& render_image
 	auto cmd_buf = *imgui_cmd_buffers[VkContext::GetCurrentFIF()].buf;
 	VkContext::GetLogicalDevice().device->resetCommandPool(VkContext::GetCommandPool());
 	vk::CommandBufferBeginInfo begin_info{};
-	cmd_buf.begin(begin_info);
+	SNK_CHECK_VK_RESULT(cmd_buf.begin(begin_info));
 
 	vk::RenderingAttachmentInfo colour_info{};
 	colour_info.imageLayout = vk::ImageLayout::eColorAttachmentOptimal;
@@ -72,7 +72,7 @@ void VkRenderer::RenderImGuiAndPresentImpl(Window& window, Image2D& render_image
 
 	render_image.TransitionImageLayout(vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::ePresentSrcKHR,
 		vk::AccessFlagBits::eColorAttachmentWrite, vk::AccessFlagBits::eNone, vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eBottomOfPipe, 0, 1, cmd_buf);
-	cmd_buf.end();
+	SNK_CHECK_VK_RESULT(cmd_buf.end());
 
 	vk::SubmitInfo submit_info{};
 	submit_info.pSignalSemaphores = &*m_render_finished_semaphores[VkContext::GetCurrentFIF()];
@@ -167,7 +167,7 @@ void VkRenderer::RecordRenderDebugCommandsImpl(vk::CommandBuffer cmd_buf, Image2
 
 	for (auto& line : m_render_data.lines) {
 		std::array<glm::vec4, 3> data = { glm::vec4(line.p0, 1.0), glm::vec4(line.p1, 1.0), glm::vec4(line.colour) };
-		cmd_buf.pushConstants(m_debug_pipeline.pipeline_layout.GetPipelineLayout(), vk::ShaderStageFlagBits::eAllGraphics, 0, data.size() * sizeof(glm::vec4), data.data());
+		cmd_buf.pushConstants(m_debug_pipeline.pipeline_layout.GetPipelineLayout(), vk::ShaderStageFlagBits::eAllGraphics, 0u, (uint32_t)(data.size() * sizeof(glm::vec4)), data.data());
 		cmd_buf.draw(2, 1, 0, 0);
 	}
 

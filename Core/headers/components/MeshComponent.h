@@ -22,6 +22,12 @@ namespace SNAKE {
 			return mesh_asset.get();
 		}
 
+		void SetMaterial(uint32_t submesh_idx, AssetRef<MaterialAsset> material) {
+			SNK_DBG_ASSERT(submesh_idx < materials.size());
+			materials[submesh_idx] = material;
+			EventManagerG::DispatchEvent(ComponentEvent<StaticMeshComponent>(this, ComponentEventType::UPDATED));
+		}
+
 		MaterialAsset* GetMaterial(uint32_t submesh_idx) {
 			SNK_DBG_ASSERT(submesh_idx < materials.size());
 			return materials[submesh_idx].get();

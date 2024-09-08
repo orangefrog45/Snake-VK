@@ -15,7 +15,7 @@ If the raytracing pipeline is active, RaytracingBufferSystem manages instance da
 
 namespace SNAKE {
 	struct TransformBufferIdxComponent : public Component {
-		TransformBufferIdxComponent(Entity* p_ent) : Component(p_ent) {}
+		TransformBufferIdxComponent(Entity* p_ent, uint32_t _idx) : Component(p_ent), idx(_idx) {}
 		// Index of transform in global transform buffers available in shaders ("Transforms.glsl")
 		uint32_t idx;
 	};
@@ -29,14 +29,14 @@ namespace SNAKE {
 				if (p_casted->event_type == ComponentEventType::UPDATED)
 					m_transforms_to_update.push_back(std::make_pair(p_casted->p_component->GetEntity()->GetEnttHandle(), 0));
 				else if (p_casted->event_type == ComponentEventType::ADDED) {
-					p_casted->p_component->GetEntity()->AddComponent<TransformBufferIdxComponent>()->idx = m_current_buffer_idx++;
+					p_casted->p_component->GetEntity()->AddComponent<TransformBufferIdxComponent>(m_current_buffer_idx++);
 					m_transforms_to_update.push_back(std::make_pair(p_casted->p_component->GetEntity()->GetEnttHandle(), 0));
 				}
 			};
 
 			EventManagerG::RegisterListener<ComponentEvent<TransformComponent>>(m_transform_event_listener);
 
-			m_frame_start_event_listener.callback = [this](Event const* p_event) {
+			m_frame_start_event_listener.callback = [this]([[maybe_unused]] Event const* p_event) {
 				UpdateTransformBuffer(VkContext::GetCurrentFIF());
 			};
 

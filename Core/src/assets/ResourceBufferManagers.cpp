@@ -54,7 +54,7 @@ void GlobalMaterialBufferManager::Init(const std::array<std::shared_ptr<Descript
 }
 
 void GlobalMaterialBufferManager::RegisterMaterial(AssetRef<MaterialAsset> material) {
-	for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+	for (FrameInFlightIndex i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
 		m_materials_to_register[i].push_back(material);
 		m_materials_to_update[i].push_back(material);
 	}
@@ -105,7 +105,7 @@ void GlobalTextureBufferManager::Init(const std::array<std::shared_ptr<Descripto
 }
 
 void GlobalTextureBufferManager::RegisterTexture(AssetRef<Texture2DAsset> tex) {
-	for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+	for (FrameInFlightIndex i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
 		m_textures_to_register[i].push_back(tex);
 	}
 	tex->m_global_index = m_current_index++;

@@ -100,21 +100,21 @@ bool EntityEditor::StaticMeshCompEditor(StaticMeshComponent* p_comp) {
 	if (ImGui::BeginDragDropTarget()) {
 		if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("MESH")) {
 			auto id = *reinterpret_cast<uint64_t*>(payload->Data);
-			p_comp->mesh_asset = AssetManager::GetAsset<StaticMeshAsset>(id);
+			p_comp->SetMeshAsset(AssetManager::GetAsset<StaticMeshAsset>(id));
 			ret = true;
 		}
 		ImGui::EndDragDropTarget();
 	}
 
 	ImGui::SeparatorText("Materials");
-	if (ImGui::BeginTable("##materials", p_comp->materials.size(), ImGuiTableFlags_Borders)) {
-		for (auto& mat : p_comp->materials) {
+	if (ImGui::BeginTable("##materials", (int)p_comp->materials.size(), ImGuiTableFlags_Borders)) {
+		for (uint32_t i = 0; i < p_comp->materials.size(); i++) {
 			ImGui::TableNextColumn();
-			ImGui::PushID(&mat);
+			ImGui::PushID(&p_comp->materials[i]);
 
 			AssetEntry entry;
-			entry.image = p_asset_editor->GetOrCreateAssetImage(mat.get());
-			entry.p_asset = mat.get();
+			entry.image = p_asset_editor->GetOrCreateAssetImage(p_comp->materials[i].get());
+			entry.p_asset = p_comp->materials[i].get();
 			entry.popup_settings = {};
 
 			p_asset_editor->RenderAssetEntry(entry);
@@ -122,7 +122,7 @@ bool EntityEditor::StaticMeshCompEditor(StaticMeshComponent* p_comp) {
 			if (ImGui::BeginDragDropTarget()) {
 				if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("MATERIAL")) {
 					auto id = *reinterpret_cast<uint64_t*>(payload->Data);
-					mat = AssetManager::GetAsset<MaterialAsset>(id);
+					p_comp->SetMaterial(i, AssetManager::GetAsset<MaterialAsset>(id));
 					ret = true;
 				}
 				ImGui::EndDragDropTarget();

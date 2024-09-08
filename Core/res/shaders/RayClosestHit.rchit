@@ -15,7 +15,6 @@ struct RayPayload {
   vec3 colour;
   vec3 normal;
   float distance;
-  bool first_hit;
 };
 
 layout(location = 0) rayPayloadInEXT RayPayload payload;
@@ -81,40 +80,7 @@ void main() {
   if (material.albedo_tex_idx != INVALID_GLOBAL_INDEX)
     albedo *= texture(textures[material.albedo_tex_idx], tc).rgb;
 
-  payload.colour += albedo * payload.colour;
+  payload.colour = albedo;
   payload.normal = n;
   payload.distance = gl_RayTmaxEXT;
-
-  if (payload.first_hit) {
-    payload.colour = albedo;
-    payload.first_hit = false;
-    vec3 ro = pos;
-    vec3 rd = normalize(reflect(gl_WorldRayDirectionEXT, n));
-    uint bounce = 0;
-    for (bounce; bounce < 32; bounce++) {
-      traceRayEXT(
-        as,
-        gl_RayFlagsOpaqueEXT,
-        0xff,
-        0,
-        0,
-        0,
-        ro,
-        0.001,
-        rd, 
-        10000,
-        0
-      );
-
-      if (payload.distance < 0.f) {
-        break;
-      }
-
-      ro += rd * payload.distance;
-      rd = normalize(reflect(rd, payload.normal));
-      
-    }
-
-  } 
-
 }

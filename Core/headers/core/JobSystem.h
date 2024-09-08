@@ -1,5 +1,6 @@
 #pragma once
 #include "util/TsQueue.h"
+#include "util/util.h"
 
 namespace SNAKE {
 	struct Job {
@@ -11,7 +12,6 @@ namespace SNAKE {
 		const bool is_waited_on;
 
 		Job* p_parent = nullptr;
-		std::byte* data;
 	};
 
 

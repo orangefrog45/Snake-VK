@@ -34,7 +34,7 @@ namespace SNAKE {
 		AssetRef(AssetT& _asset) : p_asset(&_asset) { p_asset->ref_count++; };
 		AssetRef(AssetT* _asset) : p_asset(_asset) { if (p_asset) p_asset->ref_count++; };
 		AssetRef(const AssetRef& other) : p_asset(other.p_asset) { if (p_asset) p_asset->ref_count++; };
-		AssetRef(AssetRef&& other) : p_asset(other.p_asset) { other.p_asset = nullptr; };
+		AssetRef(AssetRef&& other) noexcept : p_asset(other.p_asset) { other.p_asset = nullptr; };
 		AssetRef& operator=(const AssetRef& other) {
 			if (this == &other)
 				return *this;

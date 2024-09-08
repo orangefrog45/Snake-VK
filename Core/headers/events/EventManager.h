@@ -19,7 +19,7 @@ namespace SNAKE {
 		void (*DeathCallback)(const EventListener& listener) = nullptr;
 
 		// Given by EventManagerG, unique type-id for event
-		uint16_t m_listening_event_id;
+		uint16_t m_listening_event_id = std::numeric_limits<uint16_t>::max();
 
 		SNAKE::UUID<uint64_t> m_id;
 

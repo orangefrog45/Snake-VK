@@ -6,7 +6,7 @@
 
 namespace SNAKE {
 	struct RaytracingInstanceBufferIdxComponent : public Component {
-		RaytracingInstanceBufferIdxComponent(Entity* p_ent) : Component(p_ent) {}
+		RaytracingInstanceBufferIdxComponent(Entity* p_ent, uint32_t _idx) : Component(p_ent), idx(_idx) {}
 		// Index of transform in global transform buffers available in shaders ("Transforms.glsl")
 		uint32_t idx;
 	};

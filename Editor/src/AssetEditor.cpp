@@ -29,7 +29,7 @@ void AssetEditor::Init() {
 
 	auto tex = AssetManager::GetAsset<Texture2DAsset>(AssetManager::CoreAssetIDs::TEXTURE);
 
-	renderer.Init(*p_window, &p_editor->scene);
+	renderer.Init(&p_editor->scene);
 
 	Image2DSpec spec;
 	spec.aspect_flags = vk::ImageAspectFlagBits::eColor;
@@ -367,6 +367,9 @@ bool AssetEditor::AddAssetButton() {
 
 	popup_options["Mesh data"] = [this, &ret] {
 		std::string filepath = files::SelectFileFromExplorer();
+		if (filepath.empty())
+			return;
+
 		auto* p_box = p_editor->CreateDialogBox();
 		p_box->name = "Import mesh";
 		p_box->imgui_render_cb = [p_box, filepath, this] {
@@ -526,7 +529,7 @@ bool AssetEditor::RenderImGui() {
 			auto asset_types = util::array("Meshes", "Textures", "Materials");
 			for (size_t i = 0; i < asset_types.size(); i++) {
 				bool selected = static_cast<size_t>(current_asset_type_selected) == i;
-				if (ImGui::Selectable(asset_types[i], &selected, 0, {400, ASSET_WINDOW_HEIGHT / asset_types.size()})) {
+				if (ImGui::Selectable(asset_types[i], &selected, 0, {400.f, (float)ASSET_WINDOW_HEIGHT / asset_types.size()})) {
 					current_asset_type_selected = static_cast<AssetType>(i);
 				}
 			}

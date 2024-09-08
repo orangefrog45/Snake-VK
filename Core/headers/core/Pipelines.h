@@ -29,7 +29,7 @@ namespace SNAKE {
 		PipelineLayout() = default;
 		~PipelineLayout() = default;
 		PipelineLayout(const PipelineLayout& other) = delete;
-		PipelineLayout(PipelineLayout&& other) : pipeline_layout(std::move(other.pipeline_layout)) {};
+		PipelineLayout(PipelineLayout&& other) noexcept : pipeline_layout(std::move(other.pipeline_layout)) {};
 		PipelineLayout& operator=(const PipelineLayout& other) = delete;
 
 		void Init(PipelineLayoutBuilder& builder) {

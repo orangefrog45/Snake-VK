@@ -145,7 +145,7 @@ namespace SNAKE {
 		bi.pszDisplayName = buffer;
 
 		if (!start_dir.empty()) {
-			bi.lpfn = [](HWND hwnd, UINT uMsg, LPARAM lParam, LPARAM lpData) -> int {
+			bi.lpfn = [](HWND hwnd, UINT uMsg, [[maybe_unused]] LPARAM lParam, LPARAM lpData) -> int {
 				if (uMsg == BFFM_INITIALIZED) {
 					SendMessage(hwnd, BFFM_SETSELECTION, TRUE, lpData);
 				}
@@ -230,6 +230,7 @@ namespace SNAKE {
 		}
 		catch (std::exception& e) {
 			SNK_CORE_ERROR("std::filesystem::is_regular_file err with path '{0}', '{1}'", entry.path().string(), e.what());
+			return false;
 		}
 	}
 
@@ -243,7 +244,8 @@ namespace SNAKE {
 			std::time_t time = std::chrono::system_clock::to_time_t(sys_time);
 
 			char buffer[80];
-			std::tm* time_info = std::localtime(&time);
+			std::tm* time_info = nullptr;
+			localtime_s(time_info, &time);
 			std::strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", time_info);
 			formatted = buffer;
 		}
@@ -271,6 +273,8 @@ namespace SNAKE {
 
 		out << content;
 		out.close();
+
+		return true;
 	}
 
 	bool WriteBinaryFile(const std::string& filepath, void* data, size_t size) {
@@ -283,6 +287,8 @@ namespace SNAKE {
 
 		out.write(reinterpret_cast<char*>(data), size);
 		out.close();
+
+		return true;
 	}
 
 	std::string ReadTextFile(const std::string& filepath) {
@@ -323,5 +329,15 @@ namespace SNAKE {
 
 		return true;
 	}
+
+	} // namespace files
+
+	void StripNonAlphaNumChars(std::string& str) {
+		for (size_t i = 0; i < str.size(); i++) {
+			if (!std::isalnum(str[i])) {
+				str.erase(str.begin() + i);
+				i--;
+			}
+		}
 	}
-}
+} // namespace SNAKE

@@ -10,18 +10,10 @@
 
 namespace SNAKE {
 
-	void ForwardPass::Init(Window* p_window, Image2D* p_shadowmap_image) {
+	void ForwardPass::Init() {
 		// Create command buffers
 		for (auto& buf : m_cmd_buffers) {
 			buf.Init(vk::CommandBufferLevel::ePrimary);
-		}
-
-		for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-			auto main_pass_descriptor_set_spec = std::make_shared<DescriptorSetSpec>();
-			main_pass_descriptor_set_spec->AddDescriptor(0, vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eAllGraphics)
-				.GenDescriptorLayout();
-
-			auto shadow_map_info = p_shadowmap_image->CreateDescriptorGetInfo(vk::ImageLayout::eShaderReadOnlyOptimal, vk::DescriptorType::eCombinedImageSampler);
 		}
 
 		// Create graphics pipeline

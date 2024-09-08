@@ -233,11 +233,9 @@ void EditorLayer::OnInit() {
 	}
 
 	editor_executable_dir = std::filesystem::current_path().string();
-	renderer.Init(*p_window, &scene);
+	renderer.Init(&scene);
 	ent_editor.Init(&asset_editor);
 	asset_editor.Init();
-
-
 
 	entity_deletion_listener.callback = [&](Event const* _event) {
 		auto* p_casted = dynamic_cast<EntityDeleteEvent const*>(_event);
@@ -354,7 +352,7 @@ std::vector<EntityNode> CreateLinearEntityHierarchy(Scene* p_scene) {
 
 std::string GetEntityPadding(unsigned tree_depth) {
 	std::string padding = "";
-	for (int i = 0; i < tree_depth; i++) {
+	for (unsigned i = 0; i < tree_depth; i++) {
 		padding += "   ";
 	}
 

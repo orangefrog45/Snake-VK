@@ -22,9 +22,9 @@ namespace SNAKE {
 			}
 		}
 
-		pipeline_layout_info.setLayoutCount = built_set_layouts.size();
+		pipeline_layout_info.setLayoutCount = (uint32_t)built_set_layouts.size();
 		pipeline_layout_info.pSetLayouts = built_set_layouts.data();
-		pipeline_layout_info.pushConstantRangeCount = push_constants.size();
+		pipeline_layout_info.pushConstantRangeCount = (uint32_t)push_constants.size();
 		pipeline_layout_info.pPushConstantRanges = push_constants.data();
 	}
 
@@ -44,7 +44,7 @@ namespace SNAKE {
 		rasterizer_info.depthBiasEnable = VK_FALSE;
 
 		dynamic_state_info.pDynamicStates = dynamic_states.data();
-		dynamic_state_info.dynamicStateCount = dynamic_states.size();
+		dynamic_state_info.dynamicStateCount = (uint32_t)dynamic_states.size();
 
 		viewport_info.viewportCount = 1;
 		viewport_info.scissorCount = 1;
@@ -97,19 +97,19 @@ namespace SNAKE {
 		pipeline_layout_builder.Build();
 		pipeline_layout.Init(pipeline_layout_builder);
 
-		render_info.colorAttachmentCount = colour_attachment_formats.size();
+		render_info.colorAttachmentCount = (uint32_t)colour_attachment_formats.size();
 		render_info.pColorAttachmentFormats = colour_attachment_formats.data();
 
 		colour_blend_state.logicOpEnable = VK_FALSE;
-		colour_blend_state.attachmentCount = colour_blend_attachment_states.size();
+		colour_blend_state.attachmentCount = (uint32_t)colour_blend_attachment_states.size();
 		colour_blend_state.pAttachments = colour_blend_attachment_states.data();
 
-		vert_input_info.vertexBindingDescriptionCount = vertex_binding_descriptions.size();
-		vert_input_info.vertexAttributeDescriptionCount = vertex_attribute_descriptions.size();
+		vert_input_info.vertexBindingDescriptionCount = (uint32_t)vertex_binding_descriptions.size();
+		vert_input_info.vertexAttributeDescriptionCount = (uint32_t)vertex_attribute_descriptions.size();
 		vert_input_info.pVertexAttributeDescriptions = vertex_attribute_descriptions.data();
 		vert_input_info.pVertexBindingDescriptions = vertex_binding_descriptions.data();
 
-		pipeline_info.stageCount = shaders.size();
+		pipeline_info.stageCount = (uint32_t)shaders.size();
 		pipeline_info.pStages = shaders.data();
 		pipeline_info.pVertexInputState = &vert_input_info;
 		pipeline_info.pInputAssemblyState = &input_assembly_info;

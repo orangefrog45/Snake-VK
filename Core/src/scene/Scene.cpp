@@ -20,6 +20,6 @@ Entity* Scene::GetEntity(entt::entity handle) {
 	return p_tag ? p_tag->GetEntity() : nullptr;
 }
 
-Entity* Scene::GetEntity(uint64_t uuid) {
-	return m_uuid_entity_lookup[uuid];
+Entity* Scene::GetEntity(uint64_t _uuid) {
+	return m_uuid_entity_lookup[_uuid];
 }

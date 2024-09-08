@@ -6,7 +6,6 @@ struct RayPayload {
   vec3 colour;
   vec3 normal;
   float distance;
-  bool first_hit;
 };
 
 layout(location = 0) rayPayloadEXT RayPayload payload;
@@ -25,6 +24,123 @@ vec3 WorldPosFromDepth(float depth, vec2 normalized_tex_coords) {
 	return worldSpacePosition.xyz;
 }
 
+/*
+    static.frag
+    by Spatial
+    05 July 2013
+*/
+
+
+// A single iteration of Bob Jenkins' One-At-A-Time hashing algorithm.
+uint hash( uint x ) {
+    x += ( x << 10u );
+    x ^= ( x >>  6u );
+    x += ( x <<  3u );
+    x ^= ( x >> 11u );
+    x += ( x << 15u );
+    return x;
+}
+
+
+
+// Compound versions of the hashing algorithm I whipped together.
+uint hash( uvec2 v ) { return hash( v.x ^ hash(v.y)                         ); }
+uint hash( uvec3 v ) { return hash( v.x ^ hash(v.y) ^ hash(v.z)             ); }
+uint hash( uvec4 v ) { return hash( v.x ^ hash(v.y) ^ hash(v.z) ^ hash(v.w) ); }
+
+
+
+// Construct a float with half-open range [0:1] using low 23 bits.
+// All zeroes yields 0.0, all ones yields the next smallest representable value below 1.0.
+float floatConstruct( uint m ) {
+    const uint ieeeMantissa = 0x007FFFFFu; // binary32 mantissa bitmask
+    const uint ieeeOne      = 0x3F800000u; // 1.0 in IEEE binary32
+
+    m &= ieeeMantissa;                     // Keep only mantissa bits (fractional part)
+    m |= ieeeOne;                          // Add fractional part to 1.0
+
+    float  f = uintBitsToFloat( m );       // Range [1:2]
+    return f - 1.0;                        // Range [0:1]
+}
+
+
+
+// Pseudo-random value in range [-1:1].
+float random( float x ) { return floatConstruct(hash(floatBitsToUint(x))) * 2.0 - 1.0; }
+
+vec3 random(vec3 seed) {
+  return vec3(random(seed.x), random(seed.y), random(seed.z));
+}
+
+vec3 RandomVectorOnHemisphere(vec3 n, vec3 seed) {
+  vec3 rnd = normalize(random(seed));
+  if (dot(rnd, n) < 0.0)
+    rnd *= -1.0;
+  
+  return rnd;
+}
+
+vec3 BouncePerfectReflections(vec3 ro, vec3 rd) {
+  vec3 colour_sum = vec3(0);
+  for (uint bounce = 0; bounce < 8; bounce++) {
+
+    traceRayEXT(
+      as,
+      gl_RayFlagsOpaqueEXT,
+      0xff,
+      0,
+      0,
+      0,
+      ro,
+      0.001,
+      rd, 
+      10000,
+      0
+    );
+
+    colour_sum += payload.colour;
+    if (payload.distance < 0.f) {
+      break;
+    }
+
+    ro = ro + rd * payload.distance;
+    rd = normalize(reflect(rd, payload.normal));
+  } 
+
+  return colour_sum;
+}
+
+vec3 BounceDiffuse(vec3 ro, vec3 n, vec3 albedo) {
+  vec3 colour_sum = vec3(0);
+  for (uint ray_idx = 0; ray_idx < 1; ray_idx++) {
+    vec3 rd = RandomVectorOnHemisphere(n, vec3(ro.x + ray_idx, ro.y + ray_idx, ro.z + ray_idx));
+
+    traceRayEXT(
+      as,
+      gl_RayFlagsOpaqueEXT,
+      0xff,
+      0,
+      0,
+      0,
+      ro,
+      0.001,
+      rd, 
+      10000,
+      0
+    );
+
+    colour_sum += payload.colour * albedo * 30;
+    if (payload.distance < 0.f) {
+     // break;
+    }
+
+    //rd = normalize(reflect(rd, payload.normal));
+    //current_ro += rd * payload.distance;
+  }
+
+  return colour_sum;
+}
+
 void main() {
   vec2 pixel_center = vec2(gl_LaunchIDEXT.xy) + vec2(0.5);
   vec2 uv = pixel_center / vec2(gl_LaunchSizeEXT.xy);
@@ -33,8 +149,6 @@ void main() {
   vec3 ro = common_ubo.cam_pos.xyz;
   vec3 rd = normalize(WorldPosFromDepth(1.0, uv) - ro);
 
-  payload.first_hit = true;
-  payload.colour = vec3(0);
 
   traceRayEXT(
     as,
@@ -46,9 +160,14 @@ void main() {
     ro,
     0.001,
     rd, 
-    1000000,
+    10000,
     0
   );
 
-  imageStore(img, ivec2(gl_LaunchIDEXT), vec4(payload.colour, 1.0));
+  ro += rd * payload.distance;
+  vec3 colour_sum = payload.colour;
+  if (payload.distance > 0.f)
+    colour_sum += BounceDiffuse(ro, payload.normal, payload.colour);
+
+  imageStore(img, ivec2(gl_LaunchIDEXT), vec4(colour_sum, 1.0));
 }

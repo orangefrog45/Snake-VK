@@ -14,8 +14,6 @@ namespace SNAKE {
 	}
 
 	glm::mat3 ExtraMath::Rotate2D(float rot) {
-		float rx = glm::radians(rot);
-
 		glm::mat3 rot_matrix(
 			cosf(rot), -sin(rot), 0.0f,
 			sin(rot), cos(rot), 0.0f,

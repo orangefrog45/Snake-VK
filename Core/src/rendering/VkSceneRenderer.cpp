@@ -1,6 +1,6 @@
 #include "rendering/VkSceneRenderer.h"
 #include "scene/Scene.h"
-#include "components/Components.h"
+#include "components/MeshComponent.h"
 #include "core/JobSystem.h"
 
 using namespace SNAKE;
@@ -32,8 +32,6 @@ void VkSceneRenderer::TakeGameStateSnapshot() {
 		}
 
 		same_mesh_count++;
-		// TODO: reduce jumping through memory
-		auto* p_ent = p_mesh->GetEntity();
 		m_snapshot_data.static_mesh_data.emplace_back(&p_mesh->GetMaterials());
 	}
 
@@ -41,13 +39,13 @@ void VkSceneRenderer::TakeGameStateSnapshot() {
 		m_snapshot_data.mesh_ranges.emplace_back(p_current_mesh->uuid(), mesh_change_index, same_mesh_count);
 }
 
-void VkSceneRenderer::Init(Window& window, Scene* p_scene) {
+void VkSceneRenderer::Init(Scene* p_scene) {
 	mp_scene = p_scene;
 
 	m_shadow_pass.Init();
-	m_forward_pass.Init(&window, &m_shadow_pass.m_dir_light_shadow_map);
+	m_forward_pass.Init();
 
-	m_frame_start_listener.callback = [this](Event const* p_event) {
+	m_frame_start_listener.callback = [this]([[maybe_unused]] Event const* p_event) {
 		TakeGameStateSnapshot();
 	};
 

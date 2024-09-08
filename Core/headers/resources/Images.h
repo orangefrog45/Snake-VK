@@ -7,7 +7,7 @@
 namespace SNAKE {
 	struct Image2DSpec {
 		Image2DSpec() = default;
-		Image2DSpec(vk::Format fmt, vk::ImageUsageFlags use_flags, vk::ImageTiling _tiling, vk::ImageAspectFlags asp_flags, glm::uvec2 _size, float mips) :
+		Image2DSpec(vk::Format fmt, vk::ImageUsageFlags use_flags, vk::ImageTiling _tiling, vk::ImageAspectFlags asp_flags, glm::uvec2 _size, unsigned mips) :
 			format(fmt), usage(use_flags), tiling(_tiling), aspect_flags(asp_flags), size(_size), mip_levels(mips) {}
 
 		vk::Format format = vk::Format::eUndefined;
@@ -101,7 +101,7 @@ namespace SNAKE {
 		vk::UniqueSampler m_sampler;
 		vk::Image m_image;
 		vk::UniqueImageView m_view;
-		VmaAllocation m_allocation;
+		VmaAllocation m_allocation = nullptr;
 
 		const bool m_owns_image = true;
 	};

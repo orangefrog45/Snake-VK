@@ -52,7 +52,7 @@ void TLAS::BuildFromInstances(const std::vector<vk::AccelerationStructureInstanc
 	as_build_geom_info.flags = vk::BuildAccelerationStructureFlagBitsKHR::eAllowUpdate;
 
 	vk::AccelerationStructureBuildRangeInfoKHR as_build_range_info{};
-	as_build_range_info.primitiveCount = instances.size();
+	as_build_range_info.primitiveCount = (uint32_t)instances.size();
 	as_build_range_info.primitiveOffset = 0;
 	as_build_range_info.firstVertex = 0;
 	as_build_range_info.transformOffset = 0;

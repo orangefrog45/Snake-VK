@@ -6,7 +6,6 @@ struct RayPayload {
   vec3 colour;
   vec3 normal;
   float distance;
-  bool first_hit;
 };
 
 layout(location = 0) rayPayloadInEXT RayPayload payload;
@@ -17,7 +16,7 @@ void main() {
 	vec3 unitDir = normalize(gl_WorldRayDirectionEXT);
 	float t = 0.5 * (unitDir.y + 1.0);
   
-  payload.colour += ((1.0-t) * gradientStart + t * gradientEnd) * 0.25f;
+  payload.colour = ((1.0-t) * gradientStart + t * gradientEnd) * 0.25f;
     
   payload.distance = -1.f;
   

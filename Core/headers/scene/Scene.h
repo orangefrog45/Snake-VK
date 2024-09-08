@@ -10,7 +10,7 @@ namespace SNAKE {
 		Scene() = default;
 		~Scene() { 
 			ClearEntities();
-			for (auto [uuid, system] : m_systems) {
+			for (auto [_uuid, system] : m_systems) {
 				delete system;
 			}
 			m_systems.clear();
@@ -20,14 +20,14 @@ namespace SNAKE {
 			return m_registry;
 		}
 
-		Entity& CreateEntity(uint64_t uuid = 0) {
+		Entity& CreateEntity(uint64_t _uuid = 0) {
 			// Randomize uuid if left as default
-			if (uuid == 0)
-				uuid = UUID<uint64_t>()();
+			if (_uuid == 0)
+				_uuid = UUID<uint64_t>()();
 
-			SNK_ASSERT(!m_uuid_entity_lookup.contains(uuid));
+			SNK_ASSERT(!m_uuid_entity_lookup.contains(_uuid));
 
-			Entity* p_ent = new Entity(this, m_registry.create(), &m_registry, uuid);
+			Entity* p_ent = new Entity(this, m_registry.create(), &m_registry, _uuid);
 			p_ent->AddComponent<TransformComponent>();
 			p_ent->AddComponent<TagComponent>();
 			p_ent->AddComponent<RelationshipComponent>();

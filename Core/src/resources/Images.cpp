@@ -48,8 +48,8 @@ void Image2D::BlitTo(Image2D& dst, unsigned dst_mip, unsigned src_mip, vk::Image
 		cmd = *temp;
 	}
 
-	float src_div = glm::pow(2.f, src_mip);
-	float dst_div = glm::pow(2.f, dst_mip);
+	float src_div = glm::pow(2.f, (float)src_mip);
+	float dst_div = glm::pow(2.f, (float)dst_mip);
 
 	vk::ImageBlit blits;
 	blits.srcOffsets[0] = vk::Offset3D{ 0, 0, 0 };

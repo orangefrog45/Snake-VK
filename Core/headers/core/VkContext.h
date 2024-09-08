@@ -83,7 +83,7 @@ namespace SNAKE {
 			return Get().m_current_frame;
 		}
 
-		static void CreateCommandPool(const class QueueFamilyIndices& queue_indices);
+		static void CreateCommandPool(const struct QueueFamilyIndices& queue_indices);
 
 		static void InitVMA() {
 			Get().I_InitVMA();

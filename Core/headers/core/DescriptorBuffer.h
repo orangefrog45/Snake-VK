@@ -12,7 +12,7 @@ namespace SNAKE {
 		DescriptorSetSpec(const DescriptorSetSpec& other) = delete;
 		DescriptorSetSpec& operator=(const DescriptorSetSpec& other) = delete;
 
-		DescriptorSetSpec(DescriptorSetSpec&& other) :
+		DescriptorSetSpec(DescriptorSetSpec&& other) noexcept :
 			m_layout_bindings(std::move(other.m_layout_bindings)), m_layout(std::move(other.m_layout)),
 			m_binding_offsets(std::move(other.m_binding_offsets)) {}
 
@@ -28,7 +28,7 @@ namespace SNAKE {
 
 		vk::DescriptorSetLayout GetLayout();
 
-		using BindingOffset = uint32_t;
+		using BindingOffset = vk::DeviceAddress;
 		using BindingIndex = uint32_t;
 		BindingOffset GetBindingOffset(BindingIndex binding_index);
 

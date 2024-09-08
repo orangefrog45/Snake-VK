@@ -93,7 +93,7 @@ void SceneSerializer::DeserializeEntity(Entity& ent, json& j) {
 	if (parent_uuid != 0) {
 		auto* p_parent = scene.GetEntity(parent_uuid);
 		if (!p_parent)
-			SNK_CORE_ERROR("Entity [{}, {}] serialized with parent UUID '{}', parent UUID not found", p_tag->name, ent.GetUUID(), p_parent->GetUUID());
+			SNK_CORE_ERROR("Entity [{}, {}] serialized with parent UUID '{}', parent UUID not found", p_tag->name, ent.GetUUID(), parent_uuid);
 		else
 			ent.SetParent(*p_parent);
 	}
@@ -170,7 +170,7 @@ void SceneSerializer::DeserializeScene(const std::string& input_filepath, Scene&
 
 	// First create all entities with UUIDS
 	for (auto& ent_node : j.at("Entities")) {
-		auto& ent = scene.CreateEntity(tget(ent_node.at("UUID"), uint64_t));
+		scene.CreateEntity(tget(ent_node.at("UUID"), uint64_t));
 	}
 
 	for (auto& ent_node : j.at("Entities")) {

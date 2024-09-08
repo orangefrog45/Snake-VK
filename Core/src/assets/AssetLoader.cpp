@@ -99,7 +99,7 @@ Texture2DAsset* AssetLoader::DeserializeTexture2D(const std::string& filepath) {
 	SNK_CORE_INFO(raw_file_data.size());
 
 	int x, y, channels;
-	auto pixels = stbi_load_from_memory(reinterpret_cast<const stbi_uc*>(raw_file_data.data()), raw_file_data.size(), &x, &y, &channels, 4);
+	auto pixels = stbi_load_from_memory(reinterpret_cast<const stbi_uc*>(raw_file_data.data()), (int)raw_file_data.size(), &x, &y, &channels, 4);
 	if (!pixels) 
 		SNK_CORE_ERROR("DeserializeTexture2D failed, stbi load failed '{}'", stbi_failure_reason());
 

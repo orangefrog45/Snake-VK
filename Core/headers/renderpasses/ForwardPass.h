@@ -8,7 +8,7 @@
 namespace SNAKE {
 	class ForwardPass {
 	public:
-		void Init(Window* p_window, Image2D* p_shadowmap_image);
+		void Init();
 
 		void RecordCommandBuffer(Image2D& output_image, Image2D& depth_image, class Scene& scene, const SceneSnapshotData& data);
 

@@ -1,6 +1,6 @@
 #pragma once
-#include "util/util.h"
 #include "util/FileUtil.h"
+#include "util/util.h"
 
 namespace SNAKE {
 	template<typename T>
@@ -79,7 +79,7 @@ namespace SNAKE {
 		// Deserializes a value that was serialized as a pointer to data with a fixed size in ByteSerializer
 		// Output should be nullptr, it will be allocated here
 		template<typename T>
-		void Value(T*& output, size_t PLACEHOLDER) {
+		void Value(T*& output, [[maybe_unused]] size_t PLACEHOLDER) { // TODO: Placeholder?
 			size_t size;
 			Value(size);
 
@@ -97,7 +97,6 @@ namespace SNAKE {
 			Value(size);
 
 			size_t required_output_container_size = size / sizeof(typename T::value_type);
-			output.clear();
 			output.resize(required_output_container_size);
 
 			SNK_ASSERT(m_pos + size <= m_data_size);

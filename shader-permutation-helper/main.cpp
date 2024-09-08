@@ -89,7 +89,7 @@ void CompilePermutation(const ShaderFileData& data, uint8_t bits, const std::str
 std::vector<std::future<void>> g_futures;
 
 void CompilePermutations(const ShaderFileData& data, const std::string& base_output_path) {
-	size_t num_unique_permutations = pow(2, data.defines.size());
+	size_t num_unique_permutations = (size_t)pow(2, data.defines.size());
 
 	if (num_unique_permutations > std::numeric_limits<uint8_t>::max()) {
 		std::cout << std::format("Error: shader '{}' has num_unique_permutations={}, max supported = {}", data.path, num_unique_permutations, std::numeric_limits<uint8_t>::max());
@@ -102,7 +102,7 @@ void CompilePermutations(const ShaderFileData& data, const std::string& base_out
 
 }
 
-void main() {
+int main() {
 	while (true) {
 		std::array<std::string, 1> shader_directories = { THIS_DIR "/../Core/res/shaders" };
 
@@ -141,7 +141,7 @@ void main() {
 				std::filesystem::copy(shader_directories[0] + "/spv/", output_directories[i], 
 					std::filesystem::copy_options::recursive | std::filesystem::copy_options::overwrite_existing);
 			}
-			catch (std::exception& e) {
+			catch ([[maybe_unused]] std::exception& e) {
 				continue;
 			}
 		}
@@ -150,4 +150,6 @@ void main() {
 		std::string temp;
 		std::cin >> temp;
 	}
+
+	return 0;
 }

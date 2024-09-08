@@ -1,4 +1,3 @@
-#pragma once
 #include "pch/pch.h"
 #include "rendering/MeshBufferManager.h"
 #include "assets/MeshData.h"
@@ -28,7 +27,7 @@ void MeshBufferManager::LoadMeshFromData(MeshDataAsset* p_mesh_data_asset, MeshD
 	p_mesh_data_asset->submesh_blas_array.resize(p_mesh_data_asset->submeshes.size(), nullptr);
 	for (size_t i = 0; i < p_mesh_data_asset->submeshes.size(); i++) {
 		p_mesh_data_asset->submesh_blas_array[i] = new BLAS();
-		p_mesh_data_asset->submesh_blas_array[i]->GenerateFromMeshData(data, i);
+		p_mesh_data_asset->submesh_blas_array[i]->GenerateFromMeshData(data, (uint32_t)i);
 	}
 
 	S_VkBuffer staging_buf{};
@@ -91,6 +90,6 @@ void MeshBufferManager::LoadMeshFromData(MeshDataAsset* p_mesh_data_asset, MeshD
 
 
 
-void MeshBufferManager::UnloadMesh(MeshDataAsset* p_p_mesh_data_asset) {
-
+void MeshBufferManager::UnloadMesh([[maybe_unused]] MeshDataAsset* p_mesh_data_asset) {
+	// TODO: Implement
 }

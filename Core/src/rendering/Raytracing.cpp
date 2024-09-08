@@ -12,8 +12,6 @@ void RT::InitTLAS(Scene& scene, FrameInFlightIndex idx) {
 		tlas_array[idx].Destroy();
 	}
 
-	auto& logical_device = VkContext::GetLogicalDevice();
-
 	std::vector<vk::AccelerationStructureInstanceKHR> instances;
 
 	auto& reg = scene.GetRegistry();
@@ -134,7 +132,7 @@ void RT::InitPipeline(vk::DescriptorSetLayout common_ubo_set_layout) {
 			AssetManager::GetGlobalTexMatBufDescriptorSetLayout(0));
 
 		vk::PipelineLayoutCreateInfo pipeline_layout_info{};
-		pipeline_layout_info.setLayoutCount = layouts.size();
+		pipeline_layout_info.setLayoutCount = (uint32_t)layouts.size();
 		pipeline_layout_info.pSetLayouts = layouts.data();
 		auto [res, value] = VkContext::GetLogicalDevice().device->createPipelineLayoutUnique(pipeline_layout_info);
 		SNK_CHECK_VK_RESULT(res);
@@ -184,9 +182,9 @@ void RT::InitPipeline(vk::DescriptorSetLayout common_ubo_set_layout) {
 	std::vector<vk::RayTracingShaderGroupCreateInfoKHR> shader_groups = { ray_gen_group, ray_miss_group, ray_chit_group };
 	std::vector<vk::PipelineShaderStageCreateInfo> shader_stages = { ray_gen_shader_stage_info, miss_shader_stage_info, chit_shader_stage_info };
 	vk::RayTracingPipelineCreateInfoKHR pipeline_info{};
-	pipeline_info.stageCount = shader_stages.size();
+	pipeline_info.stageCount = (uint32_t)shader_stages.size();
 	pipeline_info.pStages = shader_stages.data();
-	pipeline_info.groupCount = shader_groups.size();
+	pipeline_info.groupCount = (uint32_t)shader_groups.size();
 	pipeline_info.pGroups = shader_groups.data();
 	pipeline_info.maxPipelineRayRecursionDepth = 3;
 	pipeline_info.layout = *rt_pipeline_layout;
@@ -196,14 +194,14 @@ void RT::InitPipeline(vk::DescriptorSetLayout common_ubo_set_layout) {
 	SNK_CHECK_VK_RESULT(res);
 	rt_pipeline = std::move(val);
 
-	sbt_group_count = shader_groups.size();
+	sbt_group_count = (uint32_t)shader_groups.size();
 }
 
 void RT::CreateShaderBindingTable() {
 	auto& ray_pipeline_properties = VkContext::GetPhysicalDevice().ray_properties;
 	auto sbt_handle_size = ray_pipeline_properties.shaderGroupHandleSize;
 	auto sbt_handle_alignment = ray_pipeline_properties.shaderGroupHandleAlignment;
-	sbt_handle_size_aligned = aligned_size(sbt_handle_size, sbt_handle_alignment);
+	sbt_handle_size_aligned = (uint32_t)aligned_size(sbt_handle_size, sbt_handle_alignment);
 	auto sbt_size = sbt_group_count * sbt_handle_size_aligned;
 
 	std::vector<std::byte> sbt_data(sbt_size);
@@ -265,7 +263,7 @@ void RT::RecordRenderCmdBuf(vk::CommandBuffer cmd, Image2D& output_image, Descri
 }
 
 void RT::Init(Scene& scene, Image2D& output_image, vk::DescriptorSetLayout common_ubo_set_layout) {
-	frame_start_listener.callback = [&](Event const* p_event) {
+	frame_start_listener.callback = [&]([[maybe_unused]] Event const* p_event) {
 		InitTLAS(scene, VkContext::GetCurrentFIF());
 		};
 	EventManagerG::RegisterListener<FrameStartEvent>(frame_start_listener);
