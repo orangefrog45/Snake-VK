@@ -34,6 +34,7 @@ namespace SNAKE {
 	struct S_VkResourceEvent : public Event {
 		enum class ResourceEventType {
 			DELETE,
+			UPDATE,
 			CREATE
 		} event_type;
 

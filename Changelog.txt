@@ -1,3 +1,8 @@
+8/9/24:
+-Made queue submissions thread-safe
+-Fixed descriptor links for mesh buffers
+-Fixed byte deserializer container bug
+
 7/9/24:
 -Proper links between descriptor buffers and resources so when resources reallocate they remain connected to descriptor buffers
 -Acceleration structure rebuilding each frame to reflect scene updates (not optimal - will use proper AS updates if needed for performance)

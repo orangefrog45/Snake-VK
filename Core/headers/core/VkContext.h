@@ -8,11 +8,37 @@ namespace SNAKE {
 	using FrameInFlightIndex = uint8_t;
 	constexpr FrameInFlightIndex MAX_FRAMES_IN_FLIGHT = 2;
 
-	struct LogicalDevice {
+	class LogicalDevice {
+	public:
 		vk::UniqueDevice device;
 
-		vk::Queue graphics_queue;
-		vk::Queue presentation_queue;
+		void SubmitGraphics(const vk::SubmitInfo& info, std::optional<vk::Fence> fence = std::nullopt) {
+			m_graphics_mux.lock();
+			SNK_CHECK_VK_RESULT(m_graphics_queue.submit(info, fence.has_value() ? fence.value() : VK_NULL_HANDLE));
+			m_graphics_mux.unlock();
+		}
+
+		void GraphicsQueueWaitIdle() {
+			m_graphics_mux.lock();
+			SNK_CHECK_VK_RESULT(m_graphics_queue.waitIdle());
+			m_graphics_mux.unlock();
+		}
+
+		vk::Result SubmitPresentation(const vk::PresentInfoKHR& info) {
+			m_present_mux.lock();
+			auto res = m_presentation_queue.presentKHR(info);
+			m_present_mux.unlock();
+			return res;
+		}
+
+	private:
+		std::mutex m_graphics_mux;
+		std::mutex m_present_mux;
+
+		vk::Queue m_graphics_queue;
+		vk::Queue m_presentation_queue;
+		friend class VkContext;
+		friend class ImGuiLayer;
 	};
 
 	struct PhysicalDevice {

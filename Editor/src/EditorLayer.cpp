@@ -309,7 +309,7 @@ void EditorLayer::OnRender() {
 	vk::SubmitInfo submit_info{};
 	submit_info.commandBufferCount = 1;
 	submit_info.pCommandBuffers = &*m_cmd_buffers[VkContext::GetCurrentFIF()].buf;
-	SNK_CHECK_VK_RESULT(VkContext::GetLogicalDevice().graphics_queue.submit(submit_info));
+	VkContext::GetLogicalDevice().SubmitGraphics(submit_info);
 
 	render_image.BlitTo(*swapchain_image, 0, 0, vk::ImageLayout::eGeneral, vk::ImageLayout::eUndefined,
 		vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eColorAttachmentOptimal, vk::Filter::eNearest, image_avail_semaphore);

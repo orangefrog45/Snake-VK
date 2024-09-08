@@ -35,6 +35,8 @@ namespace SNAKE {
 		void DeleteAsset(Asset* p_asset);
 
 		void OnRequestTextureAssetAddFromFile(const std::string& filepath);
+		bool OnRequestMeshAssetAddFromFile(const std::string& filepath, const std::string& name);
+
 		bool RenderMaterialEditor();
 
 		VkSceneRenderer renderer;

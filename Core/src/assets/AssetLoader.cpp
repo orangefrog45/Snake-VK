@@ -161,7 +161,7 @@ void AssetLoader::SerializeMeshDataBinary(const std::string& output_filepath, co
 	s.Value(reinterpret_cast<const std::byte*>(data.tangents), data.num_vertices * sizeof(aiVector3D));
 	s.Value(reinterpret_cast<const std::byte*>(data.tex_coords), data.num_vertices * sizeof(aiVector2D));
 	s.Value(reinterpret_cast<const std::byte*>(data.indices), data.num_indices * sizeof(unsigned));
-
+	
 	s.Container(data.materials);
 	s.Container(data.textures);
 	s.OutputToFile(output_filepath);
@@ -457,12 +457,9 @@ std::unique_ptr<MeshData> AssetLoader::LoadMeshDataFromRawFile(const std::string
 			material_properties_set = true;
 		}
 
-		if (material_properties_set) {
-			p_data->materials.push_back(material_asset->uuid());
-		}
-		else {
-			material_asset = AssetManager::GetAsset<MaterialAsset>(AssetManager::CoreAssetIDs::MATERIAL);
+		if (!material_properties_set) {
 			AssetManager::DeleteAsset(material_asset->uuid());
+			material_asset = AssetManager::GetAsset<MaterialAsset>(AssetManager::CoreAssetIDs::MATERIAL);
 		}
 
 		p_data->materials[i] = material_asset->uuid();

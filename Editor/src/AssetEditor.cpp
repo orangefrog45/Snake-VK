@@ -247,7 +247,7 @@ void AssetEditor::RenderMeshes() {
 			auto* p_box = p_editor->CreateDialogBox();
 			p_box->block_other_window_input = true;
 
-			p_box->imgui_render_cb = [data, p_box] {
+			p_box->imgui_render_cb = [data, p_box, this] {
 				static std::string new_mesh_name = "New mesh";
 				ImGui::Text("Name: "); ImGui::SameLine(); ImGui::InputText("##NAME", &new_mesh_name);
 				if (ImGui::Button("Create")) {
@@ -255,6 +255,7 @@ void AssetEditor::RenderMeshes() {
 					auto new_mesh = AssetManager::CreateAsset<StaticMeshAsset>();
 					new_mesh->data = *data;
 					new_mesh->name = new_mesh_name;
+					AssetLoader::SerializeStaticMeshAsset(p_editor->project.directory + "/res/meshes/" + AssetLoader::GenAssetFilename(new_mesh.get(), ".smesh"), *new_mesh.get());
 				}
 			};
 
@@ -320,6 +321,43 @@ vk::DescriptorSet AssetEditor::GetOrCreateAssetImage(Asset* _asset) {
 	}
 }
 
+bool AssetEditor::OnRequestMeshAssetAddFromFile(const std::string& filepath, const std::string& name) {
+	bool ret = false;
+
+	if (!filepath.empty()) {
+		auto mesh_data = AssetManager::CreateAsset<MeshDataAsset>();
+		mesh_data->name = name;
+		mesh_data->filepath = filepath;
+
+		if (auto p_data = AssetLoader::LoadMeshDataFromRawFile(filepath)) {
+			AssetManager::Get().mesh_buffer_manager.LoadMeshFromData(mesh_data.get(), *p_data);
+
+			// Serialize the mesh as well as any new textures/materials created from it
+			for (auto mat_uuid : p_data->materials) {
+				if (mat_uuid == AssetManager::CoreAssetIDs::MATERIAL)
+					continue;
+
+				auto mat = AssetManager::GetAsset<MaterialAsset>(mat_uuid);
+				AssetLoader::SerializeMaterialBinary(p_editor->project.directory + "/res/materials/" + AssetLoader::GenAssetFilename(mat.get(), "mat"), *mat.get());
+			}
+
+			for (auto tex_uuid : p_data->textures) {
+				auto tex = AssetManager::GetAsset<Texture2DAsset>(tex_uuid);
+				// tex->filepath is still the path to the raw image file, will change to new serialized path after this function
+				AssetLoader::SerializeTexture2DBinaryFromRawFile(p_editor->project.directory + "/res/textures/" + AssetLoader::GenAssetFilename(tex.get(), "tex2d"), *tex.get(), tex->filepath);
+			}
+
+			AssetLoader::SerializeMeshDataBinary(p_editor->project.directory + "/res/meshes/" + AssetLoader::GenAssetFilename(mesh_data.get(), "meshdata"), *p_data, *mesh_data.get());
+			ret = true;
+		}
+		else {
+			DeleteAsset(mesh_data.get());
+			p_editor->ErrorMessagePopup(std::format("Failed to load mesh file '{}', check logs for more info", filepath));
+		}
+	}
+
+	return ret;
+}
 
 bool AssetEditor::AddAssetButton() {
 	static std::unordered_map <std::string, std::function<void()>> popup_options;
@@ -329,33 +367,17 @@ bool AssetEditor::AddAssetButton() {
 
 	popup_options["Mesh data"] = [this, &ret] {
 		std::string filepath = files::SelectFileFromExplorer();
-		if (!filepath.empty()) {
-			auto mesh_data = AssetManager::CreateAsset<MeshDataAsset>();
-			mesh_data->filepath = filepath;
-
-			if (auto p_data = AssetLoader::LoadMeshDataFromRawFile(filepath)) {
-				AssetManager::Get().mesh_buffer_manager.LoadMeshFromData(mesh_data.get(), *p_data);
-				// Serialize the mesh as well as any new textures/materials created from it
-				for (auto mat_uuid : p_data->materials) {
-					if (mat_uuid == AssetManager::CoreAssetIDs::MATERIAL)
-						continue;
-
-					auto mat = AssetManager::GetAsset<MaterialAsset>(mat_uuid);
-					AssetLoader::SerializeMaterialBinary(p_editor->project.directory + "/res/materials/" + AssetLoader::GenAssetFilename(mat.get(), "mat"), *mat.get());
-				}
-				for (auto tex_uuid : p_data->textures) {
-					auto tex = AssetManager::GetAsset<Texture2DAsset>(tex_uuid);
-					// tex->filepath is still the path to the raw image file, will change to new serialized path after this function
-					AssetLoader::SerializeTexture2DBinaryFromRawFile(p_editor->project.directory + "/res/textures/" + AssetLoader::GenAssetFilename(tex.get(), "tex2d"), *tex.get(), tex->filepath);
-				}
-				AssetLoader::SerializeMeshDataBinary(p_editor->project.directory + "/res/meshes/" + AssetLoader::GenAssetFilename(mesh_data.get(), "meshdata"), *p_data, *mesh_data.get());
-				ret = true;
+		auto* p_box = p_editor->CreateDialogBox();
+		p_box->name = "Import mesh";
+		p_box->imgui_render_cb = [p_box, filepath, this] {
+			static std::string mesh_name_str;
+			ImGui::Text("New mesh name: "); ImGui::SameLine();
+			ImGuiWidgets::InputAlnumText("##name", mesh_name_str);
+			if (ImGui::Button("Set name") && !mesh_name_str.empty()) {
+				p_box->close = true;
+				OnRequestMeshAssetAddFromFile(filepath, mesh_name_str);
 			}
-			else {
-				DeleteAsset(mesh_data.get());
-				p_editor->ErrorMessagePopup(std::format("Failed to load mesh file '{}', check logs for more info", filepath));
-			}
-		}
+		};
 	};
 
 	popup_options["Texture"] = [this, &ret] {

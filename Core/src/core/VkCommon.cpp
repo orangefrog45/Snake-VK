@@ -10,7 +10,6 @@ namespace SNAKE {
 		alloc_info.commandPool = VkContext::GetCommandPool();
 		alloc_info.commandBufferCount = 1;
 
-		// Create new command buffer to perform memory transfer
 		auto [result, bufs] = VkContext::GetLogicalDevice().device->allocateCommandBuffersUnique(alloc_info);
 		SNK_CHECK_VK_RESULT(
 			result
@@ -21,7 +20,6 @@ namespace SNAKE {
 		vk::CommandBufferBeginInfo begin_info{};
 		begin_info.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit;
 
-		// Start recording
 		SNK_CHECK_VK_RESULT(
 			cmd_buf->begin(begin_info)
 		);
@@ -30,7 +28,6 @@ namespace SNAKE {
 	}
 
 	void EndSingleTimeCommands(vk::CommandBuffer& cmd_buf, std::optional<std::pair<vk::Semaphore, vk::PipelineStageFlags>> wait_semaphore_stage) {
-		// Stop recording
 		SNK_CHECK_VK_RESULT(
 			cmd_buf.end()
 		);
@@ -46,11 +43,8 @@ namespace SNAKE {
 
 		auto& device = VkContext::GetLogicalDevice();
 
-		SNK_CHECK_VK_RESULT(
-			device.graphics_queue.submit(submit_info)
-		);
-
-		SNK_CHECK_VK_RESULT(device.graphics_queue.waitIdle());
+		device.SubmitGraphics(submit_info);
+		device.GraphicsQueueWaitIdle();
 	}
 
 	void CopyBufferToImage(vk::Buffer buffer, vk::Image image, uint32_t width, uint32_t height) {

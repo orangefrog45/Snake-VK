@@ -70,9 +70,7 @@ void VkSceneRenderer::RenderScene(Image2D& output_image, Image2D& depth_image) {
 	depth_submit_info.setCommandBufferCount(1)
 		.setPCommandBuffers(&shadow_pass_cmd_buf);
 
-	SNK_CHECK_VK_RESULT(
-		VkContext::GetLogicalDevice().graphics_queue.submit(depth_submit_info)
-	);
+	VkContext::GetLogicalDevice().SubmitGraphics(depth_submit_info);
 
 	vk::SubmitInfo submit_info{};
 	auto wait_stages = util::array<vk::PipelineStageFlags>(vk::PipelineStageFlagBits::eColorAttachmentOutput);
@@ -83,8 +81,6 @@ void VkSceneRenderer::RenderScene(Image2D& output_image, Image2D& depth_image) {
 	submit_info.pCommandBuffers = &forward_cmd_buf;
 	submit_info.signalSemaphoreCount = 0;
 
-	SNK_CHECK_VK_RESULT(
-		VkContext::GetLogicalDevice().graphics_queue.submit(submit_info) // Fence is signalled once command buffer finishes execution
-	);
+	VkContext::GetLogicalDevice().SubmitGraphics(submit_info);
 
 }

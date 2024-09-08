@@ -32,6 +32,7 @@ namespace SNAKE {
 
 		m_global_material_buffer_manager.Init(descriptor_buffers);
 		m_global_tex_buffer_manager.Init(descriptor_buffers);
+		mesh_buffer_manager.Init();
 	}
 
 	void AssetManager::LoadCoreAssets() {
@@ -100,8 +101,8 @@ namespace SNAKE {
 
 		Get().OnAssetDelete(p_asset);
 
-		delete assets[uuid];
 		assets.erase(uuid);
+		delete assets[uuid];
 	}
 
 	

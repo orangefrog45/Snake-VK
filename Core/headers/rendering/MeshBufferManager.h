@@ -12,6 +12,8 @@ namespace SNAKE {
 
 	class MeshBufferManager {
 	public:
+		void Init();
+
 		void LoadMeshFromData(class MeshDataAsset* p_mesh_data_asset, class MeshData& data);
 
 		void UnloadMesh(MeshDataAsset* p_mesh_data_asset);
@@ -33,7 +35,7 @@ namespace SNAKE {
 		};
 
 		MeshBuffers GetMeshBuffers() {
-			return { *mp_position_buf.get(), *mp_normal_buf.get() , *mp_tangent_buf.get() , *mp_tex_coord_buf.get() , *mp_index_buf.get() };
+			return { m_position_buf, m_normal_buf , m_tangent_buf , m_tex_coord_buf , m_index_buf };
 		}
 
 	private:
@@ -42,11 +44,11 @@ namespace SNAKE {
 
 		std::unordered_map<MeshDataAsset*, MeshEntryData> m_entries;
 
-		std::unique_ptr<S_VkBuffer> mp_position_buf = nullptr;
-		std::unique_ptr<S_VkBuffer> mp_normal_buf = nullptr;
-		std::unique_ptr<S_VkBuffer> mp_tex_coord_buf = nullptr;
-		std::unique_ptr<S_VkBuffer> mp_tangent_buf = nullptr;
-		std::unique_ptr<S_VkBuffer> mp_index_buf = nullptr;
+		S_VkBuffer m_position_buf;
+		S_VkBuffer m_normal_buf;
+		S_VkBuffer m_tex_coord_buf;
+		S_VkBuffer m_tangent_buf;
+		S_VkBuffer m_index_buf;
 	};
 
 }

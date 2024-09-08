@@ -7,6 +7,19 @@
 
 using namespace SNAKE;
 
+void MeshBufferManager::Init() {
+	m_position_buf.CreateBuffer(256, vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eShaderDeviceAddress |
+		vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferSrc);
+	m_normal_buf.CreateBuffer(256, vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eShaderDeviceAddress |
+		vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferSrc);
+	m_tangent_buf.CreateBuffer(256, vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eShaderDeviceAddress |
+		vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferSrc);
+	m_tex_coord_buf.CreateBuffer(256, vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eShaderDeviceAddress |
+		vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferSrc);
+	m_index_buf.CreateBuffer(256, vk::BufferUsageFlagBits::eIndexBuffer | vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eShaderDeviceAddress |
+		vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferSrc);
+}
+
 void MeshBufferManager::LoadMeshFromData(MeshDataAsset* p_mesh_data_asset, MeshData& data) {
 	p_mesh_data_asset->submeshes = data.submeshes;
 	p_mesh_data_asset->num_indices = data.num_indices;
@@ -18,12 +31,6 @@ void MeshBufferManager::LoadMeshFromData(MeshDataAsset* p_mesh_data_asset, MeshD
 		p_mesh_data_asset->submesh_blas_array[i]->GenerateFromMeshData(data, i);
 	}
 
-	std::unique_ptr<S_VkBuffer> p_new_position_buf = std::make_unique<S_VkBuffer>();
-	std::unique_ptr<S_VkBuffer> p_new_normal_buf = std::make_unique<S_VkBuffer>();
-	std::unique_ptr<S_VkBuffer> p_new_tangent_buf = std::make_unique<S_VkBuffer>();
-	std::unique_ptr<S_VkBuffer> p_new_tex_coord_buf = std::make_unique<S_VkBuffer>();
-	std::unique_ptr<S_VkBuffer> p_new_index_buf = std::make_unique<S_VkBuffer>();
-
 	S_VkBuffer staging_buf{};
 
 	uint32_t prev_total_indices = m_total_indices;
@@ -31,32 +38,8 @@ void MeshBufferManager::LoadMeshFromData(MeshDataAsset* p_mesh_data_asset, MeshD
 	m_total_indices += data.num_indices;
 	m_total_vertices += data.num_vertices;
 
-
 	auto alignment = VkContext::GetPhysicalDevice().buffer_properties.descriptorBufferOffsetAlignment;
 	auto aligned_vertex_size = aligned_size(m_total_vertices * sizeof(aiVector3D), alignment);
-
-	p_new_position_buf->CreateBuffer(aligned_vertex_size,
-		vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eShaderDeviceAddress |
-		vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferSrc);
-
-	p_new_normal_buf->CreateBuffer(aligned_vertex_size,
-		vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eShaderDeviceAddress |
-		vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferSrc);
-
-	p_new_tangent_buf->CreateBuffer(aligned_vertex_size,
-		vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eShaderDeviceAddress |
-		vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferSrc);
-
-	p_new_tex_coord_buf->CreateBuffer(aligned_vertex_size,
-		vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eShaderDeviceAddress |
-		vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferSrc);
-
-	p_new_index_buf->CreateBuffer(aligned_size(m_total_indices * sizeof(unsigned), alignment),
-		vk::BufferUsageFlagBits::eIndexBuffer | vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eShaderDeviceAddress |
-		vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferSrc);
-
-	// Ensure no rendering commands are running on the gpu while buffers are grown
-	SNK_CHECK_VK_RESULT(VkContext::GetLogicalDevice().device->waitIdle());
 
 	// Create and fill staging buffer with mesh data
 	staging_buf.CreateBuffer(glm::max(data.num_vertices * sizeof(aiVector3D), data.num_indices * sizeof(unsigned)),
@@ -64,41 +47,30 @@ void MeshBufferManager::LoadMeshFromData(MeshDataAsset* p_mesh_data_asset, MeshD
 	auto* p_staging_data = staging_buf.Map();
 	memcpy(p_staging_data, data.positions, data.num_vertices * sizeof(aiVector3D));
 
-	// Copy old data from old to new buffer
-	if (mp_position_buf)
-		CopyBuffer(mp_position_buf->buffer, p_new_position_buf->buffer, prev_total_vertices * sizeof(aiVector3D));
+	m_position_buf.Resize(aligned_vertex_size);
+	m_normal_buf.Resize(aligned_vertex_size);
+	m_tangent_buf.Resize(aligned_vertex_size);
+	m_tex_coord_buf.Resize(aligned_size(m_total_vertices * sizeof(aiVector2D), alignment));
+	m_index_buf.Resize(aligned_size(m_total_indices * sizeof(unsigned), alignment));
+
+
 
 	// Copy data from newly loaded mesh into new buffer
-	CopyBuffer(staging_buf.buffer, p_new_position_buf->buffer, data.num_vertices * sizeof(aiVector3D), 0, prev_total_vertices * sizeof(aiVector3D));
+	memcpy(p_staging_data, data.positions, data.num_vertices * sizeof(aiVector3D));
+	CopyBuffer(staging_buf.buffer, m_position_buf.buffer, data.num_vertices * sizeof(aiVector3D), 0, prev_total_vertices * sizeof(aiVector3D));
 
-	// Buffers swapped out one by one to prevent vram spike from duplicating all buffers simultaneously
-	mp_position_buf = std::move(p_new_position_buf);
-
-	// Repeating process for other buffers
 	memcpy(p_staging_data, data.normals, data.num_vertices * sizeof(aiVector3D));
-	if (mp_normal_buf)
-		CopyBuffer(mp_normal_buf->buffer, p_new_normal_buf->buffer, prev_total_vertices * sizeof(aiVector3D));
-	CopyBuffer(staging_buf.buffer, p_new_normal_buf->buffer, data.num_vertices * sizeof(aiVector3D), 0, prev_total_vertices * sizeof(aiVector3D));
-	mp_normal_buf = std::move(p_new_normal_buf);
+	CopyBuffer(staging_buf.buffer, m_normal_buf.buffer, data.num_vertices * sizeof(aiVector3D), 0, prev_total_vertices * sizeof(aiVector3D));
 
 	memcpy(p_staging_data, data.tangents, data.num_vertices * sizeof(aiVector3D));
-	if (mp_tangent_buf)
-		CopyBuffer(mp_tangent_buf->buffer, p_new_tangent_buf->buffer, prev_total_vertices * sizeof(aiVector3D));
-	CopyBuffer(staging_buf.buffer, p_new_tangent_buf->buffer, data.num_vertices * sizeof(aiVector3D), 0, prev_total_vertices * sizeof(aiVector3D));
-	mp_tangent_buf = std::move(p_new_tangent_buf);
+	CopyBuffer(staging_buf.buffer, m_tangent_buf.buffer, data.num_vertices * sizeof(aiVector3D), 0, prev_total_vertices * sizeof(aiVector3D));
 
 	memcpy(p_staging_data, data.tex_coords, data.num_vertices * sizeof(aiVector2D));
-	if (mp_tex_coord_buf)
-		CopyBuffer(mp_tex_coord_buf->buffer, p_new_tex_coord_buf->buffer, prev_total_vertices * sizeof(aiVector2D));
-	CopyBuffer(staging_buf.buffer, p_new_tex_coord_buf->buffer, data.num_vertices * sizeof(aiVector2D), 0, prev_total_vertices * sizeof(aiVector2D));
-	mp_tex_coord_buf = std::move(p_new_tex_coord_buf);
+	CopyBuffer(staging_buf.buffer, m_tex_coord_buf.buffer, data.num_vertices * sizeof(aiVector2D), 0, prev_total_vertices * sizeof(aiVector2D));
 
 	memcpy(p_staging_data, data.indices, data.num_indices * sizeof(unsigned));
-	if (mp_index_buf)
-		CopyBuffer(mp_index_buf->buffer, p_new_index_buf->buffer, prev_total_indices * sizeof(unsigned));
-	CopyBuffer(staging_buf.buffer, p_new_index_buf->buffer, data.num_indices * sizeof(unsigned), 0, prev_total_indices * sizeof(unsigned));
-	mp_index_buf = std::move(p_new_index_buf);
-
+	CopyBuffer(staging_buf.buffer, m_index_buf.buffer, data.num_indices * sizeof(unsigned), 0, prev_total_indices * sizeof(unsigned));
+	
 	staging_buf.Unmap();
 
 	for (auto mat_uuid : data.materials) {

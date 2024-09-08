@@ -80,10 +80,7 @@ void VkRenderer::RenderImGuiAndPresentImpl(Window& window, Image2D& render_image
 	submit_info.commandBufferCount = 1;
 	submit_info.pCommandBuffers = &cmd_buf;
 
-	SNK_CHECK_VK_RESULT(
-		VkContext::GetLogicalDevice().graphics_queue.submit(submit_info, *m_in_flight_fences[VkContext::GetCurrentFIF()])
-	);
-
+	VkContext::GetLogicalDevice().SubmitGraphics(submit_info, *m_in_flight_fences[VkContext::GetCurrentFIF()]);
 	PresentImage(window, *m_render_finished_semaphores[VkContext::GetCurrentFIF()]);
 }
 
@@ -97,7 +94,7 @@ void VkRenderer::PresentImage(Window& window, vk::Semaphore wait_semaphore) {
 	present_info.pSwapchains = swapchains.data();
 	present_info.pImageIndices = &Get().m_current_swapchain_image_index;
 
-	auto present_result = VkContext::GetLogicalDevice().presentation_queue.presentKHR(present_info);
+	auto present_result = VkContext::GetLogicalDevice().SubmitPresentation(present_info);
 	if (present_result == vk::Result::eErrorOutOfDateKHR || window.WasJustResized() || present_result == vk::Result::eSuboptimalKHR) {
 		window.OnPresentNeedsResize();
 		EventManagerG::DispatchEvent(SwapchainInvalidateEvent{ {window.GetWidth(), window.GetHeight()} });

@@ -30,13 +30,27 @@ void GlobalMaterialBufferManager::Init(const std::array<std::shared_ptr<Descript
 	m_material_asset_event_listener.callback = [this](Event const* p_event) {
 		auto* p_casted = dynamic_cast<AssetEvent const*>(p_event);
 		if (auto* p_mat = dynamic_cast<MaterialAsset*>(p_casted->p_asset)) {
-			RegisterMaterial(p_mat);
+			if (p_casted->type == AssetEventType::CREATED) {
+				RegisterMaterial(p_mat);
+			}
+			else if (p_casted->type == AssetEventType::DESTROYED) {
+				for (FrameInFlightIndex i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+					auto update_it = std::ranges::find_if(m_materials_to_update[i], [&](auto& mat) {return mat.get() == p_mat; });
+					auto register_it = std::ranges::find_if(m_materials_to_register[i], [&](auto& mat) {return mat.get() == p_mat; });
+
+					if (update_it != m_materials_to_update[i].end()) 
+						m_materials_to_update[i].erase(update_it);
+
+					if (register_it != m_materials_to_register[i].end()) 
+						m_materials_to_register[i].erase(register_it);
+				}
+			}
 		}
 	};
 
 	EventManagerG::RegisterListener<MaterialAsset::MaterialUpdateEvent>(m_material_update_event_listener);
 	EventManagerG::RegisterListener<FrameStartEvent>(m_frame_start_listener);
-	EventManagerG::RegisterListener<MaterialAsset>(m_material_asset_event_listener);
+	EventManagerG::RegisterListener<AssetEvent>(m_material_asset_event_listener);
 }
 
 void GlobalMaterialBufferManager::RegisterMaterial(AssetRef<MaterialAsset> material) {

@@ -40,7 +40,7 @@ void TLAS::BuildFromInstances(const std::vector<vk::AccelerationStructureInstanc
 	m_as = std::move(value);
 
 	S_VkBuffer tlas_scratch_buf;
-	tlas_scratch_buf.CreateBuffer(as_build_size_info.buildScratchSize, vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress);
+	tlas_scratch_buf.CreateBuffer(as_build_size_info.buildScratchSize, vk::BufferUsageFlagBits::eAccelerationStructureStorageKHR | vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress);
 
 	vk::AccelerationStructureBuildGeometryInfoKHR as_build_geom_info{};
 	as_build_geom_info.type = vk::AccelerationStructureTypeKHR::eTopLevel;

@@ -36,10 +36,6 @@ namespace SNAKE {
 
 		template<std::derived_from<Asset> AssetT>
 		void OnAssetAdd(AssetRef<AssetT> asset) {
-			if constexpr (std::is_same_v<AssetT, MaterialAsset>) {
-				m_global_material_buffer_manager.RegisterMaterial(asset);
-			}
-
 			EventManagerG::DispatchEvent(AssetEvent{ AssetEventType::CREATED, asset.get()});
 		}
 

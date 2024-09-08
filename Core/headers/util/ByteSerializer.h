@@ -11,7 +11,8 @@ namespace SNAKE {
 
 	template<typename T>
 	concept IsResizableContainer = requires(T t) {
-		t.resize(1);
+		{ t.resize(1) };
+		{ t.clear() };
 	};
 
 	class ByteSerializer {
@@ -96,14 +97,8 @@ namespace SNAKE {
 			Value(size);
 
 			size_t required_output_container_size = size / sizeof(typename T::value_type);
-			if (output.size() < required_output_container_size) {
-				if constexpr (IsResizableContainer<T>) {
-					if (output.size() < required_output_container_size)
-						output.resize(required_output_container_size);
-				}
-				else
-					SNK_ASSERT_ARG(false, "Output container size not big enough");
-			}
+			output.clear();
+			output.resize(required_output_container_size);
 
 			SNK_ASSERT(m_pos + size <= m_data_size);
 			memcpy(output.data(), m_data + m_pos, size);

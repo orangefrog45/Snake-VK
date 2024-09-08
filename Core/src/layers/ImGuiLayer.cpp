@@ -43,7 +43,7 @@ void ImGuiLayer::OnInit() {
 	init_info.PhysicalDevice = VkContext::GetPhysicalDevice().device;
 	init_info.Device = *VkContext::GetLogicalDevice().device;
 	init_info.QueueFamily = indices.graphics_family.value();
-	init_info.Queue = VkContext::GetLogicalDevice().graphics_queue;
+	init_info.Queue = VkContext::GetLogicalDevice().m_graphics_queue;
 	init_info.PipelineCache = VK_NULL_HANDLE;
 	init_info.DescriptorPool = *m_imgui_descriptor_pool;
 	init_info.MinImageCount = MAX_FRAMES_IN_FLIGHT;

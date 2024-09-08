@@ -131,8 +131,8 @@ void VkContext::ICreateLogicalDevice(vk::SurfaceKHR surface, const std::vector<c
 	m_device.device = m_physical_device.device.createDeviceUnique(device_create_info, nullptr, VULKAN_HPP_DEFAULT_DISPATCHER).value;
 	SNK_ASSERT(m_device.device);
 
-	m_device.graphics_queue = m_device.device->getQueue(indices.graphics_family.value(), 0, VULKAN_HPP_DEFAULT_DISPATCHER);
-	m_device.presentation_queue = m_device.device->getQueue(indices.present_family.value(), 0, VULKAN_HPP_DEFAULT_DISPATCHER);
+	m_device.m_graphics_queue = m_device.device->getQueue(indices.graphics_family.value(), 0, VULKAN_HPP_DEFAULT_DISPATCHER);
+	m_device.m_presentation_queue = m_device.device->getQueue(indices.present_family.value(), 0, VULKAN_HPP_DEFAULT_DISPATCHER);
 }
 
 void VkContext::ICreateInstance(const char* app_name) {

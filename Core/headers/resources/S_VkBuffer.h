@@ -30,6 +30,8 @@ namespace SNAKE {
 
 		void CreateBuffer(vk::DeviceSize size, vk::BufferUsageFlags usage, VmaAllocationCreateFlags flags = 0);
 		
+		void Resize(size_t new_size);
+
 		void RefreshDescriptorGetInfo(DescriptorGetInfo& info) const override;
 
 		DescriptorGetInfo CreateDescriptorGetInfo() const;
@@ -58,6 +60,7 @@ namespace SNAKE {
 
 	private:
 		vk::BufferUsageFlags m_usage;
+		VmaAllocationCreateFlags m_alloc_create_flags;
 		// Mapped ptr, nullptr if not mapped
 		void* p_data = nullptr;
 	};

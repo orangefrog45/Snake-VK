@@ -19,3 +19,5 @@
 #include <deque>
 #include <mutex>
 #include <variant>
+
+#include <ranges>

@@ -53,7 +53,7 @@ namespace SNAKE {
 			_asset->ref_count++;
 		}
 
-		AssetT* get() {
+		AssetT* get() const {
 			return p_asset;
 		}
 

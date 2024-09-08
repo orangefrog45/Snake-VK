@@ -20,7 +20,6 @@ void DescriptorBuffer::CreateBuffer(uint32_t num_sets) {
 		m_usage_flags | vk::BufferUsageFlagBits::eShaderDeviceAddress, VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT);
 }
 
-#include "resources/Images.h"
 void DescriptorBuffer::LinkResource(S_VkResource const* p_resource, DescriptorGetInfo& get_info, unsigned binding_idx, unsigned set_buffer_idx, uint32_t array_idx) {
 	auto& descriptor_buffer_properties = VkContext::GetPhysicalDevice().buffer_properties;
 
@@ -40,11 +39,8 @@ void DescriptorBuffer::LinkResource(S_VkResource const* p_resource, DescriptorGe
 			if (p_casted->p_resource != p_resource)
 				return;
 
-			if (p_casted->event_type == S_VkResourceEvent::ResourceEventType::CREATE) {
-				if (auto* p_test = dynamic_cast<Image2D*>(p_casted->p_resource))
-					SNK_CORE_ERROR("IMAGE");
+			if (p_casted->event_type != S_VkResourceEvent::ResourceEventType::DELETE) {
 				p_casted->p_resource->RefreshDescriptorGetInfo(m_resource_link_infos[set_buffer_idx][binding_idx].get_info);
-
 				LinkResource(p_resource, m_resource_link_infos[set_buffer_idx][binding_idx].get_info, binding_idx, set_buffer_idx, array_idx);
 			}
 		};

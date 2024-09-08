@@ -12,5 +12,7 @@ namespace SNAKE {
 		}
 
 		static bool Table(const std::string& name, const TableWidgetData& data);
+
+		static bool InputAlnumText(const std::string& label, std::string& str);
 	};
 }
