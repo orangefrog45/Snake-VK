@@ -5,6 +5,11 @@
 namespace SNAKE {
 
 	void PipelineLayoutBuilder::Build() {
+		static DescriptorSetSpec null_spec{};
+		if (!null_spec.GetLayout()) {
+			null_spec.GenDescriptorLayout();
+		}
+
 		if (!descriptor_set_layouts.empty()) {
 			auto last = descriptor_set_layouts.end();
 			last--;
@@ -12,12 +17,12 @@ namespace SNAKE {
 			unsigned highest_idx = last->first;
 
 			for (unsigned current_idx = 0; current_idx <= highest_idx; current_idx++) {
-				if (descriptor_set_layouts.contains(current_idx))
+				if (descriptor_set_layouts.contains(current_idx)) {
 					built_set_layouts.push_back(descriptor_set_layouts[current_idx]->GetLayout());
+				}
 				else {
-					descriptor_set_layouts[current_idx] = std::make_shared<DescriptorSetSpec>();
-					descriptor_set_layouts[current_idx]->GenDescriptorLayout();
-					built_set_layouts.push_back(descriptor_set_layouts[current_idx]->GetLayout());
+					descriptor_set_layouts[current_idx] = &null_spec;
+					built_set_layouts.push_back(null_spec.GetLayout());
 				}
 			}
 		}
@@ -124,6 +129,49 @@ namespace SNAKE {
 		pipeline_info.subpass = 0; // index of subpass where this pipeline is used
 		pipeline_info.pNext = &render_info;
 		pipeline_info.flags = vk::PipelineCreateFlagBits::eDescriptorBufferEXT;
+	}
+
+	RtPipelineBuilder& RtPipelineBuilder::AddShader(vk::ShaderStageFlagBits shader_stage, const std::string& filepath) {
+		shader_modules.push_back(ShaderLibrary::CreateShaderModule(filepath));
+
+		vk::PipelineShaderStageCreateInfo shader_stage_info{};
+		shader_stage_info.stage = shader_stage;
+		shader_stage_info.module = *shader_modules[shader_modules.size() - 1];
+		shader_stage_info.pName = "main";
+
+		shaders.push_back(shader_stage_info);
+		return *this;
+	}
+
+	RtPipelineBuilder& RtPipelineBuilder::AddShaderGroup(vk::RayTracingShaderGroupTypeKHR group, uint32_t general_shader, uint32_t chit_shader,
+		uint32_t any_hit_shader, uint32_t intersection_shader) {
+
+		vk::RayTracingShaderGroupCreateInfoKHR group_info{};
+		group_info.type = group;
+		group_info.generalShader = general_shader;
+		group_info.closestHitShader = chit_shader;
+		group_info.anyHitShader = any_hit_shader;
+		group_info.intersectionShader = intersection_shader;
+
+		shader_groups.push_back(group_info);
+		return *this;
+	}
+
+	void RtPipeline::Init(RtPipelineBuilder& builder, PipelineLayoutBuilder& layout) {
+		m_layout.Init(layout);
+		
+		vk::RayTracingPipelineCreateInfoKHR pipeline_info{};
+		pipeline_info.stageCount = (uint32_t)builder.shaders.size();
+		pipeline_info.pStages = builder.shaders.data();
+		pipeline_info.groupCount = (uint32_t)builder.shader_groups.size();
+		pipeline_info.pGroups = builder.shader_groups.data();
+		pipeline_info.maxPipelineRayRecursionDepth = 1;
+		pipeline_info.layout = m_layout.GetPipelineLayout();
+		pipeline_info.flags = vk::PipelineCreateFlagBits::eDescriptorBufferEXT;
+
+		auto [res, val] = VkContext::GetLogicalDevice().device->createRayTracingPipelineKHRUnique(nullptr, nullptr, pipeline_info);
+		SNK_CHECK_VK_RESULT(res);
+		m_pipeline = std::move(val);
 	}
 
 }

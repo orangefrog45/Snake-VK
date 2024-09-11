@@ -34,22 +34,32 @@ namespace SNAKE {
 			if (!layout_builder.has_value())
 				return shader_module;
 
+
 			Compiler comp(reinterpret_cast<uint32_t*>(output.data()), output.size() / 4);
 			
 			auto res = comp.get_shader_resources();
 
 			auto& builder = layout_builder.value().get();
 			auto& descriptors = builder.descriptor_set_layouts;
+			auto& spec_output = builder.reflected_descriptor_specs;
+			std::unordered_map<uint32_t, DescriptorSetSpec*> new_specs;
+
+			// Allocate space so pushing back elements doesn't cause vector reallocation (breaks pointers)
+			constexpr unsigned MAX_DESCRIPTOR_SETS = 16;
+			spec_output.reserve(MAX_DESCRIPTOR_SETS);
 
 			for (const Resource& resource : res.uniform_buffers) {
 				unsigned set = comp.get_decoration(resource.id, spv::DecorationDescriptorSet);
 				unsigned binding = comp.get_decoration(resource.id, spv::DecorationBinding);
 
-				if (!descriptors.contains(set))
-					descriptors[set] = std::make_shared<DescriptorSetSpec>();
+				if (!new_specs.contains(set)) {
+					auto& spec = spec_output.emplace_back();
+					new_specs[set] = &spec;
+					descriptors[set] = &spec;
+				}
 
-				if (!descriptors[set]->IsBindingPointOccupied(binding))
-					descriptors[set]->AddDescriptor(binding, vk::DescriptorType::eUniformBuffer, vk::ShaderStageFlagBits::eAllGraphics);
+				if (!new_specs[set]->IsBindingPointOccupied(binding))
+					new_specs[set]->AddDescriptor(binding, vk::DescriptorType::eUniformBuffer, vk::ShaderStageFlagBits::eAllGraphics);
 			}
 
 			for (const Resource& resource : res.sampled_images) {
@@ -60,11 +70,14 @@ namespace SNAKE {
 				bool is_array = type.array.size() != 0;
 				unsigned descriptor_count = is_array ? type.array[0] : 1;
 
-				if (!descriptors.contains(set))
-					descriptors[set] = std::make_shared<DescriptorSetSpec>();
+				if (!new_specs.contains(set)) {
+					auto& spec = spec_output.emplace_back();
+					new_specs[set] = &spec;
+					descriptors[set] = &spec;
+				}
 
-				if (!descriptors[set]->IsBindingPointOccupied(binding))
-					descriptors[set]->AddDescriptor(binding, vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eAllGraphics, descriptor_count);
+				if (!new_specs[set]->IsBindingPointOccupied(binding))
+					new_specs[set]->AddDescriptor(binding, vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eAllGraphics, descriptor_count);
 			}
 
 			for (const Resource& resource : res.storage_buffers) {
@@ -72,11 +85,14 @@ namespace SNAKE {
 				unsigned binding = comp.get_decoration(resource.id, spv::DecorationBinding);
 				auto type = comp.get_type(resource.type_id);
 
-				if (!descriptors.contains(set))
-					descriptors[set] = std::make_shared<DescriptorSetSpec>();
+				if (!new_specs.contains(set)) {
+					auto& spec = spec_output.emplace_back();
+					new_specs[set] = &spec;
+					descriptors[set] = &spec;
+				}
 
-				if (!descriptors[set]->IsBindingPointOccupied(binding))
-					descriptors[set]->AddDescriptor(binding, vk::DescriptorType::eStorageBuffer, vk::ShaderStageFlagBits::eAllGraphics);
+				if (!new_specs[set]->IsBindingPointOccupied(binding))
+					new_specs[set]->AddDescriptor(binding, vk::DescriptorType::eStorageBuffer, vk::ShaderStageFlagBits::eAllGraphics);
 			}
 
 			for (const Resource& resource : res.push_constant_buffers) {
@@ -87,7 +103,9 @@ namespace SNAKE {
 					builder.AddPushConstant(0u, (uint32_t)size, vk::ShaderStageFlagBits::eAllGraphics);
 			}
 
-			for (auto& [set_idx, set_spec] : descriptors) {
+			SNK_ASSERT(spec_output.size() < MAX_DESCRIPTOR_SETS);
+
+			for (auto& [set_idx, set_spec] : new_specs) {
 				set_spec->GenDescriptorLayout();
 			}
 

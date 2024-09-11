@@ -126,75 +126,24 @@ void RT::InitDescriptorBuffers(Image2D& output_image, Scene& scene) {
 	}
 }
 
-void RT::InitPipeline(vk::DescriptorSetLayout common_ubo_set_layout) {
-	{
-		auto layouts = util::array(common_ubo_set_layout, rt_descriptor_buffers[0].GetDescriptorSpec()->GetLayout(), 
-			AssetManager::GetGlobalTexMatBufDescriptorSetLayout(0));
+void RT::InitPipeline(const DescriptorSetSpec& common_ubo_set) {
+	RtPipelineBuilder pipeline_builder{};
+	pipeline_builder.AddShader(vk::ShaderStageFlagBits::eRaygenKHR, "res/shaders/RayGenrgen_00000000.spv")
+		.AddShader(vk::ShaderStageFlagBits::eMissKHR, "res/shaders/RayMissrmiss_00000000.spv")
+		.AddShader(vk::ShaderStageFlagBits::eClosestHitKHR, "res/shaders/RayClosestHitrchit_00000000.spv")
+		.AddShaderGroup(vk::RayTracingShaderGroupTypeKHR::eGeneral, 0, VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR)
+		.AddShaderGroup(vk::RayTracingShaderGroupTypeKHR::eGeneral, 1, VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR)
+		.AddShaderGroup(vk::RayTracingShaderGroupTypeKHR::eTrianglesHitGroup, VK_SHADER_UNUSED_KHR, 2, VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR);
+		
+	PipelineLayoutBuilder layout_builder{};
+	layout_builder.AddDescriptorSet(0, common_ubo_set)
+		.AddDescriptorSet(1, *rt_descriptor_buffers[0].GetDescriptorSpec())
+		.AddDescriptorSet(2, *AssetManager::GetGlobalTexMatBufDescriptorSetSpec(0))
+		.Build();
 
-		vk::PipelineLayoutCreateInfo pipeline_layout_info{};
-		pipeline_layout_info.setLayoutCount = (uint32_t)layouts.size();
-		pipeline_layout_info.pSetLayouts = layouts.data();
-		auto [res, value] = VkContext::GetLogicalDevice().device->createPipelineLayoutUnique(pipeline_layout_info);
-		SNK_CHECK_VK_RESULT(res);
-		rt_pipeline_layout = std::move(value);
-	}
+	pipeline.Init(pipeline_builder, layout_builder);
 
-	auto ray_gen_module = ShaderLibrary::CreateShaderModule("res/shaders/RayGenrgen_00000000.spv");
-	auto ray_chit_module = ShaderLibrary::CreateShaderModule("res/shaders/RayClosestHitrchit_00000000.spv");
-	auto ray_miss_module = ShaderLibrary::CreateShaderModule("res/shaders/RayMissrmiss_00000000.spv");
-
-	vk::PipelineShaderStageCreateInfo ray_gen_shader_stage_info{};
-	ray_gen_shader_stage_info.stage = vk::ShaderStageFlagBits::eRaygenKHR;
-	ray_gen_shader_stage_info.module = *ray_gen_module;
-	ray_gen_shader_stage_info.pName = "main";
-
-	vk::PipelineShaderStageCreateInfo chit_shader_stage_info{};
-	chit_shader_stage_info.stage = vk::ShaderStageFlagBits::eClosestHitKHR;
-	chit_shader_stage_info.module = *ray_chit_module;
-	chit_shader_stage_info.pName = "main";
-
-	vk::PipelineShaderStageCreateInfo miss_shader_stage_info{};
-	miss_shader_stage_info.stage = vk::ShaderStageFlagBits::eMissKHR;
-	miss_shader_stage_info.module = *ray_miss_module;
-	miss_shader_stage_info.pName = "main";
-
-	vk::RayTracingShaderGroupCreateInfoKHR ray_gen_group{};
-	ray_gen_group.type = vk::RayTracingShaderGroupTypeKHR::eGeneral;
-	ray_gen_group.generalShader = 0;
-	ray_gen_group.closestHitShader = VK_SHADER_UNUSED_KHR;
-	ray_gen_group.anyHitShader = VK_SHADER_UNUSED_KHR;
-	ray_gen_group.intersectionShader = VK_SHADER_UNUSED_KHR;
-
-	vk::RayTracingShaderGroupCreateInfoKHR ray_miss_group{};
-	ray_miss_group.type = vk::RayTracingShaderGroupTypeKHR::eGeneral;
-	ray_miss_group.generalShader = 1;
-	ray_miss_group.closestHitShader = VK_SHADER_UNUSED_KHR;
-	ray_miss_group.anyHitShader = VK_SHADER_UNUSED_KHR;
-	ray_miss_group.intersectionShader = VK_SHADER_UNUSED_KHR;
-
-	vk::RayTracingShaderGroupCreateInfoKHR ray_chit_group{};
-	ray_chit_group.type = vk::RayTracingShaderGroupTypeKHR::eTrianglesHitGroup;
-	ray_chit_group.generalShader = VK_SHADER_UNUSED_KHR;
-	ray_chit_group.closestHitShader = 2;
-	ray_chit_group.anyHitShader = VK_SHADER_UNUSED_KHR;
-	ray_chit_group.intersectionShader = VK_SHADER_UNUSED_KHR;
-	
-	std::vector<vk::RayTracingShaderGroupCreateInfoKHR> shader_groups = { ray_gen_group, ray_miss_group, ray_chit_group };
-	std::vector<vk::PipelineShaderStageCreateInfo> shader_stages = { ray_gen_shader_stage_info, miss_shader_stage_info, chit_shader_stage_info };
-	vk::RayTracingPipelineCreateInfoKHR pipeline_info{};
-	pipeline_info.stageCount = (uint32_t)shader_stages.size();
-	pipeline_info.pStages = shader_stages.data();
-	pipeline_info.groupCount = (uint32_t)shader_groups.size();
-	pipeline_info.pGroups = shader_groups.data();
-	pipeline_info.maxPipelineRayRecursionDepth = 3;
-	pipeline_info.layout = *rt_pipeline_layout;
-	pipeline_info.flags = vk::PipelineCreateFlagBits::eDescriptorBufferEXT;
-
-	auto [res, val] = VkContext::GetLogicalDevice().device->createRayTracingPipelineKHRUnique(nullptr, nullptr, pipeline_info);
-	SNK_CHECK_VK_RESULT(res);
-	rt_pipeline = std::move(val);
-
-	sbt_group_count = (uint32_t)shader_groups.size();
+	sbt_group_count = (uint32_t)pipeline_builder.shader_groups.size();
 }
 
 void RT::CreateShaderBindingTable() {
@@ -205,7 +154,7 @@ void RT::CreateShaderBindingTable() {
 	auto sbt_size = sbt_group_count * sbt_handle_size_aligned;
 
 	std::vector<std::byte> sbt_data(sbt_size);
-	auto res = VkContext::GetLogicalDevice().device->getRayTracingShaderGroupHandlesKHR(*rt_pipeline, 0u, sbt_group_count, (size_t)sbt_size, sbt_data.data());
+	auto res = VkContext::GetLogicalDevice().device->getRayTracingShaderGroupHandlesKHR(pipeline.GetPipeline(), 0u, sbt_group_count, (size_t)sbt_size, sbt_data.data());
 	SNK_CHECK_VK_RESULT(res);
 
 	std::vector<S_VkBuffer*> sbt_bufs = { &sbt_ray_gen_buffer, &sbt_ray_miss_buffer, &sbt_ray_hit_buffer };
@@ -218,6 +167,15 @@ void RT::CreateShaderBindingTable() {
 	}
 
 }
+
+//void RT::RecordGBufferPassCmdBuf(vk::CommandBuffer cmd, class GBufferResources& output) {
+//	vk::CommandBufferBeginInfo begin_info{};
+//	SNK_CHECK_VK_RESULT(cmd.begin(begin_info));
+//
+//
+//
+//	SNK_CHECK_VK_RESULT(cmd.end());
+//}
 
 void RT::RecordRenderCmdBuf(vk::CommandBuffer cmd, Image2D& output_image, DescriptorBuffer& common_ubo_db) {
 	vk::StridedDeviceAddressRegionKHR raygen_sbt{};
@@ -245,7 +203,7 @@ void RT::RecordRenderCmdBuf(vk::CommandBuffer cmd, Image2D& output_image, Descri
 		vk::AccessFlagBits::eShaderWrite, vk::AccessFlagBits::eShaderWrite, vk::PipelineStageFlagBits::eRayTracingShaderKHR,
 		vk::PipelineStageFlagBits::eRayTracingShaderKHR, 0, 1, cmd);
 
-	cmd.bindPipeline(vk::PipelineBindPoint::eRayTracingKHR, *rt_pipeline);
+	cmd.bindPipeline(vk::PipelineBindPoint::eRayTracingKHR, pipeline.GetPipeline());
 	std::array<uint32_t, 3> db_indices = { 0, 1, 2 };
 	std::array<vk::DeviceSize, 3> db_offsets = { 0, 0, 0 };
 
@@ -253,7 +211,7 @@ void RT::RecordRenderCmdBuf(vk::CommandBuffer cmd, Image2D& output_image, Descri
 		AssetManager::GetGlobalTexMatBufBindingInfo(VkContext::GetCurrentFIF()));
 
 	cmd.bindDescriptorBuffersEXT(binding_infos);
-	cmd.setDescriptorBufferOffsetsEXT(vk::PipelineBindPoint::eRayTracingKHR, *rt_pipeline_layout, 0, db_indices, db_offsets);
+	cmd.setDescriptorBufferOffsetsEXT(vk::PipelineBindPoint::eRayTracingKHR, pipeline.GetPipelineLayout(), 0, db_indices, db_offsets);
 
 	auto& spec = output_image.GetSpec();
 
@@ -262,7 +220,7 @@ void RT::RecordRenderCmdBuf(vk::CommandBuffer cmd, Image2D& output_image, Descri
 	SNK_CHECK_VK_RESULT(cmd.end());
 }
 
-void RT::Init(Scene& scene, Image2D& output_image, vk::DescriptorSetLayout common_ubo_set_layout) {
+void RT::Init(Scene& scene, Image2D& output_image, const DescriptorSetSpec& common_ubo_set_spec) {
 	frame_start_listener.callback = [&]([[maybe_unused]] Event const* p_event) {
 		InitTLAS(scene, VkContext::GetCurrentFIF());
 		};
@@ -273,7 +231,7 @@ void RT::Init(Scene& scene, Image2D& output_image, vk::DescriptorSetLayout commo
 	}
 
 	InitDescriptorBuffers(output_image, scene);
-	InitPipeline(common_ubo_set_layout);
+	InitPipeline(common_ubo_set_spec);
 	CreateShaderBindingTable();
 }
 

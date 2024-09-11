@@ -1,8 +1,15 @@
 #pragma once
 #include "entt/entt.hpp"
 #include "components/Component.h"
+#include "resources/Images.h"
 
 namespace SNAKE {
+	struct GBufferResources {
+		FullscreenImage2D albedo_image;
+		FullscreenImage2D normal_image;
+		FullscreenImage2D depth_image;
+	};
+
 	struct SceneSnapshotData {
 		struct MeshRange {
 			MeshRange(uint64_t uuid, uint32_t _start_idx, uint32_t _count) : mesh_uuid(uuid), start_idx(_start_idx), count(_count) {};

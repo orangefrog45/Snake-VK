@@ -32,11 +32,14 @@ namespace SNAKE {
 
 		void InitDescriptorBuffers(Image2D& output_image, Scene& scene);
 
-		void InitPipeline(vk::DescriptorSetLayout common_ubo_set_layout);
+		void InitPipeline(const DescriptorSetSpec& common_ubo_set);
+
+		// Records a raytraced gbuffer pass into cmd
+		void RecordGBufferPassCmdBuf(vk::CommandBuffer cmd, class GBufferResources& output);
 
 		void RecordRenderCmdBuf(vk::CommandBuffer cmd, Image2D& output_image, DescriptorBuffer& common_ubo_db);
 
-		void Init(Scene& scene, Image2D& output_image, vk::DescriptorSetLayout common_ubo_set_layout);
+		void Init(Scene& scene, Image2D& output_image, const DescriptorSetSpec& common_ubo_set_spec);
 
 		void CreateShaderBindingTable();
 	private:
@@ -50,8 +53,10 @@ namespace SNAKE {
 		std::shared_ptr<DescriptorSetSpec> rt_descriptor_set_spec = nullptr;
 
 		std::array<DescriptorBuffer, MAX_FRAMES_IN_FLIGHT> rt_descriptor_buffers{};
-		vk::UniquePipelineLayout rt_pipeline_layout;
-		vk::UniquePipeline rt_pipeline;
+		RtPipeline pipeline;
+
+		vk::UniquePipelineLayout gbuffer_pipeline_layout;
+		vk::UniquePipeline gbuffer_pipeline;
 
 		S_VkBuffer sbt_ray_gen_buffer;
 		S_VkBuffer sbt_ray_miss_buffer;

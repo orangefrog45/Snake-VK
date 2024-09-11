@@ -112,7 +112,7 @@ vec3 BouncePerfectReflections(vec3 ro, vec3 rd) {
 
 vec3 BounceDiffuse(vec3 ro, vec3 n, vec3 albedo) {
   vec3 colour_sum = vec3(0);
-  for (uint ray_idx = 0; ray_idx < 1; ray_idx++) {
+  for (uint ray_idx = 0; ray_idx < 16; ray_idx++) {
     vec3 rd = RandomVectorOnHemisphere(n, vec3(ro.x + ray_idx, ro.y + ray_idx, ro.z + ray_idx));
 
     traceRayEXT(
@@ -129,7 +129,7 @@ vec3 BounceDiffuse(vec3 ro, vec3 n, vec3 albedo) {
       0
     );
 
-    colour_sum += payload.colour * albedo * 30;
+    colour_sum += payload.colour * albedo;
     if (payload.distance < 0.f) {
      // break;
     }

@@ -15,6 +15,7 @@ namespace SNAKE {
 
 		void SetMeshAsset(AssetRef<StaticMeshAsset> mesh) {
 			mesh_asset = mesh;
+			materials = mesh_asset->data->materials;
 			EventManagerG::DispatchEvent(ComponentEvent<StaticMeshComponent>(this, ComponentEventType::UPDATED));
 		}
 

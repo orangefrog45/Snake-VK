@@ -8,10 +8,10 @@ namespace SNAKE {
 	struct PipelineLayoutBuilder {
 		void Build();
 
-		//PipelineLayoutBuilder& AddDescriptorSetLayout(uint32_t set_idx, const vk::DescriptorSetLayout& layout) {
-		//	descriptor_set_layouts[set_idx] = layout;
-		//	return *this;
-		//}
+		PipelineLayoutBuilder& AddDescriptorSet(uint32_t set_idx, const DescriptorSetSpec& spec) {
+			descriptor_set_layouts[set_idx] = &spec;
+			return *this;
+		}
 
 		PipelineLayoutBuilder& AddPushConstant(uint32_t offset, uint32_t size, vk::ShaderStageFlagBits stage_flags) {
 			push_constants.push_back(vk::PushConstantRange{ stage_flags, offset, size });
@@ -20,7 +20,8 @@ namespace SNAKE {
 
 		vk::PipelineLayoutCreateInfo pipeline_layout_info;
 		std::vector<vk::PushConstantRange> push_constants;
-		std::map<uint32_t, std::shared_ptr<DescriptorSetSpec>> descriptor_set_layouts;
+		std::map<uint32_t, DescriptorSetSpec const*> descriptor_set_layouts;
+		std::vector<DescriptorSetSpec> reflected_descriptor_specs;
 		std::vector<vk::DescriptorSetLayout> built_set_layouts;
 	};
 
@@ -39,15 +40,15 @@ namespace SNAKE {
 			pipeline_layout = std::move(val);
 
 			descriptor_set_layouts = std::move(builder.descriptor_set_layouts);
+			reflected_descriptor_specs = std::move(builder.reflected_descriptor_specs);
 		}
 
 		vk::PipelineLayout GetPipelineLayout() {
 			return *pipeline_layout;
 		}
-
-		std::map<uint32_t, std::shared_ptr<DescriptorSetSpec>> descriptor_set_layouts;
-
 	private:
+		std::map<uint32_t, DescriptorSetSpec const*> descriptor_set_layouts;
+		std::vector<DescriptorSetSpec> reflected_descriptor_specs;
 		vk::UniquePipelineLayout pipeline_layout;
 
 		friend class GraphicsPipeline;
@@ -126,6 +127,31 @@ namespace SNAKE {
 
 		PipelineLayout pipeline_layout;
 	private:
+		vk::UniquePipeline m_pipeline;
+	};
+
+	struct RtPipelineBuilder {
+		RtPipelineBuilder& AddShader(vk::ShaderStageFlagBits shader_stage, const std::string& filepath);
+		RtPipelineBuilder& AddShaderGroup(vk::RayTracingShaderGroupTypeKHR group, uint32_t general_shader, uint32_t chit_shader, uint32_t any_hit_shader, uint32_t intersection_shader);
+
+		std::vector<vk::PipelineShaderStageCreateInfo> shaders;
+		std::vector<vk::RayTracingShaderGroupCreateInfoKHR> shader_groups;
+		std::vector<vk::UniqueShaderModule> shader_modules;
+	};
+
+	class RtPipeline {
+	public:
+		void Init(RtPipelineBuilder& builder, PipelineLayoutBuilder& layout);
+
+		vk::Pipeline GetPipeline() {
+			return *m_pipeline;
+		}
+
+		vk::PipelineLayout GetPipelineLayout() {
+			return m_layout.GetPipelineLayout();
+		}
+	private:
+		PipelineLayout m_layout;
 		vk::UniquePipeline m_pipeline;
 	};
 }

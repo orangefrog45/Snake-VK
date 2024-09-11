@@ -126,7 +126,7 @@ size_t DescriptorSetSpec::GetSize() {
 	return m_size;
 }
 
-bool DescriptorSetSpec::IsBindingPointOccupied(unsigned binding) {
+bool DescriptorSetSpec::IsBindingPointOccupied(unsigned binding) const {
 	return std::ranges::find_if(m_layout_bindings, [binding](const auto& p) {return p.binding == binding; }) != m_layout_bindings.end();
 }
 
@@ -149,6 +149,6 @@ DescriptorSetSpec& DescriptorSetSpec::AddDescriptor(unsigned binding_point, vk::
 	return *this;
 }
 
-vk::DescriptorSetLayout DescriptorSetSpec::GetLayout() {
+vk::DescriptorSetLayout DescriptorSetSpec::GetLayout() const {
 	return *m_layout;
 }

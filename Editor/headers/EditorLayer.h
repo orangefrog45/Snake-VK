@@ -1,10 +1,11 @@
 #pragma once
+#include "AssetEditor.h"
 #include "EntityEditor.h"
 #include "layers/LayerManager.h"
 #include "rendering/VkSceneRenderer.h"
-#include "scene/Scene.h"
-#include "AssetEditor.h"
 #include "rendering/Raytracing.h"
+#include "rendering/RenderCommon.h"
+#include "scene/Scene.h"
 
 namespace SNAKE {
 	class Window;
@@ -36,13 +37,15 @@ namespace SNAKE {
 		void ErrorMessagePopup(const std::string& err);
 
 		Scene scene;
+
 		FullscreenImage2D render_image;
-		FullscreenImage2D depth_image;
+		GBufferResources gbuffer;
 
 		ProjectState project;
 
 		RT raytracing;
 	private:
+		void InitGBuffer();
 		void RenderDialogBoxes();
 
 		bool CreateEntityPopup(bool open_condition);

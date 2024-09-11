@@ -18,7 +18,6 @@ struct ShaderFileData {
 	std::vector<std::string> defines;
 };
 
-
 std::vector<std::string> SplitString(const std::string& input, const std::string& split_val) {
 	std::vector<std::string> ret;
 	if (split_val.empty())

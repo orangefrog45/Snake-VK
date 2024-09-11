@@ -199,23 +199,54 @@ void EditorLayer::ToolbarGUI() {
 	ImGui::End();
 }
 
-void EditorLayer::OnInit() {
-	VkRenderer::QueueDebugRenderLine({ 0, 0, 0 }, { 0, 10000, 0 }, { 0, 1, 0, 1 });
-
+void EditorLayer::InitGBuffer() {
 	// Create depth image
 	auto depth_format = FindDepthFormat();
 	Image2DSpec depth_spec{};
 	depth_spec.format = depth_format;
-	depth_spec.size = { p_window->GetWidth(), p_window->GetHeight()};
+	depth_spec.size = { p_window->GetWidth(), p_window->GetHeight() };
 	depth_spec.tiling = vk::ImageTiling::eOptimal;
-	depth_spec.usage = vk::ImageUsageFlagBits::eDepthStencilAttachment;
+	depth_spec.usage = vk::ImageUsageFlagBits::eDepthStencilAttachment | vk::ImageUsageFlagBits::eSampled;
 	depth_spec.aspect_flags = vk::ImageAspectFlagBits::eDepth | (HasStencilComponent(depth_format) ? vk::ImageAspectFlagBits::eStencil : vk::ImageAspectFlagBits::eNone);
-	depth_image.SetSpec(depth_spec);
-	depth_image.CreateImage();
-	depth_image.CreateImageView();
+	
+	Image2DSpec albedo_spec{};
+	albedo_spec.format = vk::Format::eR8G8B8A8Snorm;
+	albedo_spec.size = { p_window->GetWidth(), p_window->GetHeight() };
+	albedo_spec.tiling = vk::ImageTiling::eOptimal;
+	albedo_spec.usage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled;
+	albedo_spec.aspect_flags = vk::ImageAspectFlagBits::eColor;
 
-	depth_image.TransitionImageLayout(vk::ImageLayout::eUndefined,
+	Image2DSpec normal_spec{};
+	normal_spec.format = vk::Format::eR16G16B16A16Sfloat;
+	normal_spec.size = { p_window->GetWidth(), p_window->GetHeight() };
+	normal_spec.tiling = vk::ImageTiling::eOptimal;
+	normal_spec.usage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled;
+	normal_spec.aspect_flags = vk::ImageAspectFlagBits::eColor;
+
+	gbuffer.albedo_image.SetSpec(albedo_spec);
+	gbuffer.albedo_image.CreateImage();
+	gbuffer.albedo_image.CreateImageView();
+	gbuffer.albedo_image.TransitionImageLayout(vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal, 
+		vk::AccessFlagBits::eNone, vk::AccessFlagBits::eNone, vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTopOfPipe);
+
+	gbuffer.normal_image.SetSpec(normal_spec);
+	gbuffer.normal_image.CreateImage();
+	gbuffer.normal_image.CreateImageView();
+	gbuffer.normal_image.TransitionImageLayout(vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal,
+		vk::AccessFlagBits::eNone, vk::AccessFlagBits::eNone, vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTopOfPipe);
+
+	gbuffer.depth_image.SetSpec(depth_spec);
+	gbuffer.depth_image.CreateImage();
+	gbuffer.depth_image.CreateImageView();
+	gbuffer.depth_image.TransitionImageLayout(vk::ImageLayout::eUndefined,
 		(HasStencilComponent(depth_format) ? vk::ImageLayout::eDepthAttachmentOptimal : vk::ImageLayout::eDepthAttachmentOptimal), 0);
+
+}
+
+void EditorLayer::OnInit() {
+	VkRenderer::QueueDebugRenderLine({ 0, 0, 0 }, { 0, 10000, 0 }, { 0, 1, 0, 1 });
+
+	InitGBuffer();
 
 	Image2DSpec spec;
 	spec.aspect_flags = vk::ImageAspectFlagBits::eColor;
@@ -255,7 +286,7 @@ void EditorLayer::OnInit() {
 	for (int i = 0; i < 10; i++) {
 	//	CreateLargeEntity(scene);
 	}
-	raytracing.Init(scene, render_image, scene.GetSystem<SceneInfoBufferSystem>()->descriptor_buffers[0].GetDescriptorSpec()->GetLayout());
+	raytracing.Init(scene, render_image, *scene.GetSystem<SceneInfoBufferSystem>()->descriptor_buffers[0].GetDescriptorSpec());
 
 }
 

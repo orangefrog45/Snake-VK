@@ -20,13 +20,13 @@ namespace SNAKE {
 
 		size_t GetSize();
 
-		bool IsBindingPointOccupied(unsigned binding);
+		bool IsBindingPointOccupied(unsigned binding) const;
 
 		vk::DescriptorType GetDescriptorTypeAtBinding(unsigned binding);
 
 		DescriptorSetSpec& AddDescriptor(unsigned binding_point, vk::DescriptorType type, vk::ShaderStageFlags flags, uint32_t descriptor_count = 1);
 
-		vk::DescriptorSetLayout GetLayout();
+		vk::DescriptorSetLayout GetLayout() const;
 
 		using BindingOffset = vk::DeviceAddress;
 		using BindingIndex = uint32_t;

@@ -145,8 +145,8 @@ namespace SNAKE {
 			return Get().m_global_material_buffer_manager.descriptor_buffers[current_frame]->GetBindingInfo();
 		}
 
-		static vk::DescriptorSetLayout GetGlobalTexMatBufDescriptorSetLayout(uint32_t current_frame) {
-			return Get().m_global_material_buffer_manager.descriptor_buffers[current_frame]->GetDescriptorSpec()->GetLayout();
+		static DescriptorSetSpec* GetGlobalTexMatBufDescriptorSetSpec(uint32_t current_frame) {
+			return Get().m_global_material_buffer_manager.descriptor_buffers[current_frame]->GetDescriptorSpec();
 		}
 
 		MeshBufferManager mesh_buffer_manager{};

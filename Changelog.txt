@@ -1,3 +1,7 @@
+11/9/24:
+-Raytracing pipeline creation abstraction
+-Shader reflection tweaks
+
 8/9/24:
 -Basic hardware accelerated pathtracing
 --
