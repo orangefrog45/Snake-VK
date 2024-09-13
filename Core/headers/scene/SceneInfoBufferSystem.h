@@ -17,6 +17,8 @@ namespace SNAKE {
 		std::array<S_VkBuffer, MAX_FRAMES_IN_FLIGHT> ubos;
 
 	private:
+		std::shared_ptr<DescriptorSetSpec> mp_descriptor_set_spec = nullptr;
+
 		EventListener m_frame_start_listener;
 	};
 }

@@ -1,9 +1,10 @@
+#include "components/MeshComponent.h"
+#include "core/JobSystem.h"
 #include "renderpasses/ShadowPass.h"
 #include "scene/Scene.h"
 #include "scene/LightBufferSystem.h"
 #include "scene/TransformBufferSystem.h"
-#include "components/MeshComponent.h"
-#include "core/JobSystem.h"
+#include "scene/SceneSnapshotSystem.h"
 
 namespace SNAKE {
 	void ShadowPass::Init() {

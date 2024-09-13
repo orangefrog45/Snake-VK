@@ -42,7 +42,7 @@ namespace SNAKE {
 			auto& builder = layout_builder.value().get();
 			auto& descriptors = builder.descriptor_set_layouts;
 			auto& spec_output = builder.reflected_descriptor_specs;
-			std::unordered_map<uint32_t, DescriptorSetSpec*> new_specs;
+			std::unordered_map<uint32_t, std::shared_ptr<DescriptorSetSpec>> new_specs;
 
 			// Allocate space so pushing back elements doesn't cause vector reallocation (breaks pointers)
 			constexpr unsigned MAX_DESCRIPTOR_SETS = 16;
@@ -53,9 +53,10 @@ namespace SNAKE {
 				unsigned binding = comp.get_decoration(resource.id, spv::DecorationBinding);
 
 				if (!new_specs.contains(set)) {
-					auto& spec = spec_output.emplace_back();
-					new_specs[set] = &spec;
-					descriptors[set] = &spec;
+					auto spec = std::make_shared<DescriptorSetSpec>();
+					spec_output.push_back(spec);
+					new_specs[set] = spec;
+					descriptors[set] = spec;
 				}
 
 				if (!new_specs[set]->IsBindingPointOccupied(binding))
@@ -71,9 +72,10 @@ namespace SNAKE {
 				unsigned descriptor_count = is_array ? type.array[0] : 1;
 
 				if (!new_specs.contains(set)) {
-					auto& spec = spec_output.emplace_back();
-					new_specs[set] = &spec;
-					descriptors[set] = &spec;
+					auto spec = std::make_shared<DescriptorSetSpec>();
+					spec_output.push_back(spec);
+					new_specs[set] = spec;
+					descriptors[set] = spec;
 				}
 
 				if (!new_specs[set]->IsBindingPointOccupied(binding))
@@ -86,9 +88,10 @@ namespace SNAKE {
 				auto type = comp.get_type(resource.type_id);
 
 				if (!new_specs.contains(set)) {
-					auto& spec = spec_output.emplace_back();
-					new_specs[set] = &spec;
-					descriptors[set] = &spec;
+					auto spec = std::make_shared<DescriptorSetSpec>();
+					spec_output.push_back(spec);
+					new_specs[set] = spec;
+					descriptors[set] = spec;
 				}
 
 				if (!new_specs[set]->IsBindingPointOccupied(binding))

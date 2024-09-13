@@ -1,12 +1,12 @@
 #include "pch/pch.h"
+#include "assets/MaterialAsset.h"
 #include "assets/AssetManager.h"
-#include "components/MeshComponent.h"
 #include "renderpasses/ForwardPass.h"
 #include "scene/LightBufferSystem.h"
 #include "scene/Scene.h"
 #include "scene/SceneInfoBufferSystem.h"
 #include "scene/TransformBufferSystem.h"
-#include "assets/MaterialAsset.h"
+#include "scene/SceneSnapshotSystem.h"
 
 namespace SNAKE {
 

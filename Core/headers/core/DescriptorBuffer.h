@@ -22,7 +22,7 @@ namespace SNAKE {
 
 		bool IsBindingPointOccupied(unsigned binding) const;
 
-		vk::DescriptorType GetDescriptorTypeAtBinding(unsigned binding);
+		vk::DescriptorType GetDescriptorTypeAtBinding(unsigned binding) const;
 
 		DescriptorSetSpec& AddDescriptor(unsigned binding_point, vk::DescriptorType type, vk::ShaderStageFlags flags, uint32_t descriptor_count = 1);
 
@@ -30,7 +30,7 @@ namespace SNAKE {
 
 		using BindingOffset = vk::DeviceAddress;
 		using BindingIndex = uint32_t;
-		BindingOffset GetBindingOffset(BindingIndex binding_index);
+		BindingOffset GetBindingOffset(BindingIndex binding_index) const;
 
 	private:
 		std::vector<vk::DescriptorSetLayoutBinding> m_layout_bindings;
@@ -48,7 +48,7 @@ namespace SNAKE {
 	class DescriptorBuffer {
 	public:
 		DescriptorBuffer() = default;
-		~DescriptorBuffer() = default;
+		~DescriptorBuffer();
 		DescriptorBuffer(const DescriptorBuffer& other) = delete;
 		DescriptorBuffer& operator=(const DescriptorBuffer& other) = delete;
 
@@ -62,21 +62,24 @@ namespace SNAKE {
 
 		vk::DescriptorBufferBindingInfoEXT GetBindingInfo();
 
-		// Returned pointer is alive as long as this object is alive
-		DescriptorSetSpec* GetDescriptorSpec();
+		std::weak_ptr<const DescriptorSetSpec> GetDescriptorSpec();
 
-		void SetDescriptorSpec(std::shared_ptr<DescriptorSetSpec> spec);
+		void SetDescriptorSpec(std::weak_ptr<const DescriptorSetSpec> spec);
 
 		S_VkBuffer descriptor_buffer;
 
 	private:
+
 		struct ResourceLinkInfo {
 			DescriptorGetInfo get_info;
-			std::shared_ptr<EventListener> p_resource_event_listener = nullptr;
+
+			// Memory managed by DescriptorBuffer
+			EventListener* p_resource_event_listener = nullptr;
+
 			S_VkResource const* p_resource = nullptr;
 		};
 
-		std::shared_ptr<DescriptorSetSpec> mp_descriptor_spec = nullptr;
+		std::weak_ptr<const DescriptorSetSpec> mp_descriptor_spec;
 		std::vector<std::unordered_map<uint32_t, ResourceLinkInfo>> m_resource_link_infos;
 		vk::BufferUsageFlags m_usage_flags;
 	};

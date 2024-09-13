@@ -1,3 +1,8 @@
+12/9/24:
+-Ray generation shader now spawns rays from object surfaces found in GBuffer
+-Rasterized GBuffer generation (raster pipeline is now deferred)
+-Acceleration structure memory leak fix
+
 11/9/24:
 -Raytracing pipeline creation abstraction
 -Shader reflection tweaks

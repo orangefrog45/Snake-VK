@@ -14,19 +14,15 @@ namespace SNAKE {
 
 	void AssetManager::InitGlobalBufferManagers() {
 		std::array<std::shared_ptr<DescriptorBuffer>, MAX_FRAMES_IN_FLIGHT> descriptor_buffers;
+		m_global_tex_mat_descriptor_spec = std::make_shared<DescriptorSetSpec>();
+		m_global_tex_mat_descriptor_spec->AddDescriptor(0, vk::DescriptorType::eStorageBuffer,
+			vk::ShaderStageFlagBits::eAll, 1)
+			.AddDescriptor(1, vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eAll, 4096);
+		m_global_tex_mat_descriptor_spec->GenDescriptorLayout();
 
 		for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
 			descriptor_buffers[i] = std::make_shared<DescriptorBuffer>();
-
-			auto p_descriptor_spec = std::make_shared<DescriptorSetSpec>();
-			descriptor_buffers[i]->SetDescriptorSpec(p_descriptor_spec);
-
-			p_descriptor_spec->AddDescriptor(0, vk::DescriptorType::eStorageBuffer,
-				vk::ShaderStageFlagBits::eAll, 1)
-				.AddDescriptor(1, vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eAll, 4096);
-
-			p_descriptor_spec->GenDescriptorLayout();
-
+			descriptor_buffers[i]->SetDescriptorSpec(m_global_tex_mat_descriptor_spec);
 			descriptor_buffers[i]->CreateBuffer(1);
 		}
 

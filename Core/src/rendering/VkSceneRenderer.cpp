@@ -1,66 +1,28 @@
-#include "rendering/VkSceneRenderer.h"
-#include "scene/Scene.h"
 #include "components/MeshComponent.h"
 #include "core/JobSystem.h"
+#include "rendering/VkSceneRenderer.h"
+#include "scene/Scene.h"
+#include "scene/TransformBufferSystem.h"
+#include "scene/SceneSnapshotSystem.h"
 
 using namespace SNAKE;
 
-void VkSceneRenderer::TakeGameStateSnapshot() {
-	m_snapshot_data.Reset();
-
-	std::vector<StaticMeshComponent*> comps;
-
-	for (auto [entity, mesh] : mp_scene->GetRegistry().view<StaticMeshComponent>().each()) {
-		comps.push_back(&mesh);
-	}
-
-	// Order meshes based on their data
-	std::ranges::sort(comps, [](const auto& mesh0, const auto& mesh1) -> bool { return mesh0->GetMeshAsset()->uuid() < mesh1->GetMeshAsset()->uuid(); });
-
-	StaticMeshAsset* p_current_mesh = comps.empty() ? nullptr : comps[0]->GetMeshAsset();
-	uint32_t mesh_change_index = 0;
-	uint32_t same_mesh_count = 0;
-
-	for (uint32_t i = 0; i < comps.size(); i++) {
-		auto* p_mesh = comps[i];
-
-		if (auto* p_new_mesh = p_mesh->GetMeshAsset(); p_new_mesh != p_current_mesh) {
-			m_snapshot_data.mesh_ranges.emplace_back(p_current_mesh->uuid(), mesh_change_index, same_mesh_count);
-			p_current_mesh = p_new_mesh;
-			same_mesh_count = 0;
-			mesh_change_index = i;
-		}
-
-		same_mesh_count++;
-		m_snapshot_data.static_mesh_data.emplace_back(&p_mesh->GetMaterials());
-	}
-
-	if (p_current_mesh)
-		m_snapshot_data.mesh_ranges.emplace_back(p_current_mesh->uuid(), mesh_change_index, same_mesh_count);
-}
 
 void VkSceneRenderer::Init(Scene* p_scene) {
 	mp_scene = p_scene;
 
 	m_shadow_pass.Init();
 	m_forward_pass.Init();
-
-	m_frame_start_listener.callback = [this]([[maybe_unused]] Event const* p_event) {
-		TakeGameStateSnapshot();
-	};
-
-
-	EventManagerG::RegisterListener<FrameStartEvent>(m_frame_start_listener);
 }
 
-void VkSceneRenderer::RenderScene(Image2D& output_image, Image2D& depth_image) {
+void VkSceneRenderer::RenderScene(Image2D& output_image, Image2D& depth_image, const SceneSnapshotData& snapshot_data) {
 	if (!mp_scene)
 		return;
 
 	auto* shadow_job = JobSystem::CreateWaitedOnJob();
-	shadow_job->func = [this]([[maybe_unused]] Job const*) {m_shadow_pass.RecordCommandBuffers(*mp_scene, m_snapshot_data); };
+	shadow_job->func = [this, &snapshot_data]([[maybe_unused]] Job const*) {m_shadow_pass.RecordCommandBuffers(*mp_scene, snapshot_data); };
 	JobSystem::Execute(shadow_job);
-	m_forward_pass.RecordCommandBuffer(output_image, depth_image, *mp_scene, m_snapshot_data);
+	m_forward_pass.RecordCommandBuffer(output_image, depth_image, *mp_scene, snapshot_data);
 	JobSystem::WaitOn(shadow_job);
 
 	vk::SubmitInfo depth_submit_info;

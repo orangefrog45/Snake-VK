@@ -4,6 +4,8 @@
 #include "scene/SceneInfoBufferSystem.h"
 #include "scene/TransformSystem.h"
 #include "scene/RaytracingBufferSystem.h"
+#include "scene/TransformBufferSystem.h"
+#include "scene/SceneSnapshotSystem.h"
 
 using namespace SNAKE;
 
@@ -13,6 +15,8 @@ void Scene::AddDefaultSystems() {
 	AddSystem<LightBufferSystem>();
 	AddSystem<SceneInfoBufferSystem>();
 	AddSystem<RaytracingInstanceBufferSystem>();
+	AddSystem<TransformBufferSystem>();
+	AddSystem<SceneSnapshotSystem>();
 }
 
 Entity* Scene::GetEntity(entt::entity handle) {

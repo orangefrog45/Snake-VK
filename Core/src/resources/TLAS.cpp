@@ -74,7 +74,7 @@ void TLAS::RefreshDescriptorGetInfo(DescriptorGetInfo& info) const {
 }
 
 void TLAS::Destroy() {
-	m_as.release();
+	m_as.reset();
 	instance_buffer.DestroyBuffer();
 	m_as_buffer.DestroyBuffer();
 	DispatchResourceEvent(S_VkResourceEvent::ResourceEventType::DELETE);

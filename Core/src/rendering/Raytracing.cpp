@@ -3,6 +3,7 @@
 #include "scene/RaytracingBufferSystem.h"
 #include "components/Components.h"
 #include "scene/LightBufferSystem.h"
+#include "rendering/RenderCommon.h"
 
 using namespace SNAKE;
 
@@ -86,9 +87,9 @@ void RT::UpdateTLAS() {
 	//SNK_ASSERT(tlas_handle);
 }
 
-void RT::InitDescriptorBuffers(Image2D& output_image, Scene& scene) {
+void RT::InitDescriptorBuffers(Image2D& output_image, Scene& scene, GBufferResources& output_gbuffer) {
 	rt_descriptor_set_spec = std::make_shared<DescriptorSetSpec>();
-	rt_descriptor_set_spec->AddDescriptor(0, vk::DescriptorType::eAccelerationStructureKHR, vk::ShaderStageFlagBits::eAll)
+	rt_descriptor_set_spec->AddDescriptor(0, vk::DescriptorType::eAccelerationStructureKHR, vk::ShaderStageFlagBits::eAll) // TLAS
 		.AddDescriptor(1, vk::DescriptorType::eStorageImage, vk::ShaderStageFlagBits::eRaygenKHR) // Output image
 		.AddDescriptor(2, vk::DescriptorType::eStorageBuffer, vk::ShaderStageFlagBits::eClosestHitKHR) // Vertex position buffer
 		.AddDescriptor(3, vk::DescriptorType::eStorageBuffer, vk::ShaderStageFlagBits::eClosestHitKHR) // Vertex index buffer
@@ -97,13 +98,18 @@ void RT::InitDescriptorBuffers(Image2D& output_image, Scene& scene) {
 		.AddDescriptor(6, vk::DescriptorType::eStorageBuffer, vk::ShaderStageFlagBits::eClosestHitKHR) // Vertex tangent buffer
 		.AddDescriptor(7, vk::DescriptorType::eStorageBuffer, vk::ShaderStageFlagBits::eClosestHitKHR) // Raytracing instance buffer
 		.AddDescriptor(8, vk::DescriptorType::eStorageBuffer, vk::ShaderStageFlagBits::eClosestHitKHR) // Light buffer
+		.AddDescriptor(9, vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eRaygenKHR) // Input gbuffer albedo combined image sampler
+		.AddDescriptor(10, vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eRaygenKHR) // Input gbuffer normal combined image sampler
+		.AddDescriptor(11, vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eRaygenKHR) // Input gbuffer depth combined image sampler
+		.AddDescriptor(12, vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eRaygenKHR) // Input gbuffer rma combined image sampler
 		.GenDescriptorLayout();
 
 	for (FrameInFlightIndex i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
 		rt_descriptor_buffers[i].SetDescriptorSpec(rt_descriptor_set_spec);
 		rt_descriptor_buffers[i].CreateBuffer(1);
-
+		
 		auto mesh_buffers = AssetManager::Get().mesh_buffer_manager.GetMeshBuffers();
+
 		auto get_info_tlas = tlas_array[i].CreateDescriptorGetInfo();
 		auto get_info_image = output_image.CreateDescriptorGetInfo(vk::ImageLayout::eGeneral, vk::DescriptorType::eStorageImage);
 		auto get_info_position_buf = mesh_buffers.position_buf.CreateDescriptorGetInfo();
@@ -113,6 +119,10 @@ void RT::InitDescriptorBuffers(Image2D& output_image, Scene& scene) {
 		auto get_info_tangent_buf = mesh_buffers.tangent_buf.CreateDescriptorGetInfo();
 		auto get_info_instance_buf = scene.GetSystem<RaytracingInstanceBufferSystem>()->GetStorageBuffer(i).CreateDescriptorGetInfo();
 		auto get_info_light_buf = scene.GetSystem<LightBufferSystem>()->light_ssbos[i].CreateDescriptorGetInfo();
+		auto get_info_albedo_gbuffer_image = output_gbuffer.albedo_image.CreateDescriptorGetInfo(vk::ImageLayout::eGeneral, vk::DescriptorType::eCombinedImageSampler);
+		auto get_info_normal_gbuffer_image = output_gbuffer.normal_image.CreateDescriptorGetInfo(vk::ImageLayout::eGeneral, vk::DescriptorType::eCombinedImageSampler);
+		auto get_info_depth_gbuffer_image = output_gbuffer.depth_image.CreateDescriptorGetInfo(vk::ImageLayout::eGeneral, vk::DescriptorType::eCombinedImageSampler);
+		auto get_info_rma_gbuffer_image = output_gbuffer.rma_image.CreateDescriptorGetInfo(vk::ImageLayout::eGeneral, vk::DescriptorType::eCombinedImageSampler);
 
 		rt_descriptor_buffers[i].LinkResource(&tlas_array[i], get_info_tlas, 0, 0);
 		rt_descriptor_buffers[i].LinkResource(&output_image, get_info_image, 1, 0);
@@ -123,81 +133,101 @@ void RT::InitDescriptorBuffers(Image2D& output_image, Scene& scene) {
 		rt_descriptor_buffers[i].LinkResource(&mesh_buffers.tangent_buf, get_info_tangent_buf, 6, 0);
 		rt_descriptor_buffers[i].LinkResource(&scene.GetSystem<RaytracingInstanceBufferSystem>()->GetStorageBuffer(i), get_info_instance_buf, 7, 0);
 		rt_descriptor_buffers[i].LinkResource(&scene.GetSystem<LightBufferSystem>()->light_ssbos[i], get_info_light_buf, 8, 0);
+		rt_descriptor_buffers[i].LinkResource(&output_gbuffer.albedo_image, get_info_albedo_gbuffer_image, 9, 0);
+		rt_descriptor_buffers[i].LinkResource(&output_gbuffer.normal_image, get_info_normal_gbuffer_image, 10, 0);
+		rt_descriptor_buffers[i].LinkResource(&output_gbuffer.depth_image, get_info_depth_gbuffer_image, 11, 0);
+		rt_descriptor_buffers[i].LinkResource(&output_gbuffer.rma_image, get_info_rma_gbuffer_image, 12, 0);
 	}
 }
 
-void RT::InitPipeline(const DescriptorSetSpec& common_ubo_set) {
+void RT::InitPipeline(std::weak_ptr<const DescriptorSetSpec> common_ubo_set) {
 	RtPipelineBuilder pipeline_builder{};
 	pipeline_builder.AddShader(vk::ShaderStageFlagBits::eRaygenKHR, "res/shaders/RayGenrgen_00000000.spv")
+		.AddShader(vk::ShaderStageFlagBits::eMissKHR, "res/shaders/RayMissrmiss_00000000.spv")
 		.AddShader(vk::ShaderStageFlagBits::eMissKHR, "res/shaders/RayMissrmiss_00000000.spv")
 		.AddShader(vk::ShaderStageFlagBits::eClosestHitKHR, "res/shaders/RayClosestHitrchit_00000000.spv")
 		.AddShaderGroup(vk::RayTracingShaderGroupTypeKHR::eGeneral, 0, VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR)
 		.AddShaderGroup(vk::RayTracingShaderGroupTypeKHR::eGeneral, 1, VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR)
-		.AddShaderGroup(vk::RayTracingShaderGroupTypeKHR::eTrianglesHitGroup, VK_SHADER_UNUSED_KHR, 2, VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR);
+		.AddShaderGroup(vk::RayTracingShaderGroupTypeKHR::eGeneral, 2, VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR)
+		.AddShaderGroup(vk::RayTracingShaderGroupTypeKHR::eTrianglesHitGroup, VK_SHADER_UNUSED_KHR, 3, VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR);
 		
 	PipelineLayoutBuilder layout_builder{};
 	layout_builder.AddDescriptorSet(0, common_ubo_set)
-		.AddDescriptorSet(1, *rt_descriptor_buffers[0].GetDescriptorSpec())
-		.AddDescriptorSet(2, *AssetManager::GetGlobalTexMatBufDescriptorSetSpec(0))
+		.AddDescriptorSet(1, rt_descriptor_buffers[0].GetDescriptorSpec())
+		.AddDescriptorSet(2, AssetManager::GetGlobalTexMatBufDescriptorSetSpec(0))
 		.Build();
 
 	pipeline.Init(pipeline_builder, layout_builder);
-
-	sbt_group_count = (uint32_t)pipeline_builder.shader_groups.size();
 }
 
-void RT::CreateShaderBindingTable() {
+void SBT::Init(vk::Pipeline pipeline, const RtPipelineBuilder& builder) {
 	auto& ray_pipeline_properties = VkContext::GetPhysicalDevice().ray_properties;
 	auto sbt_handle_size = ray_pipeline_properties.shaderGroupHandleSize;
 	auto sbt_handle_alignment = ray_pipeline_properties.shaderGroupHandleAlignment;
-	sbt_handle_size_aligned = (uint32_t)aligned_size(sbt_handle_size, sbt_handle_alignment);
-	auto sbt_size = sbt_group_count * sbt_handle_size_aligned;
+	m_sbt_aligned_handle_size = (uint32_t)aligned_size(sbt_handle_size, sbt_handle_alignment);
 
-	std::vector<std::byte> sbt_data(sbt_size);
-	auto res = VkContext::GetLogicalDevice().device->getRayTracingShaderGroupHandlesKHR(pipeline.GetPipeline(), 0u, sbt_group_count, (size_t)sbt_size, sbt_data.data());
+	// TODO: Base these counts off of shaders added in builder
+	uint32_t miss_count = 2;
+	uint32_t hit_count = 1;
+
+	address_regions.rgen.stride = aligned_size(m_sbt_aligned_handle_size, ray_pipeline_properties.shaderGroupBaseAlignment);
+	address_regions.rgen.size = address_regions.rgen.stride; // For rgen, size must be same as stride
+
+	address_regions.rmiss.stride = m_sbt_aligned_handle_size;
+	address_regions.rmiss.size = aligned_size(miss_count * m_sbt_aligned_handle_size, ray_pipeline_properties.shaderGroupBaseAlignment);
+
+	address_regions.rhit.stride = m_sbt_aligned_handle_size;
+	address_regions.rhit.size = aligned_size(hit_count * m_sbt_aligned_handle_size, ray_pipeline_properties.shaderGroupBaseAlignment);
+
+	auto sbt_size = address_regions.rgen.size + address_regions.rmiss.size + address_regions.rhit.size + address_regions.callable.size;
+
+	std::vector<std::byte> handles(sbt_size);
+	auto res = VkContext::GetLogicalDevice().device->getRayTracingShaderGroupHandlesKHR(pipeline, 0u, (uint32_t)builder.shader_groups.size(), (size_t)sbt_size, handles.data());
 	SNK_CHECK_VK_RESULT(res);
 
-	std::vector<S_VkBuffer*> sbt_bufs = { &sbt_ray_gen_buffer, &sbt_ray_miss_buffer, &sbt_ray_hit_buffer };
-	for (size_t i = 0; i < sbt_bufs.size(); i++) {
-		auto* p_buf = sbt_bufs[i];
-		p_buf->CreateBuffer(sbt_handle_size, vk::BufferUsageFlagBits::eShaderBindingTableKHR | vk::BufferUsageFlagBits::eShaderDeviceAddress,
-			VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT);
+	sbt_buffer.CreateBuffer(sbt_size, 
+		vk::BufferUsageFlagBits::eShaderBindingTableKHR | vk::BufferUsageFlagBits::eShaderDeviceAddress,
+		VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT);
 
-		memcpy(p_buf->Map(), sbt_data.data() + i * sbt_handle_size_aligned, sbt_handle_size);
+	auto GetHandle = [&](int i) { return handles.data() + i * sbt_handle_size; };
+
+	std::byte* p_sbt_buf = reinterpret_cast<std::byte*>(sbt_buffer.Map());
+	std::byte* p_data = nullptr;
+	uint32_t handle_idx = 0;
+	p_data = p_sbt_buf;
+
+	// Raygen
+	memcpy(p_data, GetHandle(handle_idx++), sbt_handle_size);
+
+	// Miss
+	p_data = p_sbt_buf + address_regions.rgen.size;
+	for (uint32_t i = 0; i < miss_count; i++) {
+		memcpy(p_data, GetHandle(handle_idx++), sbt_handle_size);
+		p_data += address_regions.rmiss.stride;
 	}
 
+	// Hit
+	p_data = p_sbt_buf + address_regions.rgen.size + address_regions.rmiss.size;
+	for (uint32_t i = 0; i < hit_count; i++) {
+		memcpy(p_data, GetHandle(handle_idx++), sbt_handle_size);
+		p_data += address_regions.rhit.stride;
+	}
+	sbt_buffer.Unmap();
+
+	address_regions.rgen.deviceAddress = sbt_buffer.GetDeviceAddress();
+	address_regions.rmiss.deviceAddress = sbt_buffer.GetDeviceAddress() + address_regions.rgen.size;
+	address_regions.rhit.deviceAddress = sbt_buffer.GetDeviceAddress() + address_regions.rgen.size + address_regions.rmiss.size;
 }
 
-//void RT::RecordGBufferPassCmdBuf(vk::CommandBuffer cmd, class GBufferResources& output) {
+//void RT::RecordGBufferPassCmdBuf(vk::CommandBuffer cmd, GBufferResources& output) {
 //	vk::CommandBufferBeginInfo begin_info{};
 //	SNK_CHECK_VK_RESULT(cmd.begin(begin_info));
-//
 //
 //
 //	SNK_CHECK_VK_RESULT(cmd.end());
 //}
 
 void RT::RecordRenderCmdBuf(vk::CommandBuffer cmd, Image2D& output_image, DescriptorBuffer& common_ubo_db) {
-	vk::StridedDeviceAddressRegionKHR raygen_sbt{};
-	raygen_sbt.deviceAddress = sbt_ray_gen_buffer.GetDeviceAddress();
-	raygen_sbt.stride = sbt_handle_size_aligned;
-	raygen_sbt.size = sbt_handle_size_aligned;
-
-	vk::StridedDeviceAddressRegionKHR raymiss_sbt{};
-	raymiss_sbt.deviceAddress = sbt_ray_miss_buffer.GetDeviceAddress();
-	raymiss_sbt.stride = sbt_handle_size_aligned;
-	raymiss_sbt.size = sbt_handle_size_aligned;
-
-	vk::StridedDeviceAddressRegionKHR ray_hit_sbt{};
-	ray_hit_sbt.deviceAddress = sbt_ray_hit_buffer.GetDeviceAddress();
-	ray_hit_sbt.stride = sbt_handle_size_aligned;
-	ray_hit_sbt.size = sbt_handle_size_aligned;
-
-	vk::StridedDeviceAddressRegionKHR ray_callable_sbt{};
-
-	vk::CommandBufferBeginInfo begin_info{};
-
-	SNK_CHECK_VK_RESULT(cmd.begin(begin_info));
 
 	output_image.TransitionImageLayout(vk::ImageLayout::eUndefined, vk::ImageLayout::eGeneral,
 		vk::AccessFlagBits::eShaderWrite, vk::AccessFlagBits::eShaderWrite, vk::PipelineStageFlagBits::eRayTracingShaderKHR,
@@ -215,12 +245,11 @@ void RT::RecordRenderCmdBuf(vk::CommandBuffer cmd, Image2D& output_image, Descri
 
 	auto& spec = output_image.GetSpec();
 
-	cmd.traceRaysKHR(raygen_sbt, raymiss_sbt, ray_hit_sbt, ray_callable_sbt, spec.size.x, spec.size.y, 1);
-
-	SNK_CHECK_VK_RESULT(cmd.end());
+	auto& sbt = pipeline.GetSBT();
+	cmd.traceRaysKHR(sbt.address_regions.rgen, sbt.address_regions.rmiss, sbt.address_regions.rhit, sbt.address_regions.callable, spec.size.x, spec.size.y, 1);
 }
 
-void RT::Init(Scene& scene, Image2D& output_image, const DescriptorSetSpec& common_ubo_set_spec) {
+void RT::Init(Scene& scene, Image2D& output_image, std::weak_ptr<const DescriptorSetSpec> common_ubo_set, GBufferResources& gbuffer) {
 	frame_start_listener.callback = [&]([[maybe_unused]] Event const* p_event) {
 		InitTLAS(scene, VkContext::GetCurrentFIF());
 		};
@@ -230,9 +259,8 @@ void RT::Init(Scene& scene, Image2D& output_image, const DescriptorSetSpec& comm
 		InitTLAS(scene, i);
 	}
 
-	InitDescriptorBuffers(output_image, scene);
-	InitPipeline(common_ubo_set_spec);
-	CreateShaderBindingTable();
+	InitDescriptorBuffers(output_image, scene, gbuffer);
+	InitPipeline(common_ubo_set);
 }
 
 void BLAS::GenerateFromMeshData(MeshData& mesh_data, uint32_t submesh_index) {

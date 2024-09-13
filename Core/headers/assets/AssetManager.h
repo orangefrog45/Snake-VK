@@ -145,7 +145,7 @@ namespace SNAKE {
 			return Get().m_global_material_buffer_manager.descriptor_buffers[current_frame]->GetBindingInfo();
 		}
 
-		static DescriptorSetSpec* GetGlobalTexMatBufDescriptorSetSpec(uint32_t current_frame) {
+		static std::weak_ptr<const DescriptorSetSpec> GetGlobalTexMatBufDescriptorSetSpec(uint32_t current_frame) {
 			return Get().m_global_material_buffer_manager.descriptor_buffers[current_frame]->GetDescriptorSpec();
 		}
 
@@ -160,6 +160,8 @@ namespace SNAKE {
 
 		GlobalTextureBufferManager m_global_tex_buffer_manager;
 		GlobalMaterialBufferManager m_global_material_buffer_manager;
+		std::shared_ptr<DescriptorSetSpec> m_global_tex_mat_descriptor_spec = nullptr;
+
 		std::unordered_map<uint64_t, Asset*> m_assets;
 
 	};

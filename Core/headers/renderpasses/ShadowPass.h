@@ -1,11 +1,11 @@
 #pragma once
-#include "core/VkCommon.h"
-#include "core/VkCommands.h"
-#include "resources/Images.h"
-#include "core/Pipelines.h"
 #include "assets/MeshData.h"
 #include "components/Component.h"
+#include "core/Pipelines.h"
+#include "core/VkCommands.h"
+#include "core/VkCommon.h"
 #include "rendering/RenderCommon.h"
+#include "resources/Images.h"
 
 namespace SNAKE {
 	struct RenderableComponent : Component {
@@ -15,7 +15,7 @@ namespace SNAKE {
 	public:
 		void Init();
 
-		void RecordCommandBuffers(class Scene& scene, const SceneSnapshotData& data);
+		void RecordCommandBuffers(class Scene& scene, const struct SceneSnapshotData& data);
 
 		vk::CommandBuffer GetCommandBuffer() { return *m_cmd_buffers[VkContext::GetCurrentFIF()].buf; }
 

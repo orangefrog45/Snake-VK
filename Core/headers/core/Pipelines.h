@@ -8,8 +8,8 @@ namespace SNAKE {
 	struct PipelineLayoutBuilder {
 		void Build();
 
-		PipelineLayoutBuilder& AddDescriptorSet(uint32_t set_idx, const DescriptorSetSpec& spec) {
-			descriptor_set_layouts[set_idx] = &spec;
+		PipelineLayoutBuilder& AddDescriptorSet(uint32_t set_idx, std::weak_ptr<const DescriptorSetSpec> spec) {
+			descriptor_set_layouts[set_idx] = spec;
 			return *this;
 		}
 
@@ -20,8 +20,8 @@ namespace SNAKE {
 
 		vk::PipelineLayoutCreateInfo pipeline_layout_info;
 		std::vector<vk::PushConstantRange> push_constants;
-		std::map<uint32_t, DescriptorSetSpec const*> descriptor_set_layouts;
-		std::vector<DescriptorSetSpec> reflected_descriptor_specs;
+		std::map<uint32_t, std::weak_ptr<const DescriptorSetSpec>> descriptor_set_layouts;
+		std::vector<std::shared_ptr<DescriptorSetSpec>> reflected_descriptor_specs;
 		std::vector<vk::DescriptorSetLayout> built_set_layouts;
 	};
 
@@ -46,9 +46,14 @@ namespace SNAKE {
 		vk::PipelineLayout GetPipelineLayout() {
 			return *pipeline_layout;
 		}
+
+		std::weak_ptr<const DescriptorSetSpec> GetDescriptorSetLayout(uint32_t set_idx) {
+			return descriptor_set_layouts.at(set_idx);
+		}
+
 	private:
-		std::map<uint32_t, DescriptorSetSpec const*> descriptor_set_layouts;
-		std::vector<DescriptorSetSpec> reflected_descriptor_specs;
+		std::map<uint32_t, std::weak_ptr<const DescriptorSetSpec>> descriptor_set_layouts;
+		std::vector<std::shared_ptr<DescriptorSetSpec>> reflected_descriptor_specs;
 		vk::UniquePipelineLayout pipeline_layout;
 
 		friend class GraphicsPipeline;
@@ -130,6 +135,22 @@ namespace SNAKE {
 		vk::UniquePipeline m_pipeline;
 	};
 
+	class SBT {
+	public:
+		void Init(vk::Pipeline pipeline, const struct RtPipelineBuilder& builder);
+
+		struct SBT_DeviceAddressRegions {
+			vk::StridedDeviceAddressRegionKHR rgen;
+			vk::StridedDeviceAddressRegionKHR rmiss;
+			vk::StridedDeviceAddressRegionKHR rhit;
+			vk::StridedDeviceAddressRegionKHR callable;
+		} address_regions;
+
+		S_VkBuffer sbt_buffer;
+	private:
+		uint32_t m_sbt_aligned_handle_size = 0;
+	};
+
 	struct RtPipelineBuilder {
 		RtPipelineBuilder& AddShader(vk::ShaderStageFlagBits shader_stage, const std::string& filepath);
 		RtPipelineBuilder& AddShaderGroup(vk::RayTracingShaderGroupTypeKHR group, uint32_t general_shader, uint32_t chit_shader, uint32_t any_hit_shader, uint32_t intersection_shader);
@@ -150,7 +171,13 @@ namespace SNAKE {
 		vk::PipelineLayout GetPipelineLayout() {
 			return m_layout.GetPipelineLayout();
 		}
+
+		SBT& GetSBT() {
+			return m_sbt;
+		}
+
 	private:
+		SBT m_sbt;
 		PipelineLayout m_layout;
 		vk::UniquePipeline m_pipeline;
 	};

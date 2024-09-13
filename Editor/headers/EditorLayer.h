@@ -5,6 +5,7 @@
 #include "rendering/VkSceneRenderer.h"
 #include "rendering/Raytracing.h"
 #include "rendering/RenderCommon.h"
+#include "renderpasses/GBufferPass.h"
 #include "scene/Scene.h"
 
 namespace SNAKE {
@@ -78,7 +79,7 @@ namespace SNAKE {
 
 		EntityEditor ent_editor;
 
-		VkSceneRenderer renderer;
+		GBufferPass gbuffer_pass;
 
 		EventListener entity_deletion_listener;
 	};

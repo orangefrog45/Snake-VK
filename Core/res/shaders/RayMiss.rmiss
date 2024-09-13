@@ -16,7 +16,8 @@ void main() {
 	vec3 unitDir = normalize(gl_WorldRayDirectionEXT);
 	float t = 0.5 * (unitDir.y + 1.0);
   
-  payload.colour = ((1.0-t) * gradientStart + t * gradientEnd) * 0.25f;
+ // payload.colour = ((1.0-t) * gradientStart + t * gradientEnd) * 0.25f;
+  payload.colour = vec3(0);
     
   payload.distance = -1.f;
   

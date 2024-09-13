@@ -6,62 +6,62 @@
 #include "core/VkContext.h"
 #include "core/VkCommon.h"
 
-namespace SNAKE {
-	void SceneInfoBufferSystem::OnSystemAdd() {
-		constexpr size_t UBO_SIZE = aligned_size(sizeof(glm::mat4) * 2 + sizeof(glm::vec4), 64);
+using namespace SNAKE;
 
-		m_frame_start_listener.callback = [this]([[maybe_unused]] auto _event) {
-			UpdateUBO(VkContext::GetCurrentFIF());
-			};
+void SceneInfoBufferSystem::OnSystemAdd() {
+	constexpr size_t UBO_SIZE = aligned_size(sizeof(glm::mat4) * 2 + sizeof(glm::vec4), 64);
 
-		EventManagerG::RegisterListener<FrameStartEvent>(m_frame_start_listener);
+	m_frame_start_listener.callback = [this]([[maybe_unused]] auto _event) {
+		UpdateUBO(VkContext::GetCurrentFIF());
+		};
 
-		for (FrameInFlightIndex i = 0; i < ubos.size(); i++) {
-			ubos[i].CreateBuffer(UBO_SIZE, vk::BufferUsageFlagBits::eUniformBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress,
-				VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT);
+	EventManagerG::RegisterListener<FrameStartEvent>(m_frame_start_listener);
 
-			auto descriptor_spec = std::make_shared<DescriptorSetSpec>();
-			descriptor_spec->AddDescriptor(0, vk::DescriptorType::eUniformBuffer, vk::ShaderStageFlagBits::eAll)
-				.GenDescriptorLayout();
+	mp_descriptor_set_spec = std::make_shared<DescriptorSetSpec>();
+	mp_descriptor_set_spec->AddDescriptor(0, vk::DescriptorType::eUniformBuffer, vk::ShaderStageFlagBits::eAll)
+		.GenDescriptorLayout();
 
-			descriptor_buffers[i].SetDescriptorSpec(descriptor_spec);
-			descriptor_buffers[i].CreateBuffer(1);
-			auto storage_buffer_info = ubos[i].CreateDescriptorGetInfo();
-			descriptor_buffers[i].LinkResource(&ubos[i], storage_buffer_info, 0, 0);
-		}
+	for (FrameInFlightIndex i = 0; i < ubos.size(); i++) {
+		ubos[i].CreateBuffer(UBO_SIZE, vk::BufferUsageFlagBits::eUniformBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress,
+			VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT);
+
+		descriptor_buffers[i].SetDescriptorSpec(mp_descriptor_set_spec);
+		descriptor_buffers[i].CreateBuffer(1);
+		auto storage_buffer_info = ubos[i].CreateDescriptorGetInfo();
+		descriptor_buffers[i].LinkResource(&ubos[i], storage_buffer_info, 0, 0);
 	}
+}
 
-	struct CommonUBO {
-		alignas(16) glm::mat4 view;
-		alignas(16) glm::mat4 proj;
-		alignas(16) glm::vec4 cam_pos;
-		alignas(16) glm::vec4 cam_forward;
-	};
+struct CommonUBO {
+	alignas(16) glm::mat4 view;
+	alignas(16) glm::mat4 proj;
+	alignas(16) glm::vec4 cam_pos;
+	alignas(16) glm::vec4 cam_forward;
+};
 
 
-	void SceneInfoBufferSystem::UpdateUBO(FrameInFlightIndex frame_idx) {
-		auto* p_cam_sys = p_scene->GetSystem<CameraSystem>();
-		if (!p_cam_sys)
-			return;
+void SceneInfoBufferSystem::UpdateUBO(FrameInFlightIndex frame_idx) {
+	auto* p_cam_sys = p_scene->GetSystem<CameraSystem>();
+	if (!p_cam_sys)
+		return;
 
-		auto* p_cam_comp = p_cam_sys->GetActiveCam();
-		if (!p_cam_comp)
-			return;
+	auto* p_cam_comp = p_cam_sys->GetActiveCam();
+	if (!p_cam_comp)
+		return;
 
-		auto* p_cam_ent = p_cam_comp->GetEntity();
-		auto* p_transform = p_cam_ent->GetComponent<TransformComponent>();
+	auto* p_cam_ent = p_cam_comp->GetEntity();
+	auto* p_transform = p_cam_ent->GetComponent<TransformComponent>();
 
-		CommonUBO ubo{};
+	CommonUBO ubo{};
 
-		ubo.view = glm::lookAt(p_transform->GetPosition(), p_transform->GetPosition() + p_transform->forward, glm::vec3(0.f, 1.f, 0.f));
-		ubo.proj = p_cam_comp->GetProjectionMatrix();
+	ubo.view = glm::lookAt(p_transform->GetPosition(), p_transform->GetPosition() + p_transform->forward, glm::vec3(0.f, 1.f, 0.f));
+	ubo.proj = p_cam_comp->GetProjectionMatrix();
 
-		auto* p_cam_transform = p_scene->GetSystem<CameraSystem>()->GetActiveCam()->GetEntity()->GetComponent<TransformComponent>();
-		ubo.cam_pos = glm::vec4(p_cam_transform->GetAbsPosition(), 1.f);
-		ubo.cam_forward = glm::vec4(p_cam_transform->forward, 1.f);
-		// Y coordinate of clip coordinates inverted as glm designed to work with opengl, flip here
-		ubo.proj[1][1] *= -1;
+	auto* p_cam_transform = p_scene->GetSystem<CameraSystem>()->GetActiveCam()->GetEntity()->GetComponent<TransformComponent>();
+	ubo.cam_pos = glm::vec4(p_cam_transform->GetAbsPosition(), 1.f);
+	ubo.cam_forward = glm::vec4(p_cam_transform->forward, 1.f);
+	// Y coordinate of clip coordinates inverted as glm designed to work with opengl, flip here
+	ubo.proj[1][1] *= -1;
 
-		memcpy(ubos[frame_idx].Map(), &ubo, sizeof(CommonUBO));
-	}
+	memcpy(ubos[frame_idx].Map(), &ubo, sizeof(CommonUBO));
 }

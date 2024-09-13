@@ -5,9 +5,10 @@
 namespace SNAKE {
 
 	void PipelineLayoutBuilder::Build() {
-		static DescriptorSetSpec null_spec{};
-		if (!null_spec.GetLayout()) {
-			null_spec.GenDescriptorLayout();
+		static std::shared_ptr<DescriptorSetSpec> null_spec = nullptr;
+		if (!null_spec) {
+			null_spec = std::make_shared<DescriptorSetSpec>();
+			null_spec->GenDescriptorLayout();
 		}
 
 		if (!descriptor_set_layouts.empty()) {
@@ -18,11 +19,11 @@ namespace SNAKE {
 
 			for (unsigned current_idx = 0; current_idx <= highest_idx; current_idx++) {
 				if (descriptor_set_layouts.contains(current_idx)) {
-					built_set_layouts.push_back(descriptor_set_layouts[current_idx]->GetLayout());
+					built_set_layouts.push_back(descriptor_set_layouts[current_idx].lock()->GetLayout());
 				}
 				else {
-					descriptor_set_layouts[current_idx] = &null_spec;
-					built_set_layouts.push_back(null_spec.GetLayout());
+					descriptor_set_layouts[current_idx] = null_spec;
+					built_set_layouts.push_back(null_spec->GetLayout());
 				}
 			}
 		}
@@ -172,6 +173,8 @@ namespace SNAKE {
 		auto [res, val] = VkContext::GetLogicalDevice().device->createRayTracingPipelineKHRUnique(nullptr, nullptr, pipeline_info);
 		SNK_CHECK_VK_RESULT(res);
 		m_pipeline = std::move(val);
+
+		m_sbt.Init(*m_pipeline, builder);
 	}
 
 }

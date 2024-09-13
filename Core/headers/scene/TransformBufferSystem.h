@@ -43,7 +43,7 @@ namespace SNAKE {
 			EventManagerG::RegisterListener<FrameStartEvent>(m_frame_start_event_listener);
 
 			for (FrameInFlightIndex i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-				m_transform_storage_buffers[i].CreateBuffer(sizeof(glm::mat4) * 4096, vk::BufferUsageFlagBits::eStorageBuffer,
+				m_transform_storage_buffers[i].CreateBuffer(sizeof(glm::mat4) * 4096, vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress,
 					VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT);
 				m_transform_storage_buffers[i].Map();
 			}

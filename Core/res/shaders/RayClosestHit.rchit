@@ -80,7 +80,15 @@ void main() {
   if (material.albedo_tex_idx != INVALID_GLOBAL_INDEX)
     albedo *= texture(textures[material.albedo_tex_idx], tc).rgb;
 
-  payload.colour = albedo;
+  vec3 v = normalize(common_ubo.cam_pos.xyz - pos);
+	vec3 r = reflect(-v, n);
+	float n_dot_v = max(dot(n, v), 0.0);
+
+  vec3 f0 = vec3(0.04); // TODO: Support different values for more metallic objects
+  f0 = mix(f0, albedo, material.metallic);
+
+  vec3 light = CalcDirectionalLight(v, f0, n, material.roughness, material.metallic, albedo.rgb);
+  payload.colour = light;
   payload.normal = n;
   payload.distance = gl_RayTmaxEXT;
 }

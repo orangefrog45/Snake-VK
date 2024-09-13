@@ -5,18 +5,28 @@
 
 using namespace SNAKE;
 
-void DescriptorBuffer::CreateBuffer(uint32_t num_sets) {
-	SNK_ASSERT(mp_descriptor_spec);
-	SNK_ASSERT(mp_descriptor_spec->m_layout_bindings.size() != 0);
+DescriptorBuffer::~DescriptorBuffer() {
+	for (auto& map : m_resource_link_infos) {
+		for (auto& [binding_idx, link_info] : map) {
+			delete link_info.p_resource_event_listener;
+		}
+	}
+}
 
-	for (const auto& binding : mp_descriptor_spec->m_layout_bindings) {
+void DescriptorBuffer::CreateBuffer(uint32_t num_sets) {
+	auto descriptor_spec = mp_descriptor_spec.lock();
+
+	SNK_ASSERT(descriptor_spec);
+	SNK_ASSERT(descriptor_spec->m_layout_bindings.size() != 0);
+
+	for (const auto& binding : descriptor_spec->m_layout_bindings) {
 		if (binding.descriptorType == vk::DescriptorType::eCombinedImageSampler)
 			m_usage_flags |= vk::BufferUsageFlagBits::eSamplerDescriptorBufferEXT;
 		else
 			m_usage_flags |= vk::BufferUsageFlagBits::eResourceDescriptorBufferEXT;
 	}
 
-	descriptor_buffer.CreateBuffer(mp_descriptor_spec->m_aligned_size * num_sets,
+	descriptor_buffer.CreateBuffer(descriptor_spec->m_aligned_size * num_sets,
 		m_usage_flags | vk::BufferUsageFlagBits::eShaderDeviceAddress, VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT);
 }
 
@@ -32,7 +42,7 @@ void DescriptorBuffer::LinkResource(S_VkResource const* p_resource, DescriptorGe
 	resource_link_info.get_info = get_info;
 	resource_link_info.p_resource = p_resource;
 	if (!resource_link_info.p_resource_event_listener) {
-		resource_link_info.p_resource_event_listener = std::make_shared<EventListener>();
+		resource_link_info.p_resource_event_listener = new EventListener();
 
 		resource_link_info.p_resource_event_listener->callback = [=, this](Event const* p_event) {
 			auto* p_casted = dynamic_cast<S_VkResourceEvent const*>(p_event);
@@ -50,7 +60,10 @@ void DescriptorBuffer::LinkResource(S_VkResource const* p_resource, DescriptorGe
 	get_info.Bind();
 
 	size_t size = 0;
-	auto descriptor_type = mp_descriptor_spec->GetDescriptorTypeAtBinding(binding_idx);
+	auto descriptor_spec = mp_descriptor_spec.lock();
+	SNK_ASSERT(descriptor_spec);
+
+	auto descriptor_type = descriptor_spec->GetDescriptorTypeAtBinding(binding_idx);
 
 	switch (descriptor_type) {
 	case vk::DescriptorType::eUniformBuffer:
@@ -77,7 +90,7 @@ void DescriptorBuffer::LinkResource(S_VkResource const* p_resource, DescriptorGe
 	}
 
 	VkContext::GetLogicalDevice().device->getDescriptorEXT(get_info.get_info, size,
-		reinterpret_cast<std::byte*>(descriptor_buffer.Map()) + mp_descriptor_spec->GetBindingOffset(binding_idx) + size * array_idx + mp_descriptor_spec->m_aligned_size * set_buffer_idx);
+		reinterpret_cast<std::byte*>(descriptor_buffer.Map()) + descriptor_spec->GetBindingOffset(binding_idx) + size * array_idx + descriptor_spec->m_aligned_size * set_buffer_idx);
 }
 
 vk::DescriptorBufferBindingInfoEXT DescriptorBuffer::GetBindingInfo() {
@@ -87,12 +100,11 @@ vk::DescriptorBufferBindingInfoEXT DescriptorBuffer::GetBindingInfo() {
 	return info;
 }
 
-// Returned pointer is alive as long as this object is alive
-DescriptorSetSpec* DescriptorBuffer::GetDescriptorSpec() {
-	return mp_descriptor_spec.get();
+std::weak_ptr<const DescriptorSetSpec> DescriptorBuffer::GetDescriptorSpec() {
+	return mp_descriptor_spec;
 }
 
-void DescriptorBuffer::SetDescriptorSpec(std::shared_ptr<DescriptorSetSpec> spec) {
+void DescriptorBuffer::SetDescriptorSpec(std::weak_ptr<const DescriptorSetSpec> spec) {
 	mp_descriptor_spec = spec;
 }
 
@@ -117,9 +129,9 @@ DescriptorSetSpec& DescriptorSetSpec::GenDescriptorLayout() {
 	return *this;
 }
 
-DescriptorSetSpec::BindingOffset DescriptorSetSpec::GetBindingOffset(BindingIndex binding_index) {
+DescriptorSetSpec::BindingOffset DescriptorSetSpec::GetBindingOffset(BindingIndex binding_index) const {
 	SNK_ASSERT(m_binding_offsets.contains(binding_index));
-	return m_binding_offsets[binding_index];
+	return m_binding_offsets.at(binding_index);
 }
 
 size_t DescriptorSetSpec::GetSize() {
@@ -130,7 +142,7 @@ bool DescriptorSetSpec::IsBindingPointOccupied(unsigned binding) const {
 	return std::ranges::find_if(m_layout_bindings, [binding](const auto& p) {return p.binding == binding; }) != m_layout_bindings.end();
 }
 
-vk::DescriptorType DescriptorSetSpec::GetDescriptorTypeAtBinding(unsigned binding) {
+vk::DescriptorType DescriptorSetSpec::GetDescriptorTypeAtBinding(unsigned binding) const {
 	auto it = std::ranges::find_if(m_layout_bindings, [binding](const auto& p) {return p.binding == binding; });
 	SNK_ASSERT(it != m_layout_bindings.end());
 

@@ -30,37 +30,21 @@ namespace SNAKE {
 
 		void UpdateTLAS();
 
-		void InitDescriptorBuffers(Image2D& output_image, Scene& scene);
+		void InitDescriptorBuffers(Image2D& output_image, Scene& scene, struct GBufferResources& output_gbuffer);
 
-		void InitPipeline(const DescriptorSetSpec& common_ubo_set);
-
-		// Records a raytraced gbuffer pass into cmd
-		void RecordGBufferPassCmdBuf(vk::CommandBuffer cmd, class GBufferResources& output);
+		void InitPipeline(std::weak_ptr<const DescriptorSetSpec> common_ubo_set);
 
 		void RecordRenderCmdBuf(vk::CommandBuffer cmd, Image2D& output_image, DescriptorBuffer& common_ubo_db);
 
-		void Init(Scene& scene, Image2D& output_image, const DescriptorSetSpec& common_ubo_set_spec);
-
-		void CreateShaderBindingTable();
+		void Init(Scene& scene, Image2D& output_image, std::weak_ptr<const DescriptorSetSpec> common_ubo_set, struct GBufferResources& gbuffer);
 	private:
 		std::unordered_map<struct MeshDataAsset*, BLAS> m_blas_map;
 
 		EventListener frame_start_listener;
 
-		uint32_t sbt_group_count;
-		uint32_t sbt_handle_size_aligned;
-	
-		std::shared_ptr<DescriptorSetSpec> rt_descriptor_set_spec = nullptr;
-
 		std::array<DescriptorBuffer, MAX_FRAMES_IN_FLIGHT> rt_descriptor_buffers{};
 		RtPipeline pipeline;
-
-		vk::UniquePipelineLayout gbuffer_pipeline_layout;
-		vk::UniquePipeline gbuffer_pipeline;
-
-		S_VkBuffer sbt_ray_gen_buffer;
-		S_VkBuffer sbt_ray_miss_buffer;
-		S_VkBuffer sbt_ray_hit_buffer;
+		std::shared_ptr<DescriptorSetSpec> rt_descriptor_set_spec = nullptr;
 
 		std::array<TLAS, MAX_FRAMES_IN_FLIGHT> tlas_array;
 	};

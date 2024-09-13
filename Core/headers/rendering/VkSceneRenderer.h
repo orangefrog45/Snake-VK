@@ -10,7 +10,7 @@ namespace SNAKE {
 
 		// Renders scene and stores result in output_image
 		// Forward pass will wait on forward_wait_semphore if provided
-		void RenderScene(Image2D& output_image, Image2D& depth_image);
+		void RenderScene(Image2D& output_image, Image2D& depth_image, const struct SceneSnapshotData& snapshot_data);
 
 		// Sets scene to render
 		void SetScene(Scene* p_scene) {
@@ -18,13 +18,7 @@ namespace SNAKE {
 		}
 
 	private:
-		void TakeGameStateSnapshot();
-
 		Scene* mp_scene = nullptr;
-
-		SceneSnapshotData m_snapshot_data;
-
-		EventListener m_frame_start_listener;
 
 		ForwardPass m_forward_pass;
 		ShadowPass m_shadow_pass;
