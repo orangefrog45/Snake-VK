@@ -97,7 +97,7 @@ void RT::InitDescriptorBuffers(Image2D& output_image, Scene& scene, GBufferResou
 		.AddDescriptor(5, vk::DescriptorType::eStorageBuffer, vk::ShaderStageFlagBits::eClosestHitKHR) // Vertex tex coord buffer
 		.AddDescriptor(6, vk::DescriptorType::eStorageBuffer, vk::ShaderStageFlagBits::eClosestHitKHR) // Vertex tangent buffer
 		.AddDescriptor(7, vk::DescriptorType::eStorageBuffer, vk::ShaderStageFlagBits::eClosestHitKHR) // Raytracing instance buffer
-		.AddDescriptor(8, vk::DescriptorType::eStorageBuffer, vk::ShaderStageFlagBits::eClosestHitKHR) // Light buffer
+		.AddDescriptor(8, vk::DescriptorType::eStorageBuffer, vk::ShaderStageFlagBits::eClosestHitKHR | vk::ShaderStageFlagBits::eRaygenKHR)  // Light buffer
 		.AddDescriptor(9, vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eRaygenKHR) // Input gbuffer albedo combined image sampler
 		.AddDescriptor(10, vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eRaygenKHR) // Input gbuffer normal combined image sampler
 		.AddDescriptor(11, vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eRaygenKHR) // Input gbuffer depth combined image sampler
@@ -144,7 +144,7 @@ void RT::InitPipeline(std::weak_ptr<const DescriptorSetSpec> common_ubo_set) {
 	RtPipelineBuilder pipeline_builder{};
 	pipeline_builder.AddShader(vk::ShaderStageFlagBits::eRaygenKHR, "res/shaders/RayGenrgen_00000000.spv")
 		.AddShader(vk::ShaderStageFlagBits::eMissKHR, "res/shaders/RayMissrmiss_00000000.spv")
-		.AddShader(vk::ShaderStageFlagBits::eMissKHR, "res/shaders/RayMissrmiss_00000000.spv")
+		.AddShader(vk::ShaderStageFlagBits::eMissKHR, "res/shaders/Shadowrmiss_00000000.spv")
 		.AddShader(vk::ShaderStageFlagBits::eClosestHitKHR, "res/shaders/RayClosestHitrchit_00000000.spv")
 		.AddShaderGroup(vk::RayTracingShaderGroupTypeKHR::eGeneral, 0, VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR)
 		.AddShaderGroup(vk::RayTracingShaderGroupTypeKHR::eGeneral, 1, VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR, VK_SHADER_UNUSED_KHR)
@@ -346,7 +346,7 @@ vk::AccelerationStructureInstanceKHR BLAS::GenerateInstance(TransformComponent& 
 	vk::AccelerationStructureInstanceKHR instance{};
 	instance.mask = 0xFF;
 	instance.instanceShaderBindingTableRecordOffset = 0;
-	instance.flags = 0;
+	instance.flags = static_cast<VkGeometryInstanceFlagBitsKHR>(vk::GeometryInstanceFlagBitsKHR::eTriangleCullDisable);
 	instance.instanceCustomIndex = comp.GetEntity()->GetComponent<RaytracingInstanceBufferIdxComponent>()->idx + m_submesh_index;
 	instance.accelerationStructureReference = m_blas_handle; // Handle of BLAS for the sphere mesh
 

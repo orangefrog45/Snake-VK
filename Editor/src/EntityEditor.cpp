@@ -92,6 +92,18 @@ bool EntityEditor::SpotlightCompEditor(SpotlightComponent* p_comp) {
 	return ret;
 }
 
+bool EntityEditor::DirectionalLightEditor(DirectionalLight& light) {
+	bool ret = false;
+
+	ImGui::Text("Pos"); ImGui::SameLine();
+	ret |= ImGui::DragFloat2("##coords", &light.spherical_coords[0], 0.01f);
+
+	ImGui::Text("Colour"); ImGui::SameLine();
+	ret |= ImGui::DragFloat3("##col", &light.colour[0], 0.01f);
+
+	return ret;
+}
+
 bool EntityEditor::StaticMeshCompEditor(StaticMeshComponent* p_comp) {
 	bool ret = false;
 

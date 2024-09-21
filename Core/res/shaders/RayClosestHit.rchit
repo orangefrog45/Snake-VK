@@ -14,13 +14,21 @@
 struct RayPayload {
   vec3 colour;
   vec3 normal;
+  uint num_bounces;
   float distance;
 };
 
 layout(location = 0) rayPayloadInEXT RayPayload payload;
 
+struct ShadowRayPayload {
+  bool hit;
+};
+
+layout(location = 1) rayPayloadEXT ShadowRayPayload shadow_payload;
+
 #define TEX_MAT_DESCRIPTOR_SET_IDX 2
 #include "TexMatBuffers.glsl"
+#include "Util.glsl"
 
 #define LIGHT_BUFFER_DESCRIPTOR_SET_BINDING_OVERRIDE
 #define LIGHT_BUFFER_DESCRIPTOR_SET_IDX 1
@@ -46,6 +54,61 @@ mat3 CalculateTbnMatrix(vec3 _t, vec3 _n, mat4 transform) {
 	mat3 tbn = mat3(t, b, n);
 
 	return tbn;
+}
+
+float DirectionalShadowTest(vec3 pos) {
+  // Set initially to true, miss shader sets to false
+  shadow_payload.hit = true;
+
+  vec3 towards_light_dir = ssbo_light_data.dir_light.dir.xyz;
+
+  uint flags = gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsOpaqueEXT | gl_RayFlagsSkipClosestHitShaderEXT;
+  traceRayEXT(
+    as,
+    flags,
+    0xff,
+    0,
+    0,
+    1,
+    pos,
+    0.001,
+    towards_light_dir, 
+    10000,
+    1
+  );
+
+  return 1.0 - float(shadow_payload.hit);
+}
+
+vec3 BounceDiffuse(vec3 ro, vec3 normal, vec3 reflected_dir, vec3 albedo, float roughness) {
+  vec3 colour_sum = vec3(0);
+  for (uint ray_idx = 0; ray_idx < 16; ray_idx++) {
+    vec3 rd = normalize(mix(reflected_dir, RandomVectorOnHemisphere(normal, vec3(ro.x + ray_idx, ro.y + ray_idx, ro.z + ray_idx)), roughness));
+
+    traceRayEXT(
+      as,
+      gl_RayFlagsOpaqueEXT,
+      0xff,
+      0,
+      0,
+      0,
+      ro,
+      0.01,
+      rd, 
+      10000,
+      0
+    );
+
+    colour_sum += payload.colour * albedo * (1.0 / 16.0);
+    if (payload.distance < 0.f) {
+     // break;
+    }
+
+    //rd = normalize(reflect(rd, payload.normal));
+    //current_ro += rd * payload.distance;
+  }
+
+  return colour_sum;
 }
 
 void main() {
@@ -80,14 +143,23 @@ void main() {
   if (material.albedo_tex_idx != INVALID_GLOBAL_INDEX)
     albedo *= texture(textures[material.albedo_tex_idx], tc).rgb;
 
-  vec3 v = normalize(common_ubo.cam_pos.xyz - pos);
+  vec3 v = normalize(-gl_WorldRayDirectionEXT);
 	vec3 r = reflect(-v, n);
 	float n_dot_v = max(dot(n, v), 0.0);
 
   vec3 f0 = vec3(0.04); // TODO: Support different values for more metallic objects
   f0 = mix(f0, albedo, material.metallic);
 
-  vec3 light = CalcDirectionalLight(v, f0, n, material.roughness, material.metallic, albedo.rgb);
+  vec3 biased_pos = pos + n * 0.01;
+
+  vec3 light = CalcDirectionalLight(v, f0, n, material.roughness, material.metallic, albedo.rgb) * DirectionalShadowTest(biased_pos);
+  const uint max_bounces = 1;
+
+  payload.num_bounces++;
+
+  if (payload.num_bounces <= max_bounces)
+    light += BounceDiffuse(pos, n, r, albedo, material.roughness)*16;
+
   payload.colour = light;
   payload.normal = n;
   payload.distance = gl_RayTmaxEXT;

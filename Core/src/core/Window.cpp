@@ -177,7 +177,10 @@ void Window::CreateSwapchain() {
 
 	auto& l_device = VkContext::GetLogicalDevice().device;
 
-	m_vk_context.swapchain = l_device->createSwapchainKHRUnique(create_info).value;
+	auto [swapchain_create_res, swapchain] = l_device->createSwapchainKHRUnique(create_info);
+	SNK_CHECK_VK_RESULT(swapchain_create_res);
+
+	m_vk_context.swapchain = std::move(swapchain);
 
 	uint32_t swapchain_image_count;
 	SNK_CHECK_VK_RESULT(
@@ -219,7 +222,7 @@ void Window::RecreateSwapChain() {
 		image->DestroySampler();
 	}
 
-	m_vk_context.swapchain.release();
+	m_vk_context.swapchain.reset();
 	m_vk_context.swapchain_images.clear();
 	m_vk_context.swapchain_linear_image_views.clear();
 

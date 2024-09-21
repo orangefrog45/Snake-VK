@@ -166,7 +166,7 @@ namespace SNAKE {
 		pipeline_info.pStages = builder.shaders.data();
 		pipeline_info.groupCount = (uint32_t)builder.shader_groups.size();
 		pipeline_info.pGroups = builder.shader_groups.data();
-		pipeline_info.maxPipelineRayRecursionDepth = 1;
+		pipeline_info.maxPipelineRayRecursionDepth = 3;
 		pipeline_info.layout = m_layout.GetPipelineLayout();
 		pipeline_info.flags = vk::PipelineCreateFlagBits::eDescriptorBufferEXT;
 

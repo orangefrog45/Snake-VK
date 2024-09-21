@@ -1,3 +1,7 @@
+21/9/24:
+-Pathtracing improvements, more bounces
+-Shadow raytracing
+
 12/9/24:
 -Ray generation shader now spawns rays from object surfaces found in GBuffer
 -Rasterized GBuffer generation (raster pipeline is now deferred)

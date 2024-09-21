@@ -11,9 +11,9 @@ void RaytracingInstanceBufferSystem::OnSystemAdd() {
 		auto* p_casted = dynamic_cast<ComponentEvent<StaticMeshComponent> const*>(p_event);
 		auto* p_ent = p_casted->p_component->GetEntity();
 
-		if (p_casted->event_type == ComponentEventType::UPDATED)
-			m_instances_to_update.push_back(std::make_pair(p_ent->GetEnttHandle(), 0));
-		else if (p_casted->event_type == ComponentEventType::ADDED) {
+		// On either a mesh component being added or updated, just refit it to another slot in the buffer (submesh count may have changed so needs new slot)
+		// TODO: This causes a lot of waste, track number of tombstones
+		if (p_casted->event_type != ComponentEventType::REMOVED) {
 			p_ent->AddComponent<RaytracingInstanceBufferIdxComponent>(m_current_buffer_idx);
 			m_instances_to_update.push_back(std::make_pair(p_ent->GetEnttHandle(), 0));
 
@@ -61,8 +61,6 @@ void RaytracingInstanceBufferSystem::UpdateBuffer(FrameInFlightIndex idx) {
 
 		InstanceData instance_data{
 			.transform = reg.get<TransformComponent>(ent).GetMatrix(),
-			.mesh_buffer_index_offset = mesh_buffer_entry_data.data_start_indices_idx,
-			.mesh_buffer_vertex_offset = mesh_buffer_entry_data.data_start_vertex_idx,
 			.flags = 0,
 		};
 

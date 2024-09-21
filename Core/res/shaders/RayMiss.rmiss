@@ -5,6 +5,7 @@
 struct RayPayload {
   vec3 colour;
   vec3 normal;
+  uint num_bounces;
   float distance;
 };
 

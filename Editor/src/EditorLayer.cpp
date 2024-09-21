@@ -406,6 +406,7 @@ void EditorLayer::OnRender() {
 	asset_editor.Render();
 }
 
+
 struct EntityNode {
 	Entity* p_ent = nullptr;
 	unsigned tree_depth = 0;
@@ -536,8 +537,13 @@ void EditorLayer::OnImGuiRender() {
 	unsaved_changes |= asset_editor.RenderImGui();
 
 	std::vector<EntityNode> entity_hierarchy = CreateLinearEntityHierarchy(&scene);
-
 	if (ImGui::Begin("Entities")) {
+
+		if (ImGui::TreeNode("Directional light")) {
+			ent_editor.DirectionalLightEditor(scene.directional_light);
+			ImGui::TreePop();
+		}
+
 		ImGui::Text(std::to_string(ImGui::GetIO().Framerate).c_str());
 		Entity* p_right_clicked_entity = nullptr;
 

@@ -22,11 +22,15 @@ namespace SNAKE {
 
 		bool SpotlightCompEditor(SpotlightComponent* p_comp);
 
+		bool DirectionalLightEditor(DirectionalLight& light);
+
 		void SelectEntity(Entity* p_ent);
 
 		void DeselectEntity(Entity* p_ent);
 
 		void DestroyEntity(Entity* p_ent);
+
+
 
 		Entity* GetSelectedEntity() {
 			return mp_active_entity;
