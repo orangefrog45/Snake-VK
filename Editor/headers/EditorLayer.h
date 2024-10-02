@@ -39,7 +39,7 @@ namespace SNAKE {
 
 		Scene scene;
 
-		FullscreenImage2D render_image;
+		FullscreenImage2D render_image{ vk::ImageLayout::eColorAttachmentOptimal };
 		GBufferResources gbuffer;
 
 		ProjectState project;

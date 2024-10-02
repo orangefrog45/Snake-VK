@@ -28,6 +28,7 @@ namespace SNAKE {
 			gp_builder.AddColourAttachment(output.albedo_image.GetSpec().format)
 				.AddColourAttachment(output.normal_image.GetSpec().format)
 				.AddColourAttachment(output.rma_image.GetSpec().format)
+				.AddColourAttachment(output.pixel_motion_image.GetSpec().format)
 				.AddDepthAttachment(output.depth_image.GetSpec().format)
 				.AddShader(vk::ShaderStageFlagBits::eVertex, "res/shaders/GBuffervert_00000000.spv")
 				.AddShader(vk::ShaderStageFlagBits::eFragment, "res/shaders/GBufferfrag_00000000.spv")
@@ -44,7 +45,9 @@ namespace SNAKE {
 				m_descriptor_buffers[i].CreateBuffer(1);
 				auto* p_transform_system = scene.GetSystem<TransformBufferSystem>();
 				auto transform_get_info = p_transform_system->GetTransformStorageBuffer(i).CreateDescriptorGetInfo();
+				auto prev_frame_transform_get_info = p_transform_system->GetLastFramesTransformStorageBuffer(i).CreateDescriptorGetInfo();
 				m_descriptor_buffers[i].LinkResource(&p_transform_system->GetTransformStorageBuffer(i), transform_get_info, 0, 0);
+				m_descriptor_buffers[i].LinkResource(&p_transform_system->GetLastFramesTransformStorageBuffer(i), prev_frame_transform_get_info, 1, 0);
 
 				m_cmd_buffers[i].Init(vk::CommandBufferLevel::ePrimary);
 			}
@@ -83,6 +86,9 @@ namespace SNAKE {
 			rma_attachment_info.imageView = output.rma_image.GetImageView();
 			rma_attachment_info.imageLayout = vk::ImageLayout::eColorAttachmentOptimal;
 
+			vk::RenderingAttachmentInfo pixel_motion_info = rma_attachment_info;
+			pixel_motion_info.imageView = output.pixel_motion_image.GetImageView();
+
 			vk::RenderingAttachmentInfo depth_attachment_info{};
 			depth_attachment_info.loadOp = vk::AttachmentLoadOp::eClear;
 			depth_attachment_info.storeOp = vk::AttachmentStoreOp::eStore;
@@ -90,7 +96,7 @@ namespace SNAKE {
 			depth_attachment_info.imageLayout = vk::ImageLayout::eDepthAttachmentOptimal;
 			depth_attachment_info.clearValue = vk::ClearValue{ vk::ClearDepthStencilValue{1.f} };
 
-			auto colour_attachments = util::array(albedo_attachment_info, normal_attachment_info, rma_attachment_info);
+			auto colour_attachments = util::array(albedo_attachment_info, normal_attachment_info, rma_attachment_info, pixel_motion_info);
 
 			vk::RenderingInfo render_info{};
 			render_info.layerCount = 1;

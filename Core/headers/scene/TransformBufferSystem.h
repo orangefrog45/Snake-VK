@@ -5,6 +5,7 @@
 #include "System.h"
 #include "Entity.h"
 #include "Scene.h"
+#include "core/VkCommon.h"
 
 
 /* 
@@ -37,14 +38,24 @@ namespace SNAKE {
 			EventManagerG::RegisterListener<ComponentEvent<TransformComponent>>(m_transform_event_listener);
 
 			m_frame_start_event_listener.callback = [this]([[maybe_unused]] Event const* p_event) {
-				UpdateTransformBuffer(VkContext::GetCurrentFIF());
+				uint8_t fif = VkContext::GetCurrentFIF();
+				UpdateTransformBuffer(fif);
+
+				uint8_t old_idx = (uint8_t)glm::min(fif - 1u, MAX_FRAMES_IN_FLIGHT - 1u);
+				// Copy previous frames transforms into current frames "old" transform buffer
+				CopyBuffer(m_transform_storage_buffers[old_idx].buffer, m_prev_frame_transform_storage_buffers[fif].buffer, sizeof(glm::mat4) * 4096);
 			};
 
 			EventManagerG::RegisterListener<FrameStartEvent>(m_frame_start_event_listener);
 
 			for (FrameInFlightIndex i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-				m_transform_storage_buffers[i].CreateBuffer(sizeof(glm::mat4) * 4096, vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress,
+				m_transform_storage_buffers[i].CreateBuffer(sizeof(glm::mat4) * 4096, vk::BufferUsageFlagBits::eStorageBuffer | 
+					vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eTransferSrc,
 					VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT);
+
+				m_prev_frame_transform_storage_buffers[i].CreateBuffer(sizeof(glm::mat4) * 4096, vk::BufferUsageFlagBits::eStorageBuffer |
+					vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eTransferDst);
+
 				m_transform_storage_buffers[i].Map();
 			}
 		};
@@ -71,8 +82,16 @@ namespace SNAKE {
 			return m_transform_storage_buffers[idx];
 		}
 
+		// Returns the copied version of last frames transform storage buffer
+		const S_VkBuffer& GetLastFramesTransformStorageBuffer(FrameInFlightIndex idx) {
+			return m_prev_frame_transform_storage_buffers[idx];
+		}
+
 	private:
 		std::array<S_VkBuffer, MAX_FRAMES_IN_FLIGHT> m_transform_storage_buffers;
+
+		// Contains transform data from last rendered frame, used for motion vectors
+		std::array<S_VkBuffer, MAX_FRAMES_IN_FLIGHT> m_prev_frame_transform_storage_buffers;
 
 		// first = entity to update, second = number of times updated (erased when equal to MAX_FRAMES_IN_FLIGHT)
 		std::vector<std::pair<entt::entity, uint8_t>> m_transforms_to_update;

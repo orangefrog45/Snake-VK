@@ -230,6 +230,13 @@ void EditorLayer::InitGBuffer() {
 	rma_spec.usage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled;
 	rma_spec.aspect_flags = vk::ImageAspectFlagBits::eColor;
 
+	Image2DSpec pixel_motion_spec{};
+	pixel_motion_spec.format = vk::Format::eR16G16Sfloat;
+	pixel_motion_spec.size = { p_window->GetWidth(), p_window->GetHeight() };
+	pixel_motion_spec.tiling = vk::ImageTiling::eOptimal;
+	pixel_motion_spec.usage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled;
+	pixel_motion_spec.aspect_flags = vk::ImageAspectFlagBits::eColor;
+
 	gbuffer.albedo_image.SetSpec(albedo_spec);
 	gbuffer.albedo_image.CreateImage();
 	gbuffer.albedo_image.CreateImageView();
@@ -256,6 +263,13 @@ void EditorLayer::InitGBuffer() {
 	gbuffer.rma_image.CreateImageView();
 	gbuffer.rma_image.CreateSampler();
 	gbuffer.rma_image.TransitionImageLayout(vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal,
+		vk::AccessFlagBits::eNone, vk::AccessFlagBits::eNone, vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTopOfPipe);
+
+	gbuffer.pixel_motion_image.SetSpec(pixel_motion_spec);
+	gbuffer.pixel_motion_image.CreateImage();
+	gbuffer.pixel_motion_image.CreateImageView();
+	gbuffer.pixel_motion_image.CreateSampler();
+	gbuffer.pixel_motion_image.TransitionImageLayout(vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal,
 		vk::AccessFlagBits::eNone, vk::AccessFlagBits::eNone, vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTopOfPipe);
 
 	gbuffer_pass.Init(scene, gbuffer);
@@ -307,6 +321,9 @@ void EditorLayer::OnInit() {
 }
 
 void EditorLayer::OnUpdate() {
+	static float e = 0.f;
+	e += 0.01f;
+	scene.GetEntities()[0]->GetComponent<TransformComponent>()->SetOrientation(sinf(e) * 360.f, 0.f, 0.f);
 
 	glm::vec3 move{ 0,0,0 };
 	auto* p_transform = p_cam_ent->GetComponent<TransformComponent>();

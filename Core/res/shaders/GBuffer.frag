@@ -3,6 +3,7 @@
 layout(location = 0) out vec4 out_albedo;
 layout(location = 1) out vec4 out_normal;
 layout(location = 2) out vec4 out_rma;
+layout(location = 3) out vec4 out_pixel_motion;
 
 layout(set = 3, binding = 0) uniform sampler2D depth_tex;
 
@@ -11,6 +12,8 @@ layout(location = 2) in vec3 vs_normal;
 layout(location = 3) in vec3 vs_world_pos;
 layout(location = 4) in vec3 vs_tangent;
 layout(location = 5) in mat3 vs_tbn;
+layout(location = 8) in vec4 vs_old_clip_pos;
+layout(location = 9) in vec4 vs_current_clip_pos;
 
 #include "CommonUBO.glsl"
 #include "TexMatBuffers.glsl"
@@ -21,6 +24,17 @@ layout(push_constant) uniform pc {
 } push;
 
 
+vec2 CalcVelocity(vec4 current_pos, vec4 old_pos) {
+    old_pos /= old_pos.w;
+    old_pos.xy = (old_pos.xy + 1) * 0.5;
+    old_pos.y = 1 - old_pos.y;
+
+    current_pos /= current_pos.w;
+    current_pos.xy = (current_pos.xy + 1) * 0.5;
+    current_pos.y = 1 - current_pos.y;
+    
+    return current_pos.xy - old_pos.xy;
+}
 
 void main() {
     Material material = material_ubo.materials[push.material_idx];
@@ -37,6 +51,7 @@ void main() {
         albedo *= texture(textures[material.albedo_tex_idx], vs_tex_coord).rgb;
 
     out_albedo = vec4(albedo, 1.0);
+    out_pixel_motion = vec4(CalcVelocity(vs_current_clip_pos, vs_old_clip_pos), 0, 1);
     out_normal = vec4(n, 1.0);
     out_rma = vec4(material.roughness, material.metallic, material.ao, 1.0);
 }

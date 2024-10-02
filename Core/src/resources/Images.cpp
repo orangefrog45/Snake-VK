@@ -255,7 +255,7 @@ void Image2D::CreateImageView() {
 	m_view = CreateImageView(*this);
 }
 
-FullscreenImage2D::FullscreenImage2D() {
+FullscreenImage2D::FullscreenImage2D(vk::ImageLayout initial_layout) : m_initial_layout(initial_layout) {
 	m_swapchain_invalidate_listener.callback = [this](Event const* p_event) {
 		auto* p_casted = dynamic_cast<SwapchainInvalidateEvent const*>(p_event);
 		m_swapchain_invalidate_event_data = *p_casted;
@@ -277,6 +277,8 @@ FullscreenImage2D::FullscreenImage2D() {
 
 		DispatchResourceEvent(S_VkResourceEvent::ResourceEventType::CREATE);
 		m_swapchain_invalidate_event_data.reset();
+
+		TransitionImageLayout(vk::ImageLayout::eUndefined, m_initial_layout, vk::AccessFlagBits::eNone, vk::AccessFlagBits::eNone, vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTopOfPipe);
 	};
 
 	EventManagerG::RegisterListener<SwapchainInvalidateEvent>(m_swapchain_invalidate_listener);

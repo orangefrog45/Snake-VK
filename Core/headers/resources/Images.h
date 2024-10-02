@@ -109,8 +109,11 @@ namespace SNAKE {
 	// An image that always resizes itself to the current active window dimensions
 	class FullscreenImage2D : public Image2D {
 	public:
-		FullscreenImage2D();
+		// Initial layout is the layout this image is transitioned to whenever the image is (re)created
+		explicit FullscreenImage2D(vk::ImageLayout initial_layout);
 	private:
+		const vk::ImageLayout m_initial_layout;
+
 		std::optional<SwapchainInvalidateEvent> m_swapchain_invalidate_event_data;
 		EventListener m_frame_start_listener;
 		EventListener m_swapchain_invalidate_listener;

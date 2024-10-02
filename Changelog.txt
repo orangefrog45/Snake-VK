@@ -1,3 +1,6 @@
+2/10/24:
+-Pixel motion vector texture generation
+
 21/9/24:
 -Pathtracing improvements, more bounces
 -Shadow raytracing
