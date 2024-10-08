@@ -9,7 +9,12 @@
 #include <bitset>
 
 bool IsShaderFile(const std::string& filepath) {
-	return filepath.ends_with(".vert") || filepath.ends_with(".frag") || filepath.ends_with(".rgen") || filepath.ends_with(".rchit") || filepath.ends_with(".rmiss");
+	return filepath.ends_with(".vert") ||
+		filepath.ends_with(".frag") ||
+		filepath.ends_with(".rgen") ||
+		filepath.ends_with(".rchit") ||
+		filepath.ends_with(".rmiss") ||
+		filepath.ends_with(".comp");
 }
 
 struct ShaderFileData {

@@ -41,6 +41,7 @@ namespace SNAKE {
 		}
 
 		void SetSpec(const Image2DSpec& spec) {
+			SNK_ASSERT(spec.format != vk::Format::eUndefined);
 			m_spec = spec;
 		}
 

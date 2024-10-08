@@ -120,7 +120,7 @@ DescriptorSetSpec& DescriptorSetSpec::GenDescriptorLayout() {
 	auto& device = VkContext::GetLogicalDevice().device;
 
 	for (uint32_t i = 0; i < m_layout_bindings.size(); i++) {
-		m_binding_offsets[m_layout_bindings[i].binding] = device->getDescriptorSetLayoutBindingOffsetEXT(*m_layout, i);
+		m_binding_offsets[m_layout_bindings[i].binding] = device->getDescriptorSetLayoutBindingOffsetEXT(*m_layout, m_layout_bindings[i].binding);
 	}
 
 	m_size = device->getDescriptorSetLayoutSizeEXT(*m_layout);

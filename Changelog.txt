@@ -1,3 +1,10 @@
+8/10/24:
+-TAA implementation
+-Compute pipelines
+-Fixed transform/raytracing buffer systems keeping references to deleted entities
+-Fixed descriptor buffer offset calculation
+-Component event changes
+
 2/10/24:
 -Pixel motion vector texture generation
 

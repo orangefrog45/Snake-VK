@@ -66,6 +66,8 @@ void App::Init(const char* app_name) {
 
 
 void App::MainLoop() {
+	auto& vk_context = VkContext::Get();
+
 	while (!glfwWindowShouldClose(window.GetGLFWwindow())) {
 		EventManagerG::DispatchEvent(FrameSyncFenceEvent{ });
 
@@ -88,7 +90,8 @@ void App::MainLoop() {
 		JobSystem::WaitAll();
 		layers.OnImGuiRender();
 
-		VkContext::Get().m_current_frame = (VkContext::Get().m_current_frame + 1) % MAX_FRAMES_IN_FLIGHT;
+		vk_context.m_current_fif = (vk_context.m_current_fif + 1) % MAX_FRAMES_IN_FLIGHT;
+		vk_context.m_current_frame_idx++;
 
 		window.OnUpdate();
 		glfwPollEvents();

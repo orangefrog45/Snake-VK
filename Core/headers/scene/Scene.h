@@ -61,6 +61,13 @@ namespace SNAKE {
 			return p_sys;
 		}
 
+		
+		template<std::derived_from<Component> T>
+		void RegisterComponent() {
+			m_registry.on_construct<T>().connect<&DispatchComponentAdded<T>>();
+			m_registry.on_destroy<T>().connect<&DispatchComponentRemoved<T>>();
+		}
+
 		void Update() {
 			for (auto [id, p_system] : m_systems) {
 				p_system->OnUpdate();
@@ -107,6 +114,16 @@ namespace SNAKE {
 		std::unordered_map<uint64_t, Entity*> m_uuid_entity_lookup;
 
 		std::unordered_map<util::TypeID, System*> m_systems;
+
+		template<std::derived_from<Component> T>
+		static void DispatchComponentAdded(entt::registry& registry, entt::entity entity) {
+			EventManagerG::DispatchEvent(ComponentEvent<T>(&registry.get<T>(entity), ComponentEventType::ADDED));
+		}
+
+		template<std::derived_from<Component> T>
+		static void DispatchComponentRemoved(entt::registry& registry, entt::entity entity) {
+			EventManagerG::DispatchEvent(ComponentEvent<T>(&registry.get<T>(entity), ComponentEventType::REMOVED));
+		}
 
 		friend class SceneSerializer;
 	};

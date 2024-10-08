@@ -125,7 +125,7 @@ namespace SNAKE {
 
 		for (uint32_t i = 0; i < queue_families.size(); i++) {
 			QueueFamilyIndices indices;
-			if (queue_families[i].queueFlags & vk::QueueFlagBits::eGraphics)
+			if (queue_families[i].queueFlags & vk::QueueFlagBits::eGraphics && queue_families[i].queueFlags & vk::QueueFlagBits::eCompute)
 				indices.graphics_family = i;
 
 			auto [result, present_support] = device.getSurfaceSupportKHR(i, surface, VULKAN_HPP_DEFAULT_DISPATCHER);

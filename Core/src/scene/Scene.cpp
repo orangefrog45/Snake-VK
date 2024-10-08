@@ -6,10 +6,18 @@
 #include "scene/RaytracingBufferSystem.h"
 #include "scene/TransformBufferSystem.h"
 #include "scene/SceneSnapshotSystem.h"
+#include "components/Components.h"
 
 using namespace SNAKE;
 
 void Scene::AddDefaultSystems() {
+	RegisterComponent<TransformComponent>();
+	RegisterComponent<StaticMeshComponent>();
+	RegisterComponent<RaytracingInstanceBufferIdxComponent>();
+	RegisterComponent<TransformBufferIdxComponent>();
+	RegisterComponent<PointlightComponent>();
+	RegisterComponent<SpotlightComponent>();
+
 	AddSystem<TransformSystem>();
 	AddSystem<CameraSystem>();
 	AddSystem<LightBufferSystem>();

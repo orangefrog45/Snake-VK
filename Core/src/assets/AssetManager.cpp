@@ -97,8 +97,8 @@ namespace SNAKE {
 
 		Get().OnAssetDelete(p_asset);
 
-		assets.erase(uuid);
 		delete assets[uuid];
+		assets.erase(uuid);
 	}
 
 	

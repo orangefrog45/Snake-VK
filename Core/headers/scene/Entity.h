@@ -15,7 +15,6 @@ namespace SNAKE {
 				return GetComponent<T>();
 
 			auto* p_comp = &mp_registry->emplace<T>(m_entt_handle, this, std::forward<Args>(args)...);
-			EventManagerG::DispatchEvent(ComponentEvent<T>(p_comp, ComponentEventType::ADDED));
 			return p_comp;
 		}
 
@@ -31,7 +30,6 @@ namespace SNAKE {
 			if (!HasComponent<T>())
 				return;
 
-			EventManagerG::DispatchEvent(ComponentEvent<T>(GetComponent<T>, ComponentEventType::REMOVED));
 			mp_registry->erase<T>(m_entt_handle);
 		}
 

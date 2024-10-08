@@ -1,0 +1,89 @@
+#version 460
+
+layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
+
+layout(set = 0, binding = 0) uniform sampler2D velocity_sampler;
+layout(set = 0, binding = 1) uniform sampler2D history_sampler;
+layout(set = 0, binding = 2) uniform sampler2D prev_frame_velocity_sampler;
+layout(set = 0, binding = 3, rgba32f) uniform image2D img_current_frame;
+
+#define FLT_EPS 0.00000001f
+
+vec4 clip_aabb(vec3 aabb_min, vec3 aabb_max, vec4 p, vec4 q) {
+    vec4 r = q - p;
+
+    vec3 rmax = aabb_max - p.xyz;
+    vec3 rmin = aabb_min - p.xyz;
+
+    const float eps = FLT_EPS;
+
+    if (r.x > rmax.x + eps)
+        r *= (rmax.x / r.x);
+    if (r.y > rmax.y + eps)
+        r *= (rmax.y / r.y);
+    if (r.z > rmax.z + eps)
+        r *= (rmax.z / r.z);
+
+    if (r.x < rmin.x - eps)
+        r *= (rmin.x / r.x);
+    if (r.y < rmin.y - eps)
+        r *= (rmin.y / r.y);
+    if (r.z < rmin.z - eps)
+        r *= (rmin.z / r.z);
+
+    return p + r;
+}
+
+void main() {
+    ivec2 render_size = textureSize(velocity_sampler, 0);
+
+    if (gl_GlobalInvocationID.x >= render_size.x || gl_GlobalInvocationID.y >= render_size.y)
+        return;
+
+
+    vec2 pixel_velocity = texelFetch(velocity_sampler, ivec2(gl_GlobalInvocationID.xy), 0).xy;
+    vec2 history_tex_coord = (vec2(gl_GlobalInvocationID.xy) + 0.5) / vec2(render_size) - pixel_velocity;
+
+    if (any(lessThan(history_tex_coord.xy, vec2(0, 0))) || any(greaterThan(history_tex_coord.xy,  vec2(1, 1))))
+        return;
+
+    vec3 current_col = imageLoad(img_current_frame, ivec2(gl_GlobalInvocationID.xy)).xyz;
+
+    vec3 min_col = vec3(9999.0);
+    vec3 max_col = vec3(-9999.0);
+    vec3 m = vec3(0.0);
+    vec3 m2 = vec3(0.0);
+
+     for (int x = -1; x <= 1; x++) {
+        for (int y = -1; y <= 1; y++) {
+            ivec2 offset_coord = ivec2(gl_GlobalInvocationID.xy) + ivec2(x, y);
+            offset_coord = clamp(offset_coord, ivec2(0), render_size - ivec2(1));
+
+            vec3 col = max(imageLoad(img_current_frame, offset_coord).xyz, vec3(0));
+            min_col = min(min_col, col);
+            max_col = max(max_col, col);
+
+            m += col;
+            m2 += col * col;
+        }
+     }
+    
+    const float one_divided_by_sample_count = 1.0 / 9.0;
+    const float gamma = 0.75;
+    vec3 mu = m * one_divided_by_sample_count;
+    vec3 sigma = sqrt(abs((m2 * one_divided_by_sample_count) - (mu * mu)));
+    vec3 minc = mu - gamma * sigma;
+    vec3 maxc = mu + gamma * sigma;
+
+    vec3 history_col = max(texture(history_sampler, history_tex_coord).xyz, vec3(0));
+    history_col = clip_aabb(minc, maxc, vec4(clamp(mu, min_col, max_col), 1.0), vec4(history_col, 1.0)).xyz;
+
+    vec2 prev_pixel_velocity = texture(prev_frame_velocity_sampler, history_tex_coord).xy;
+    float velocity_length = length(prev_pixel_velocity - pixel_velocity);
+    float velocity_disocclusion = clamp((velocity_length - 0.001) * 10.0, 0.0, 1.0);
+
+    vec3 final = mix(current_col, history_col, 0.9);
+    final = mix(final, mu, velocity_disocclusion);
+
+    imageStore(img_current_frame, ivec2(gl_GlobalInvocationID.xy), vec4(final, 1.0));
+}

@@ -80,7 +80,11 @@ namespace SNAKE {
 		}
 
 		static FrameInFlightIndex GetCurrentFIF() {
-			return Get().m_current_frame;
+			return Get().m_current_fif;
+		}
+
+		static uint32_t GetCurrentFrameIdx() {
+			return Get().m_current_frame_idx;
 		}
 
 		static void CreateCommandPool(const struct QueueFamilyIndices& queue_indices);
@@ -140,7 +144,9 @@ namespace SNAKE {
 
 		void ICreateLogicalDevice(vk::SurfaceKHR surface, const std::vector<const char*>& required_device_extensions);
 
-		FrameInFlightIndex m_current_frame = 0;
+		FrameInFlightIndex m_current_fif = 0;
+
+		uint32_t m_current_frame_idx = 0;
 
 		vk::UniqueInstance m_instance;
 

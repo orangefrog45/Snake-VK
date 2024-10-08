@@ -135,6 +135,20 @@ namespace SNAKE {
 		vk::UniquePipeline m_pipeline;
 	};
 
+	class ComputePipeline {
+	public:
+		// Initializes pipeline and puts it in a usable state, fills in pipeline_layout with reflected shader data
+		void Init(const std::string& shader_path);
+
+		vk::Pipeline GetPipeline() {
+			return *m_pipeline;
+		}
+
+		PipelineLayout pipeline_layout;
+	private:
+		vk::UniquePipeline m_pipeline;
+	};
+
 	class SBT {
 	public:
 		void Init(vk::Pipeline pipeline, const struct RtPipelineBuilder& builder);

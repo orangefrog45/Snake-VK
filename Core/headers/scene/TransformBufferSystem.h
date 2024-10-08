@@ -33,6 +33,22 @@ namespace SNAKE {
 					p_casted->p_component->GetEntity()->AddComponent<TransformBufferIdxComponent>(m_current_buffer_idx++);
 					m_transforms_to_update.push_back(std::make_pair(p_casted->p_component->GetEntity()->GetEnttHandle(), 0));
 				}
+				else if (p_casted->event_type == ComponentEventType::REMOVED) {
+					// Delete all references to this instance from the update queue
+					unsigned deletion_count = 0;
+					std::vector<uint32_t> deletion_indices;
+					entt::entity deleted_entity_handle = p_casted->p_component->GetEntity()->GetEnttHandle();
+
+					for (uint32_t i = 0; i < m_transforms_to_update.size(); i++) {
+						if (m_transforms_to_update[i].first == deleted_entity_handle)
+							deletion_indices.push_back(i);
+					}
+
+					for (auto idx : deletion_indices) {
+						m_transforms_to_update.erase(m_transforms_to_update.begin() + idx - deletion_count);
+						deletion_count++;
+					}
+				}
 			};
 
 			EventManagerG::RegisterListener<ComponentEvent<TransformComponent>>(m_transform_event_listener);

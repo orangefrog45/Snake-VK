@@ -9,7 +9,7 @@
 using namespace SNAKE;
 
 void SceneInfoBufferSystem::OnSystemAdd() {
-	constexpr size_t UBO_SIZE = aligned_size(sizeof(glm::mat4) * 2 + sizeof(glm::vec4), 64);
+	constexpr size_t UBO_SIZE = aligned_size(sizeof(glm::mat4) * 2 + sizeof(glm::vec4) * 2 + sizeof(unsigned), 64);
 
 	m_frame_start_listener.callback = [this]([[maybe_unused]] auto _event) {
 		uint8_t fif = VkContext::GetCurrentFIF();
@@ -47,6 +47,7 @@ struct CommonUBO {
 	alignas(16) glm::mat4 proj;
 	alignas(16) glm::vec4 cam_pos;
 	alignas(16) glm::vec4 cam_forward;
+	alignas(16) uint32_t frame_idx;
 };
 
 
@@ -63,7 +64,7 @@ void SceneInfoBufferSystem::UpdateUBO(FrameInFlightIndex frame_idx) {
 	auto* p_transform = p_cam_ent->GetComponent<TransformComponent>();
 
 	CommonUBO ubo{};
-
+	ubo.frame_idx = VkContext::GetCurrentFrameIdx();
 	ubo.view = glm::lookAt(p_transform->GetPosition(), p_transform->GetPosition() + p_transform->forward, glm::vec3(0.f, 1.f, 0.f));
 	ubo.proj = p_cam_comp->GetProjectionMatrix();
 
@@ -74,8 +75,4 @@ void SceneInfoBufferSystem::UpdateUBO(FrameInFlightIndex frame_idx) {
 	ubo.proj[1][1] *= -1;
 
 	memcpy(m_ubos[frame_idx].Map(), &ubo, sizeof(CommonUBO));
-
-	// Store current frames data in "old" ubo to be read in the next frame
-	memcpy(m_old_ubos[frame_idx].Map(), &ubo, sizeof(CommonUBO));
-	
 }

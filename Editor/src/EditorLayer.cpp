@@ -234,7 +234,7 @@ void EditorLayer::InitGBuffer() {
 	pixel_motion_spec.format = vk::Format::eR16G16Sfloat;
 	pixel_motion_spec.size = { p_window->GetWidth(), p_window->GetHeight() };
 	pixel_motion_spec.tiling = vk::ImageTiling::eOptimal;
-	pixel_motion_spec.usage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled;
+	pixel_motion_spec.usage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferSrc;
 	pixel_motion_spec.aspect_flags = vk::ImageAspectFlagBits::eColor;
 
 	gbuffer.albedo_image.SetSpec(albedo_spec);
@@ -278,6 +278,11 @@ void EditorLayer::InitGBuffer() {
 void EditorLayer::OnInit() {
 	VkRenderer::QueueDebugRenderLine({ 0, 0, 0 }, { 0, 10000, 0 }, { 0, 1, 0, 1 });
 
+	vk::SemaphoreCreateInfo semaphore_info{};
+	auto [semaphore_res, semaphore] = VkContext::GetLogicalDevice().device->createSemaphoreUnique(semaphore_info);
+	SNK_CHECK_VK_RESULT(semaphore_res);
+	m_compute_graphics_semaphore = std::move(semaphore);
+
 	Image2DSpec spec;
 	spec.aspect_flags = vk::ImageAspectFlagBits::eColor;
 	spec.format = vk::Format::eR32G32B32A32Sfloat;
@@ -318,12 +323,15 @@ void EditorLayer::OnInit() {
 	//	CreateLargeEntity(scene);
 	}
 	raytracing.Init(scene, render_image, scene.GetSystem<SceneInfoBufferSystem>()->descriptor_buffers[0].GetDescriptorSpec(), gbuffer);
+	m_taa_resolve_pass.Init();
 }
 
 void EditorLayer::OnUpdate() {
 	static float e = 0.f;
 	e += 0.01f;
-	scene.GetEntities()[0]->GetComponent<TransformComponent>()->SetOrientation(sinf(e) * 360.f, 0.f, 0.f);
+	auto& entities = scene.GetEntities();
+	if (!entities.empty())
+		scene.GetEntities()[0]->GetComponent<TransformComponent>()->SetOrientation(sinf(e) * 360.f, 0.f, 0.f);
 
 	glm::vec3 move{ 0,0,0 };
 	auto* p_transform = p_cam_ent->GetComponent<TransformComponent>();
@@ -410,12 +418,31 @@ void EditorLayer::OnRender() {
 	//VkRenderer::RecordRenderDebugCommands(*m_cmd_buffers[VkContext::GetCurrentFIF()].buf, render_image, depth_image, 
 	//	scene.GetSystem<SceneInfoBufferSystem>()->descriptor_buffers[VkContext::GetCurrentFIF()]);
 
-	auto cmd_buffers = util::array(gbuffer_cmd_buf, *m_cmd_buffers[fif].buf);
+	auto graphics_cmd_buffers = util::array(gbuffer_cmd_buf, *m_cmd_buffers[fif].buf);
 
-	vk::SubmitInfo submit_info{};
-	submit_info.commandBufferCount = (uint32_t)cmd_buffers.size();
-	submit_info.pCommandBuffers = cmd_buffers.data();
-	VkContext::GetLogicalDevice().SubmitGraphics(submit_info);
+	vk::SubmitInfo submit_info_graphics{};
+	submit_info_graphics.commandBufferCount = (uint32_t)graphics_cmd_buffers.size();
+	submit_info_graphics.pCommandBuffers = graphics_cmd_buffers.data();
+	if (m_render_settings.use_taa) {
+		submit_info_graphics.pSignalSemaphores = &*m_compute_graphics_semaphore;
+		submit_info_graphics.signalSemaphoreCount = 1;
+	}
+
+	VkContext::GetLogicalDevice().SubmitGraphics(submit_info_graphics);
+
+	if (m_render_settings.use_taa) {
+		auto wait_stage_mask = vk::PipelineStageFlagBits::eAllGraphics | vk::PipelineStageFlagBits::eRayTracingShaderKHR;
+		auto compute_cmd_buffers = util::array(m_taa_resolve_pass.RecordCommandBuffer());
+		vk::SubmitInfo submit_info_compute{};
+		submit_info_compute.commandBufferCount = (uint32_t)compute_cmd_buffers.size();
+		submit_info_compute.pCommandBuffers = compute_cmd_buffers.data();
+		submit_info_compute.waitSemaphoreCount = 1;
+		submit_info_compute.pWaitSemaphores = &*m_compute_graphics_semaphore;
+		submit_info_compute.pWaitDstStageMask = &wait_stage_mask;
+
+		VkContext::GetLogicalDevice().SubmitGraphics(submit_info_compute);
+	}
+
 
 	render_image.BlitTo(*swapchain_image, 0, 0, vk::ImageLayout::eGeneral, vk::ImageLayout::eUndefined,
 		vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eColorAttachmentOptimal, vk::Filter::eNearest, image_avail_semaphore);
@@ -555,6 +582,7 @@ void EditorLayer::OnImGuiRender() {
 
 	std::vector<EntityNode> entity_hierarchy = CreateLinearEntityHierarchy(&scene);
 	if (ImGui::Begin("Entities")) {
+		ImGui::Checkbox("TAA", &m_render_settings.use_taa);
 
 		if (ImGui::TreeNode("Directional light")) {
 			ent_editor.DirectionalLightEditor(scene.directional_light);

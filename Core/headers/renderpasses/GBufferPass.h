@@ -165,15 +165,19 @@ namespace SNAKE {
 				cmd_buffer.bindVertexBuffers(0, 4, vert_buffers.data(), offsets.data());
 				cmd_buffer.bindIndexBuffer(index_buffers[0], mesh_buffer_entry_data.data_start_indices_idx * sizeof(uint32_t), vk::IndexType::eUint32);
 
-				GBufferPC pc;
+				{
+					glm::uvec2 render_resolution = output.albedo_image.GetSpec().size;
+					cmd_buffer.pushConstants(m_pipeline.pipeline_layout.GetPipelineLayout(), vk::ShaderStageFlagBits::eAll, sizeof(uint32_t) * 2, sizeof(uint32_t) * 2, &render_resolution);
+				}
 
+				GBufferPC pc;
 				for (uint32_t i = range.start_idx; i < range.start_idx + range.count; i++) {
 					pc.transform_idx = snapshot.static_mesh_data[i].transform_buffer_idx;
-					cmd_buffer.pushConstants(m_pipeline.pipeline_layout.GetPipelineLayout(), vk::ShaderStageFlagBits::eAllGraphics, 0, sizeof(uint32_t), &pc.transform_idx);
+					cmd_buffer.pushConstants(m_pipeline.pipeline_layout.GetPipelineLayout(), vk::ShaderStageFlagBits::eAll, 0, sizeof(uint32_t), &pc.transform_idx);
 
 					for (auto& submesh : mesh_asset->data->submeshes) {
 						pc.material_idx = (*snapshot.static_mesh_data[i].material_vec)[submesh.material_index]->GetGlobalBufferIndex();
-						cmd_buffer.pushConstants(m_pipeline.pipeline_layout.GetPipelineLayout(), vk::ShaderStageFlagBits::eAllGraphics, sizeof(uint32_t), sizeof(uint32_t), &pc.material_idx);
+						cmd_buffer.pushConstants(m_pipeline.pipeline_layout.GetPipelineLayout(), vk::ShaderStageFlagBits::eAll, sizeof(uint32_t), sizeof(uint32_t), &pc.material_idx);
 						cmd_buffer.drawIndexed(submesh.num_indices, 1, submesh.base_index, submesh.base_vertex, 0);
 					}
 				}

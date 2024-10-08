@@ -262,9 +262,9 @@ FullscreenImage2D::FullscreenImage2D(vk::ImageLayout initial_layout) : m_initial
 	};
 
 	m_frame_start_listener.callback = [this]([[maybe_unused]] Event const* p_event) {
-		if (!m_swapchain_invalidate_event_data.has_value())
+		if (!m_swapchain_invalidate_event_data.has_value() || !m_image)
 			return;
-
+		
 		bool has_sampler = static_cast<bool>(m_sampler);
 		bool has_view = static_cast<bool>(m_view);
 		m_spec.size = m_swapchain_invalidate_event_data.value().new_swapchain_extents;

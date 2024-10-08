@@ -177,4 +177,29 @@ namespace SNAKE {
 		m_sbt.Init(*m_pipeline, builder);
 	}
 
+
+	void ComputePipeline::Init(const std::string& shader_path) {
+		PipelineLayoutBuilder layout_builder{};
+
+		auto shader_module = ShaderLibrary::CreateShaderModule(shader_path, layout_builder);
+		layout_builder.Build();
+
+		pipeline_layout.Init(layout_builder);
+
+		vk::PipelineShaderStageCreateInfo stage_info{};
+		stage_info.pName = "main";
+		stage_info.module = *shader_module;
+		stage_info.stage = vk::ShaderStageFlagBits::eCompute;
+
+		vk::ComputePipelineCreateInfo pipeline_info{};
+		pipeline_info.layout = pipeline_layout.GetPipelineLayout();
+		pipeline_info.stage = stage_info;
+		pipeline_info.flags = vk::PipelineCreateFlagBits::eDescriptorBufferEXT;
+
+		auto [res, pipeline] = VkContext::GetLogicalDevice().device->createComputePipelineUnique(VK_NULL_HANDLE, pipeline_info);
+		SNK_CHECK_VK_RESULT(res);
+		m_pipeline = std::move(pipeline);
+	}
+
+
 }

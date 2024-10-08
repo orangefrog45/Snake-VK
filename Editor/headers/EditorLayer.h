@@ -6,6 +6,7 @@
 #include "rendering/Raytracing.h"
 #include "rendering/RenderCommon.h"
 #include "renderpasses/GBufferPass.h"
+#include "renderpasses/TAA_ResolvePass.h"
 #include "scene/Scene.h"
 
 namespace SNAKE {
@@ -42,10 +43,16 @@ namespace SNAKE {
 		FullscreenImage2D render_image{ vk::ImageLayout::eColorAttachmentOptimal };
 		GBufferResources gbuffer;
 
+
 		ProjectState project;
 
 		RT raytracing;
 	private:
+		vk::UniqueSemaphore m_compute_graphics_semaphore;
+
+		TAA_ResolvePass m_taa_resolve_pass{ &render_image, &gbuffer.pixel_motion_image };
+		FullscreenImage2D history_image{ vk::ImageLayout::eColorAttachmentOptimal };
+
 		void InitGBuffer();
 		void RenderDialogBoxes();
 
@@ -60,8 +67,11 @@ namespace SNAKE {
 		void PromptCreateNewProject();
 		void CreateProject(const std::string& directory, const std::string& project_name);
 
-
 		std::array<CommandBuffer, MAX_FRAMES_IN_FLIGHT> m_cmd_buffers;
+
+		struct RenderSettings {
+			bool use_taa = true;
+		} m_render_settings;
 
 		Window* p_window = nullptr;
 

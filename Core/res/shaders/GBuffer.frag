@@ -21,19 +21,16 @@ layout(location = 9) in vec4 vs_current_clip_pos;
 layout(push_constant) uniform pc {
     uint transform_idx;
     uint material_idx;
+    uint render_resolution_x;
+    uint render_resolution_y;
 } push;
 
 
-vec2 CalcVelocity(vec4 current_pos, vec4 old_pos) {
-    old_pos /= old_pos.w;
-    old_pos.xy = (old_pos.xy + 1) * 0.5;
-    old_pos.y = 1 - old_pos.y;
-
-    current_pos /= current_pos.w;
-    current_pos.xy = (current_pos.xy + 1) * 0.5;
-    current_pos.y = 1 - current_pos.y;
+vec2 CalcVelocity(vec4 current_pos, vec4 old_pos) {;
+    vec2 old_ndc = (old_pos.xy / old_pos.w) * 0.5 + 0.5;
+    vec2 current_ndc = (current_pos.xy / current_pos.w) * 0.5 + 0.5;
     
-    return current_pos.xy - old_pos.xy;
+    return (current_ndc.xy - old_ndc.xy);
 }
 
 void main() {

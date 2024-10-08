@@ -14,11 +14,28 @@ void RaytracingInstanceBufferSystem::OnSystemAdd() {
 		// On either a mesh component being added or updated, just refit it to another slot in the buffer (submesh count may have changed so needs new slot)
 		// TODO: This causes a lot of waste, track number of tombstones
 		if (p_casted->event_type != ComponentEventType::REMOVED) {
-			p_ent->AddComponent<RaytracingInstanceBufferIdxComponent>(m_current_buffer_idx);
+			// Add or update
+			p_ent->AddComponent<RaytracingInstanceBufferIdxComponent>(m_current_buffer_idx)->idx = m_current_buffer_idx;
 			m_instances_to_update.push_back(std::make_pair(p_ent->GetEnttHandle(), 0));
 
 			// Allocate space for submeshes
 			m_current_buffer_idx += (uint32_t)p_casted->p_component->GetMeshAsset()->data->submeshes.size();
+		}
+		else {
+			// Delete all references to this instance from the update queue
+			unsigned deletion_count = 0;
+			std::vector<uint32_t> deletion_indices;
+			entt::entity deleted_entity_handle = p_ent->GetEnttHandle();
+
+			for (uint32_t i = 0; i < m_instances_to_update.size(); i++) {
+				if (m_instances_to_update[i].first == deleted_entity_handle)
+					deletion_indices.push_back(i);
+			}
+
+			for (auto idx : deletion_indices) {
+				m_instances_to_update.erase(m_instances_to_update.begin() + idx - deletion_count);
+				deletion_count++;
+			}
 		}
 		};
 
