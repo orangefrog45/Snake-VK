@@ -1,3 +1,4 @@
+
 #include "pch/pch.h"
 #include "core/VkContext.h"
 #include "core/VkCommon.h"
@@ -29,11 +30,11 @@ void VkContext::IPickPhysicalDevice(vk::SurfaceKHR surface, const std::vector<co
 		}
 	}
 
+	SNK_ASSERT(m_physical_device.device);
+
 	vk::PhysicalDeviceProperties2 device_properties{};
 	device_properties.pNext = &m_physical_device.buffer_properties;
 	m_physical_device.device.getProperties2(&device_properties);
-
-	SNK_ASSERT(m_physical_device.device);
 }
 
 
@@ -72,13 +73,9 @@ bool VkContext::IsDeviceSuitable(vk::PhysicalDevice device, vk::SurfaceKHR surfa
 }
 
 
-void VkContext::ICreateLogicalDevice(vk::SurfaceKHR surface, const std::vector<const char*>& required_device_extensions) {
+void VkContext::ICreateLogicalDevice(vk::SurfaceKHR surface, const std::vector<const char*>& required_device_extensions, PFN_vkCreateDevice create_device_func) {
 	QueueFamilyIndices indices = FindQueueFamilies(m_physical_device.device, surface);
 	float queue_priority = 1.f;
-
-
-	vk::PhysicalDeviceFeatures device_features{};
-	device_features.samplerAnisotropy = true;
 
 	std::vector<vk::DeviceQueueCreateInfo> queue_create_infos;
 	std::set<uint32_t> unique_queue_families = { indices.graphics_family.value(), indices.present_family.value() };
@@ -96,16 +93,15 @@ void VkContext::ICreateLogicalDevice(vk::SurfaceKHR surface, const std::vector<c
 	}
 
 	// Features
+	vk::PhysicalDeviceFeatures device_features{};
+	device_features.samplerAnisotropy = true;
+
 	vk::PhysicalDeviceDescriptorBufferFeaturesEXT descriptor_buffer_features{};
 	descriptor_buffer_features.descriptorBuffer = true;
 
-	vk::PhysicalDeviceBufferDeviceAddressFeatures buffer_device_address_features{};
-	buffer_device_address_features.bufferDeviceAddress = true;
-	buffer_device_address_features.pNext = &descriptor_buffer_features;
-
 	vk::PhysicalDeviceDynamicRenderingFeatures dynamic_rendering_features{};
 	dynamic_rendering_features.dynamicRendering = VK_TRUE;
-	dynamic_rendering_features.pNext = &buffer_device_address_features;
+	dynamic_rendering_features.pNext = &descriptor_buffer_features;
 
 	vk::PhysicalDeviceAccelerationStructureFeaturesKHR accel_features{};
 	accel_features.accelerationStructure = true;
@@ -115,27 +111,37 @@ void VkContext::ICreateLogicalDevice(vk::SurfaceKHR surface, const std::vector<c
 	rtp_features.rayTracingPipeline = true;
 	rtp_features.pNext = &accel_features;
 
-	vk::PhysicalDeviceScalarBlockLayoutFeatures scalar_layout_features{};
-	scalar_layout_features.scalarBlockLayout = true;
-	scalar_layout_features.pNext = &rtp_features;
+	vk::PhysicalDeviceVulkan12Features features_12{};
+	features_12.scalarBlockLayout = true;
+	features_12.pNext = &rtp_features;
+	features_12.descriptorIndexing = true;
+	features_12.bufferDeviceAddress = true;
 
 	auto device_create_info = vk::DeviceCreateInfo{}
 		.setQueueCreateInfoCount((uint32_t)queue_create_infos.size())
 		.setPQueueCreateInfos(queue_create_infos.data())
 		.setEnabledExtensionCount((uint32_t)required_device_extensions.size())
 		.setPpEnabledExtensionNames(required_device_extensions.data())
-		.setPNext(&scalar_layout_features)
+		.setPNext(&features_12)
 		.setPEnabledFeatures(&device_features);
 
-
-	m_device.device = m_physical_device.device.createDeviceUnique(device_create_info, nullptr, VULKAN_HPP_DEFAULT_DISPATCHER).value;
-	SNK_ASSERT(m_device.device);
+	if (create_device_func) {
+		vk::Device device{};
+		auto create_device_res = create_device_func(static_cast<VkPhysicalDevice>(m_physical_device.device), reinterpret_cast<VkDeviceCreateInfo*>(&device_create_info), nullptr, reinterpret_cast<VkDevice*>(&device));
+		SNK_CHECK_VK_RESULT(create_device_res);
+		m_device.device = std::move(vk::UniqueDevice{ device, m_instance });
+	}
+	else {
+		auto [create_device_res, device] = m_physical_device.device.createDeviceUnique(device_create_info);
+		SNK_CHECK_VK_RESULT(create_device_res);
+		m_device.device = std::move(device);
+	}
 
 	m_device.m_graphics_queue = m_device.device->getQueue(indices.graphics_family.value(), 0, VULKAN_HPP_DEFAULT_DISPATCHER);
 	m_device.m_presentation_queue = m_device.device->getQueue(indices.present_family.value(), 0, VULKAN_HPP_DEFAULT_DISPATCHER);
 }
 
-void VkContext::ICreateInstance(const char* app_name) {
+void VkContext::ICreateInstance(const char* app_name, PFN_vkCreateInstance create_instance_func) {
 	std::vector<const char*> layers = {
 		"VK_LAYER_KHRONOS_validation"
 	};
@@ -169,7 +175,18 @@ void VkContext::ICreateInstance(const char* app_name) {
 		{(uint32_t)extensions.size(), extensions.data()}
 	};
 
-	m_instance = vk::createInstanceUnique(create_info, nullptr, VULKAN_HPP_DEFAULT_DISPATCHER).value;
+	if (create_instance_func) {
+		vk::Instance instance;
+		auto res = create_instance_func(reinterpret_cast<VkInstanceCreateInfo*>(&create_info), nullptr, reinterpret_cast<VkInstance*>(&instance));
+		SNK_CHECK_VK_RESULT(res);
+		m_instance = vk::UniqueInstance{ instance };
+	}
+	else {
+		auto [res, instance] = vk::createInstanceUnique(create_info);
+		SNK_CHECK_VK_RESULT(res);
+		m_instance = std::move(instance);
+	}
+
 	SNK_ASSERT(m_instance);
 
 }

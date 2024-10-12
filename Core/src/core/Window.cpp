@@ -108,8 +108,7 @@ vk::Extent2D Window::ChooseSwapExtent(const vk::SurfaceCapabilitiesKHR& capabili
 
 void Window::Shutdown() {
 	for (auto& image : m_vk_context.swapchain_images) {
-		image->DestroyImageView();
-		image->DestroySampler();
+		image->DestroyImage();
 	}
 
 	m_vk_context.swapchain.release();
@@ -203,7 +202,7 @@ void Window::CreateSwapchain() {
 
 	for (int i = 0; i < temp_images.size(); i++) {
 		m_vk_context.swapchain_images[i] = std::make_unique<Image2D>(temp_images[i], swapchain_spec);
-		m_vk_context.swapchain_images[i]->CreateImageView();
+		m_vk_context.swapchain_images[i]->CreateImage();
 		m_vk_context.swapchain_linear_image_views.push_back(Image2D::CreateImageView(*m_vk_context.swapchain_images[i], vk::Format::eB8G8R8A8Unorm));
 	}
 	m_vk_context.swapchain_format = surface_format.format;
@@ -218,8 +217,7 @@ void Window::RecreateSwapChain() {
 	);
 
 	for (auto& image : m_vk_context.swapchain_images) {
-		image->DestroyImageView();
-		image->DestroySampler();
+		image->DestroyImage();
 	}
 
 	m_vk_context.swapchain.reset();

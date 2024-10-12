@@ -120,9 +120,6 @@ Texture2DAsset* AssetLoader::DeserializeTexture2D(const std::string& filepath) {
 	asset.image.GenerateMipmaps(vk::ImageLayout::eTransferDstOptimal);
 	asset.image.TransitionImageLayout(vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal, 0, spec.mip_levels);
 
-	asset.image.CreateImageView();
-	asset.image.CreateSampler();
-
 	AssetManager::Get().m_global_tex_buffer_manager.RegisterTexture(&asset);
 	return &asset;
 }
@@ -325,13 +322,12 @@ bool AssetLoader::LoadTextureFromFile(AssetRef<Texture2DAsset> tex, vk::Format f
 	tex->image.SetSpec(spec);
 	tex->image.CreateImage();
 
-	tex->image.TransitionImageLayout(vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal, 0, spec.mip_levels);
+	tex->image.TransitionImageLayout(vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal, vk::AccessFlagBits::eNone, vk::AccessFlagBits::eTransferWrite, 
+		vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTransfer, 0, spec.mip_levels);
 	CopyBufferToImage(staging_buffer.buffer, tex->image.GetImage(), width, height);
 	tex->image.GenerateMipmaps(vk::ImageLayout::eTransferDstOptimal);
 	tex->image.TransitionImageLayout(vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal, 0, spec.mip_levels);
 
-	tex->image.CreateImageView();
-	tex->image.CreateSampler();
 
 	AssetManager::Get().m_global_tex_buffer_manager.RegisterTexture(tex);
 

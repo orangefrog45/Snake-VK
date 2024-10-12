@@ -71,8 +71,6 @@ void SceneInfoBufferSystem::UpdateUBO(FrameInFlightIndex frame_idx) {
 	auto* p_cam_transform = p_scene->GetSystem<CameraSystem>()->GetActiveCam()->GetEntity()->GetComponent<TransformComponent>();
 	ubo.cam_pos = glm::vec4(p_cam_transform->GetAbsPosition(), 1.f);
 	ubo.cam_forward = glm::vec4(p_cam_transform->forward, 1.f);
-	// Y coordinate of clip coordinates inverted as glm designed to work with opengl, flip here
-	ubo.proj[1][1] *= -1;
 
 	memcpy(m_ubos[frame_idx].Map(), &ubo, sizeof(CommonUBO));
 }

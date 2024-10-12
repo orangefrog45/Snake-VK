@@ -35,11 +35,14 @@ add_library(imgui
     extern/imgui/imgui_tables.cpp
     extern/imgui/imgui_widgets.cpp
 )
+
 target_include_directories(imgui PUBLIC 
 extern/imgui
 ${Vulkan_INCLUDE_DIRS}
 extern/glfw/include
 )
+
+target_compile_definitions(imgui PUBLIC IMGUI_IMPL_VULKAN_NO_PROTOTYPES)
 # ------------------------------------------
 
 add_library(SNAKE_VK_CORE
@@ -146,7 +149,7 @@ add_library(SNAKE_VK_CORE
  "headers/scene/SceneSnapshotSystem.h" 
  "src/scene/SceneSnapshotSystem.cpp"
  
- "headers/renderpasses/TAA_ResolvePass.h" "src/renderpasses/TAA_ResolvePass.cpp")
+ "headers/renderpasses/TAA_ResolvePass.h" "src/renderpasses/TAA_ResolvePass.cpp" "headers/rendering/StreamlineWrapper.h" "src/rendering/StreamlineWrapper.cpp" "headers/renderpasses/StreamlinePasses.h" "src/renderpasses/StreamlinePasses.cpp")
 
 
 target_link_options(SNAKE_VK_CORE PRIVATE -INCREMENTAL -ZI)
@@ -158,6 +161,7 @@ headers/pch/pch.h
 
 find_package(spirv_cross_cpp)
 
+
 target_link_libraries(SNAKE_VK_CORE PUBLIC
 ${Vulkan_LIBRARIES}
 ${SHADERC_LIB}
@@ -168,6 +172,7 @@ assimp
 spirv-cross-cpp
 imgui
 nlohmann_json::nlohmann_json
+"${CMAKE_CURRENT_LIST_DIR}/extern/streamline/lib/x64/sl.interposer.lib"
 )
 
 set(SNAKE_VK_CORE_INCLUDES 
@@ -183,6 +188,7 @@ extern/entt/src/
 extern/spirv-cross
 extern/imgui
 extern/json/include
+extern/streamline/include
 CACHE STRING ""
 )
 target_include_directories(SNAKE_VK_CORE PUBLIC
@@ -191,5 +197,15 @@ ${SNAKE_VK_CORE_INCLUDES}
 
 set(SNAKE_VK_CORE_RESOURCE_FOLDER ${CMAKE_CURRENT_LIST_DIR}/res/ CACHE STRING "")
 file(COPY ${SNAKE_VK_CORE_RESOURCE_FOLDER} DESTINATION "${CMAKE_BINARY_DIR}/Core/res")
+
+set(SNAKE_VK_CORE_REQUIRED_BINARIES
+"${CMAKE_CURRENT_LIST_DIR}/extern/streamline/bin/x64/development/sl.interposer.dll"
+"${CMAKE_CURRENT_LIST_DIR}/extern/streamline/bin/x64/development/sl.dlss.dll"
+"${CMAKE_CURRENT_LIST_DIR}/extern/streamline/bin/x64/development/sl.common.dll"
+"${CMAKE_CURRENT_LIST_DIR}/extern/streamline/bin/x64/development/sl.reflex.dll"
+"${CMAKE_CURRENT_LIST_DIR}/extern/streamline/bin/x64/development/sl.pcl.dll"
+"${CMAKE_CURRENT_LIST_DIR}/extern/streamline/bin/x64/development/nvngx_dlss.dll"
+CACHE STRING ""
+)
 
 

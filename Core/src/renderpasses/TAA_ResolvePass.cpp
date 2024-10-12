@@ -10,15 +10,11 @@ void TAA_ResolvePass::Init() {
 	spec.usage = vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled;
 	m_history_image.SetSpec(spec);
 	m_history_image.CreateImage();
-	m_history_image.CreateImageView();
-	m_history_image.CreateSampler();
 
 	auto velocity_spec = mp_velocity_image->GetSpec();
 	velocity_spec.usage = vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled;
 	m_prev_frame_velocity_image.SetSpec(velocity_spec);
 	m_prev_frame_velocity_image.CreateImage();
-	m_prev_frame_velocity_image.CreateImageView();
-	m_prev_frame_velocity_image.CreateSampler();
 
 	m_history_image.TransitionImageLayout(vk::ImageLayout::eUndefined, vk::ImageLayout::eShaderReadOnlyOptimal, vk::AccessFlagBits::eNone, vk::AccessFlagBits::eNone,
 		vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTopOfPipe);

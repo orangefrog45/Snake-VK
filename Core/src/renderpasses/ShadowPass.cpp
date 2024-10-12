@@ -17,8 +17,6 @@ namespace SNAKE {
 
 		m_dir_light_shadow_map.SetSpec(shadow_spec);
 		m_dir_light_shadow_map.CreateImage();
-		m_dir_light_shadow_map.CreateImageView();
-		m_dir_light_shadow_map.CreateSampler();
 
 		m_dir_light_shadow_map.TransitionImageLayout(vk::ImageLayout::eUndefined,
 			vk::ImageLayout::eShaderReadOnlyOptimal, vk::AccessFlagBits::eNone,

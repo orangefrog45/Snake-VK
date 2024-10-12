@@ -23,14 +23,12 @@ layout(push_constant) uniform pc {
     uint material_idx;
     uint render_resolution_x;
     uint render_resolution_y;
+    vec2 jitter_offset;
 } push;
 
 
-vec2 CalcVelocity(vec4 current_pos, vec4 old_pos) {;
-    vec2 old_ndc = (old_pos.xy / old_pos.w) * 0.5 + 0.5;
-    vec2 current_ndc = (current_pos.xy / current_pos.w) * 0.5 + 0.5;
-    
-    return (current_ndc.xy - old_ndc.xy);
+vec2 CalcVelocity(vec4 current_clip_pos, vec4 old_clip_pos) {;
+    return ((old_clip_pos.xy / old_clip_pos.w) - (current_clip_pos.xy / current_clip_pos.w)) * 0.5;
 }
 
 void main() {

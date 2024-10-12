@@ -4,6 +4,7 @@
 #include "resources/Images.h"
 #include "rendering/VkRenderer.h"
 #include "util/util.h"
+#include "vk_mem_alloc.h"
 
 using namespace SNAKE;
 
@@ -90,26 +91,33 @@ void Image2D::BlitTo(Image2D& dst, unsigned dst_mip, unsigned src_mip, vk::Image
 }
 
 void Image2D::CreateImage(VmaAllocationCreateFlags flags) {
-	vk::ImageCreateInfo image_info{};
-	image_info.imageType = vk::ImageType::e2D;
-	image_info.extent.width = m_spec.size.x;
-	image_info.extent.height = m_spec.size.y;
-	image_info.extent.depth = 1;
-	image_info.mipLevels = m_spec.mip_levels;
-	image_info.arrayLayers = 1;
-	image_info.format = m_spec.format;
-	image_info.tiling = m_spec.tiling;
-	image_info.initialLayout = vk::ImageLayout::eUndefined;
-	image_info.usage = m_spec.usage;
-	image_info.sharingMode = vk::SharingMode::eExclusive; // Image only used by one queue family
-	image_info.samples = vk::SampleCountFlagBits::e1; // Multisampling config, ignore
+	if (m_owns_image) {
+		vk::ImageCreateInfo image_info{};
+		image_info.imageType = vk::ImageType::e2D;
+		image_info.extent.width = m_spec.size.x;
+		image_info.extent.height = m_spec.size.y;
+		image_info.extent.depth = 1;
+		image_info.mipLevels = m_spec.mip_levels;
+		image_info.arrayLayers = 1;
+		image_info.format = m_spec.format;
+		image_info.tiling = m_spec.tiling;
+		image_info.initialLayout = vk::ImageLayout::eUndefined;
+		image_info.usage = m_spec.usage;
+		image_info.sharingMode = vk::SharingMode::eExclusive; // Image only used by one queue family
+		image_info.samples = vk::SampleCountFlagBits::e1; // Multisampling config, ignore
 
-	auto im_info = static_cast<VkImageCreateInfo>(image_info);
-	VmaAllocationCreateInfo alloc_info{};
-	alloc_info.usage = VMA_MEMORY_USAGE_AUTO;
-	alloc_info.flags = flags;
+		auto im_info = static_cast<VkImageCreateInfo>(image_info);
+		VmaAllocationCreateInfo alloc_info{};
+		alloc_info.usage = VMA_MEMORY_USAGE_AUTO;
+		alloc_info.flags = flags;
 
-	SNK_CHECK_VK_RESULT(vmaCreateImage(VkContext::GetAllocator(), &im_info, &alloc_info, reinterpret_cast<VkImage*>(&m_image), &m_allocation, nullptr));	
+		SNK_CHECK_VK_RESULT(vmaCreateImage(VkContext::GetAllocator(), &im_info, &alloc_info, reinterpret_cast<VkImage*>(&m_image), &m_allocation, nullptr));
+	}
+
+	CreateImageView();
+	CreateSampler();
+
+	DispatchResourceEvent(S_VkResourceEvent::ResourceEventType::CREATE);
 }
 
 void Image2D::GenerateMipmaps(vk::ImageLayout start_layout) {
@@ -121,14 +129,16 @@ void Image2D::GenerateMipmaps(vk::ImageLayout start_layout) {
 }
 
 void Image2D::DestroyImage() {
-	if (m_image != VK_NULL_HANDLE)
+	if (m_image != VK_NULL_HANDLE && m_owns_image) {
 		vmaDestroyImage(VkContext::GetAllocator(), m_image, m_allocation);
+		m_image = VK_NULL_HANDLE;
+	}
 
 	if (m_sampler)
-		m_sampler.release();
+		m_sampler.reset();
 
 	if (m_view)
-		m_view.release();
+		m_view.reset();
 
 	DispatchResourceEvent(S_VkResourceEvent::ResourceEventType::DELETE);
 }
@@ -181,6 +191,12 @@ void Image2D::TransitionImageLayout(vk::ImageLayout old_layout, vk::ImageLayout 
 
 	if (temporary_buf)
 		EndSingleTimeCommands(buf);
+}
+
+vk::DeviceMemory Image2D::GetMemory() {
+	VmaAllocationInfo alloc_info;
+	vmaGetAllocationInfo(VkContext::GetAllocator(), m_allocation, &alloc_info);
+	return alloc_info.deviceMemory;
 }
 
 void Image2D::TransitionImageLayout(vk::ImageLayout old_layout, vk::ImageLayout new_layout, unsigned mip_level, unsigned level_count, vk::CommandBuffer buf) {
@@ -252,6 +268,7 @@ vk::UniqueImageView Image2D::CreateImageView(const Image2D& image, std::optional
 
 
 void Image2D::CreateImageView() {
+	SNK_ASSERT(!m_view);
 	m_view = CreateImageView(*this);
 }
 

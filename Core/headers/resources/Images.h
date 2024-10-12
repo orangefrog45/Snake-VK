@@ -53,8 +53,6 @@ namespace SNAKE {
 
 		void DestroyImage();
 
-		void CreateImageView();
-
 		void GenerateMipmaps(vk::ImageLayout start_layout);
 
 		void RefreshDescriptorGetInfo(DescriptorGetInfo& info) const override;
@@ -62,19 +60,10 @@ namespace SNAKE {
 		// Returns an image view created with format 'fmt' (if provided) or (if not provided) image.m_spec.format
 		[[nodiscard]] static vk::UniqueImageView CreateImageView(const Image2D& image, std::optional<vk::Format> fmt = std::nullopt);
 
-		void DestroyImageView() {
-			m_view.release();
-		}
-
-		void DestroySampler() {
-			m_sampler.release();
-		}
 
 		void BlitTo(Image2D& dst, unsigned dst_mip, unsigned src_mip, vk::ImageLayout start_src_layout, vk::ImageLayout start_dst_layout,
 			vk::ImageLayout final_src_layout, vk::ImageLayout final_dst_layout, vk::Filter filter, 
 			std::optional<vk::Semaphore> wait_semaphore = std::nullopt, std::optional<vk::CommandBuffer> cmd_buf = std::nullopt);
-
-		void CreateSampler();
 
 		DescriptorGetInfo CreateDescriptorGetInfo(vk::ImageLayout layout, vk::DescriptorType type) const;
 
@@ -96,11 +85,29 @@ namespace SNAKE {
 			return m_image;
 		}
 
+		bool ImageIsCreated() const {
+			return static_cast<bool>(m_image);
+		}
+
+		vk::DeviceMemory GetMemory();
+
 	protected:
+		void CreateSampler();
+
+		void CreateImageView();
+
+		void DestroyImageView() {
+			m_view.release();
+		}
+
+		void DestroySampler() {
+			m_sampler.release();
+		}
+
 		Image2DSpec m_spec;
 
 		vk::UniqueSampler m_sampler;
-		vk::Image m_image;
+		vk::Image m_image = VK_NULL_HANDLE;
 		vk::UniqueImageView m_view;
 		VmaAllocation m_allocation = nullptr;
 

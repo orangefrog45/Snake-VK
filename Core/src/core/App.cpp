@@ -6,12 +6,13 @@
 #include "events/EventManager.h"
 #include "events/EventsCommon.h"
 #include "rendering/VkRenderer.h"
+#include "rendering/StreamlineWrapper.h"
 #include "util/util.h"
 
-#define IMGUI_IMPL_VULKAN_HAS_DYNAMIC_RENDERING
-#include "imgui.h"
-#include "backends/imgui_impl_vulkan.h"
-#include "backends/imgui_impl_glfw.h"
+
+#include <sl.h>
+#include <sl_consts.h>
+#include <sl_dlss.h>
 
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
@@ -28,8 +29,24 @@ void App::Init(const char* app_name) {
 
 	window.Init(app_name, 1920, 1080, true);
 
-	VULKAN_HPP_DEFAULT_DISPATCHER.init();
-	VkContext::CreateInstance(app_name);
+	PFN_vkGetInstanceProcAddr get_instance_proc_addr_func = nullptr;
+	PFN_vkCreateInstance create_instance_func = nullptr;
+	PFN_vkCreateDevice create_device_func = nullptr;
+
+	if (StreamlineWrapper::Init()) {
+		SNK_CORE_INFO("Streamline is available, loading interposer");
+		auto streamline_symbols = StreamlineWrapper::LoadInterposer();
+		get_instance_proc_addr_func = streamline_symbols.get_instance_proc_addr;
+		create_instance_func = streamline_symbols.create_instance;
+		create_device_func = streamline_symbols.create_device;
+
+		VULKAN_HPP_DEFAULT_DISPATCHER.init(get_instance_proc_addr_func);
+	}
+	else {
+		VULKAN_HPP_DEFAULT_DISPATCHER.init();
+	}
+
+	VkContext::CreateInstance(app_name, create_instance_func);
 	VULKAN_HPP_DEFAULT_DISPATCHER.init(VkContext::GetInstance().get());
 	CreateDebugCallback();
 	window.CreateSurface();
@@ -49,10 +66,11 @@ void App::Init(const char* app_name) {
 		VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME,
 		VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME,
 		VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME
+
 	};
 
 	VkContext::PickPhysicalDevice(*window.GetVkContext().surface, required_device_extensions);
-	VkContext::CreateLogicalDevice(*window.GetVkContext().surface, required_device_extensions);
+	VkContext::CreateLogicalDevice(*window.GetVkContext().surface, required_device_extensions, create_device_func);
 	VkContext::InitVMA();
 	VkContext::CreateCommandPool(FindQueueFamilies(VkContext::GetPhysicalDevice().device, *window.GetVkContext().surface));
 
@@ -71,7 +89,11 @@ void App::MainLoop() {
 	while (!glfwWindowShouldClose(window.GetGLFWwindow())) {
 		EventManagerG::DispatchEvent(FrameSyncFenceEvent{ });
 
+		if (StreamlineWrapper::IsAvailable())
+			StreamlineWrapper::AcquireNewFrameToken();
+
 		EventManagerG::DispatchEvent(FrameStartEvent{ });
+		layers.OnFrameStart();
 
 		Job* update_job = JobSystem::CreateJob();
 		update_job->func = [this]([[maybe_unused]] Job const* job) {
@@ -105,6 +127,9 @@ void App::MainLoop() {
 	AssetManager::Shutdown();
 	glfwTerminate();
 	SNK_CHECK_VK_RESULT(VkContext::GetLogicalDevice().device->waitIdle());
+
+	if (StreamlineWrapper::IsAvailable())
+		StreamlineWrapper::Shutdown();
 
 	JobSystem::Shutdown();
 }

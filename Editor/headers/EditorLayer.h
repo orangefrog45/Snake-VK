@@ -6,6 +6,7 @@
 #include "rendering/Raytracing.h"
 #include "rendering/RenderCommon.h"
 #include "renderpasses/GBufferPass.h"
+#include "renderpasses/StreamlinePasses.h"
 #include "renderpasses/TAA_ResolvePass.h"
 #include "scene/Scene.h"
 
@@ -30,6 +31,7 @@ namespace SNAKE {
 	public:
 		EditorLayer(Window* _window) : p_window(_window), ent_editor(&scene), asset_editor(p_window, this) {};
 		void OnInit() override;
+		void OnFrameStart() override;
 		void OnUpdate() override;
 		void OnRender() override;
 		void OnImGuiRender() override;
@@ -38,22 +40,34 @@ namespace SNAKE {
 		[[nodiscard]] DialogBox* CreateDialogBox();
 		void ErrorMessagePopup(const std::string& err);
 
+
 		Scene scene;
 
-		FullscreenImage2D render_image{ vk::ImageLayout::eColorAttachmentOptimal };
-		GBufferResources gbuffer;
+		Image2D internal_render_image;
+		// Not created/used unless DLSS is active
+		Image2D display_render_image;
 
+		GBufferResources gbuffer;
 
 		ProjectState project;
 
 		RT raytracing;
 	private:
+		// TODO: move these elsewhere
+		glm::mat4 m_prev_frame_projection_matrix;
+		glm::mat4 m_prev_frame_view_matrix;
+		glm::mat4 m_prev_frame_view_to_world_matrix;
+
 		vk::UniqueSemaphore m_compute_graphics_semaphore;
 
-		TAA_ResolvePass m_taa_resolve_pass{ &render_image, &gbuffer.pixel_motion_image };
-		FullscreenImage2D history_image{ vk::ImageLayout::eColorAttachmentOptimal };
+		TAA_ResolvePass m_taa_resolve_pass{ &internal_render_image, &gbuffer.pixel_motion_image };
+		StreamlinePasses m_streamline;
 
-		void InitGBuffer();
+		EventListener m_window_resize_listener;
+
+		void InitRenderResources();
+
+		void InitGBuffer(glm::vec2 internal_render_dim);
 		void RenderDialogBoxes();
 
 		bool CreateEntityPopup(bool open_condition);
@@ -67,10 +81,17 @@ namespace SNAKE {
 		void PromptCreateNewProject();
 		void CreateProject(const std::string& directory, const std::string& project_name);
 
+		void RendererSettingsWindow();
+
 		std::array<CommandBuffer, MAX_FRAMES_IN_FLIGHT> m_cmd_buffers;
 
 		struct RenderSettings {
-			bool use_taa = true;
+			bool realloc_render_resources = false;
+			// Just window dimensions if upscaling/DLSS is disabled
+			glm::vec2 internal_render_dim = { 0, 0 };
+
+			bool using_taa = false;
+			int dlss_preset = 0;
 		} m_render_settings;
 
 		Window* p_window = nullptr;

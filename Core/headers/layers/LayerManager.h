@@ -7,8 +7,16 @@ namespace SNAKE {
 		virtual ~Layer() = default;
 
 		virtual void OnInit() = 0;
+
+		// Render/update threads synchronized at this stage, synced reads/writes should happen here
+		virtual void OnFrameStart() = 0;
+
+		// Runs concurrently with OnRender
 		virtual void OnUpdate() = 0;
+
+		// Runs concurrently with OnUpdate
 		virtual void OnRender() = 0;
+
 		virtual void OnImGuiRender() = 0;
 		virtual void OnShutdown() = 0;
 	};
@@ -35,6 +43,12 @@ namespace SNAKE {
 		}
 
 		void InitLayers();
+
+		void OnFrameStart() {
+			for (auto* p_layer : m_layers) {
+				p_layer->OnFrameStart();
+			}
+		}
 
 		void OnUpdate() {
 			for (auto* p_layer : m_layers) {

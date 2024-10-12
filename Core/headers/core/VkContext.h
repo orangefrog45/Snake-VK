@@ -60,9 +60,9 @@ namespace SNAKE {
 			return s_instance;
 		}
 
-		static void CreateInstance(const char* app_name) {
+		static void CreateInstance(const char* app_name, PFN_vkCreateInstance create_instance_func) {
 			SNK_ASSERT(!Get().m_instance);
-			Get().ICreateInstance(app_name);
+			Get().ICreateInstance(app_name, create_instance_func);
 		}
 
 		static void PickPhysicalDevice(vk::SurfaceKHR surface, const std::vector<const char*>& required_extensions_vec) {
@@ -70,9 +70,9 @@ namespace SNAKE {
 			Get().IPickPhysicalDevice(surface, required_extensions_vec);
 		}
 
-		static void CreateLogicalDevice(vk::SurfaceKHR surface, const std::vector<const char*>& required_device_extensions) {
+		static void CreateLogicalDevice(vk::SurfaceKHR surface, const std::vector<const char*>& required_device_extensions, PFN_vkCreateDevice create_device_func) {
 			SNK_ASSERT(!Get().m_device.device);
-			Get().ICreateLogicalDevice(surface, required_device_extensions);
+			Get().ICreateLogicalDevice(surface, required_device_extensions, create_device_func);
 		}
 
 		static vk::CommandPool GetCommandPool() {
@@ -135,14 +135,14 @@ namespace SNAKE {
 			SNK_CHECK_VK_RESULT(vmaCreateAllocator(&alloc_info, &m_allocator));
 		}
 
-		void ICreateInstance(const char* app_name);
+		void ICreateInstance(const char* app_name, PFN_vkCreateInstance create_instance_func);
 
 
 		void IPickPhysicalDevice(vk::SurfaceKHR surface, const std::vector<const char*>& required_extensions_vec);
 
 		static bool IsDeviceSuitable(vk::PhysicalDevice device, vk::SurfaceKHR surface, const std::vector<const char*>& required_extensions_vec);
 
-		void ICreateLogicalDevice(vk::SurfaceKHR surface, const std::vector<const char*>& required_device_extensions);
+		void ICreateLogicalDevice(vk::SurfaceKHR surface, const std::vector<const char*>& required_device_extensions, PFN_vkCreateDevice create_device_func);
 
 		FrameInFlightIndex m_current_fif = 0;
 

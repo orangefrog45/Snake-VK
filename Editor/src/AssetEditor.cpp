@@ -40,8 +40,6 @@ void AssetEditor::Init() {
 
 	render_image.SetSpec(spec);
 	render_image.CreateImage();
-	render_image.CreateImageView();
-	render_image.CreateSampler();
 
 	render_image.TransitionImageLayout(vk::ImageLayout::eUndefined, vk::ImageLayout::eShaderReadOnlyOptimal, 
 		vk::AccessFlagBits::eNone, vk::AccessFlagBits::eNone, vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTopOfPipe);

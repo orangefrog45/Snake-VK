@@ -9,6 +9,12 @@
 #include "util/UI.h"
 #include "core/JobSystem.h"
 #include "scene/RaytracingBufferSystem.h"
+#include "scene/CameraSystem.h"
+#include "events/EventsCommon.h"
+
+#include <sl_matrix_helpers.h>
+
+#include "rendering/StreamlineWrapper.h"
 
 using namespace SNAKE;
 
@@ -199,100 +205,83 @@ void EditorLayer::ToolbarGUI() {
 	ImGui::End();
 }
 
-void EditorLayer::InitGBuffer() {
+void EditorLayer::InitGBuffer(glm::vec2 internal_render_dim) {
 	// Create depth image
 	auto depth_format = FindDepthFormat();
 	Image2DSpec depth_spec{};
 	depth_spec.format = depth_format;
-	depth_spec.size = { p_window->GetWidth(), p_window->GetHeight() };
+	depth_spec.size = internal_render_dim;
 	depth_spec.tiling = vk::ImageTiling::eOptimal;
 	depth_spec.usage = vk::ImageUsageFlagBits::eDepthStencilAttachment | vk::ImageUsageFlagBits::eSampled;
 	depth_spec.aspect_flags = vk::ImageAspectFlagBits::eDepth | (HasStencilComponent(depth_format) ? vk::ImageAspectFlagBits::eStencil : vk::ImageAspectFlagBits::eNone);
-	
+
 	Image2DSpec albedo_spec{};
 	albedo_spec.format = vk::Format::eR8G8B8A8Snorm;
-	albedo_spec.size = { p_window->GetWidth(), p_window->GetHeight() };
+	albedo_spec.size = internal_render_dim;
 	albedo_spec.tiling = vk::ImageTiling::eOptimal;
 	albedo_spec.usage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled;
 	albedo_spec.aspect_flags = vk::ImageAspectFlagBits::eColor;
 
 	Image2DSpec normal_spec{};
 	normal_spec.format = vk::Format::eR16G16B16A16Sfloat;
-	normal_spec.size = { p_window->GetWidth(), p_window->GetHeight() };
+	normal_spec.size = internal_render_dim;
 	normal_spec.tiling = vk::ImageTiling::eOptimal;
 	normal_spec.usage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled;
 	normal_spec.aspect_flags = vk::ImageAspectFlagBits::eColor;
 
 	Image2DSpec rma_spec{};
 	rma_spec.format = vk::Format::eR16G16B16A16Sfloat;
-	rma_spec.size = { p_window->GetWidth(), p_window->GetHeight() };
+	rma_spec.size = internal_render_dim;
 	rma_spec.tiling = vk::ImageTiling::eOptimal;
 	rma_spec.usage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled;
 	rma_spec.aspect_flags = vk::ImageAspectFlagBits::eColor;
 
 	Image2DSpec pixel_motion_spec{};
 	pixel_motion_spec.format = vk::Format::eR16G16Sfloat;
-	pixel_motion_spec.size = { p_window->GetWidth(), p_window->GetHeight() };
+	pixel_motion_spec.size = internal_render_dim;
 	pixel_motion_spec.tiling = vk::ImageTiling::eOptimal;
 	pixel_motion_spec.usage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferSrc;
 	pixel_motion_spec.aspect_flags = vk::ImageAspectFlagBits::eColor;
 
 	gbuffer.albedo_image.SetSpec(albedo_spec);
 	gbuffer.albedo_image.CreateImage();
-	gbuffer.albedo_image.CreateImageView();
-	gbuffer.albedo_image.CreateSampler();
 	gbuffer.albedo_image.TransitionImageLayout(vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal, 
 		vk::AccessFlagBits::eNone, vk::AccessFlagBits::eNone, vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTopOfPipe);
 
 	gbuffer.normal_image.SetSpec(normal_spec);
 	gbuffer.normal_image.CreateImage();
-	gbuffer.normal_image.CreateImageView();
-	gbuffer.normal_image.CreateSampler();
 	gbuffer.normal_image.TransitionImageLayout(vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal,
 		vk::AccessFlagBits::eNone, vk::AccessFlagBits::eNone, vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTopOfPipe);
 
 	gbuffer.depth_image.SetSpec(depth_spec);
 	gbuffer.depth_image.CreateImage();
-	gbuffer.depth_image.CreateImageView();
-	gbuffer.depth_image.CreateSampler();
 	gbuffer.depth_image.TransitionImageLayout(vk::ImageLayout::eUndefined,
 		(HasStencilComponent(depth_format) ? vk::ImageLayout::eDepthAttachmentOptimal : vk::ImageLayout::eDepthAttachmentOptimal), 0);
 
 	gbuffer.rma_image.SetSpec(normal_spec);
 	gbuffer.rma_image.CreateImage();
-	gbuffer.rma_image.CreateImageView();
-	gbuffer.rma_image.CreateSampler();
 	gbuffer.rma_image.TransitionImageLayout(vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal,
 		vk::AccessFlagBits::eNone, vk::AccessFlagBits::eNone, vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTopOfPipe);
 
 	gbuffer.pixel_motion_image.SetSpec(pixel_motion_spec);
 	gbuffer.pixel_motion_image.CreateImage();
-	gbuffer.pixel_motion_image.CreateImageView();
-	gbuffer.pixel_motion_image.CreateSampler();
 	gbuffer.pixel_motion_image.TransitionImageLayout(vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal,
 		vk::AccessFlagBits::eNone, vk::AccessFlagBits::eNone, vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTopOfPipe);
 
-	gbuffer_pass.Init(scene, gbuffer);
 }
 
 void EditorLayer::OnInit() {
-	VkRenderer::QueueDebugRenderLine({ 0, 0, 0 }, { 0, 10000, 0 }, { 0, 1, 0, 1 });
+	m_window_resize_listener.callback = [this]([[maybe_unused]] Event const*) {
+		m_render_settings.realloc_render_resources = true;
+	};
+
+	EventManagerG::RegisterListener<SwapchainInvalidateEvent>(m_window_resize_listener);
+
 
 	vk::SemaphoreCreateInfo semaphore_info{};
 	auto [semaphore_res, semaphore] = VkContext::GetLogicalDevice().device->createSemaphoreUnique(semaphore_info);
 	SNK_CHECK_VK_RESULT(semaphore_res);
 	m_compute_graphics_semaphore = std::move(semaphore);
-
-	Image2DSpec spec;
-	spec.aspect_flags = vk::ImageAspectFlagBits::eColor;
-	spec.format = vk::Format::eR32G32B32A32Sfloat;
-	spec.size = { p_window->GetWidth(), p_window->GetHeight() };
-	spec.tiling = vk::ImageTiling::eOptimal;
-	spec.usage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eStorage;
-
-	render_image.SetSpec(spec);
-	render_image.CreateImage();
-	render_image.CreateImageView();
 
 	for (auto& cmd_buf : m_cmd_buffers) {
 		cmd_buf.Init(vk::CommandBufferLevel::ePrimary);
@@ -310,8 +299,6 @@ void EditorLayer::OnInit() {
 
 	scene.AddDefaultSystems();
 
-	InitGBuffer();
-
 	p_cam_ent = std::make_unique<Entity>(&scene, scene.GetRegistry().create(), &scene.GetRegistry(), 0);
 	p_cam_ent->AddComponent<TransformComponent>();
 	p_cam_ent->AddComponent<RelationshipComponent>();
@@ -319,14 +306,134 @@ void EditorLayer::OnInit() {
 
 	LoadProject("res/project-template");
 
-	for (int i = 0; i < 10; i++) {
-	//	CreateLargeEntity(scene);
-	}
-	raytracing.Init(scene, render_image, scene.GetSystem<SceneInfoBufferSystem>()->descriptor_buffers[0].GetDescriptorSpec(), gbuffer);
+	InitRenderResources();
+	gbuffer_pass.Init(scene, gbuffer);
+
+	raytracing.Init(scene, internal_render_image, scene.GetSystem<SceneInfoBufferSystem>()->descriptor_buffers[0].GetDescriptorSpec(), gbuffer);
 	m_taa_resolve_pass.Init();
 }
 
+void EditorLayer::InitRenderResources() {
+	SNK_CHECK_VK_RESULT(VkContext::GetLogicalDevice().device->waitIdle());
+
+	if (bool resources_already_created = internal_render_image.ImageIsCreated()) {
+		internal_render_image.DestroyImage();
+		display_render_image.DestroyImage();
+		gbuffer.depth_image.DestroyImage();
+		gbuffer.albedo_image.DestroyImage();
+		gbuffer.rma_image.DestroyImage();
+		gbuffer.pixel_motion_image.DestroyImage();
+		gbuffer.normal_image.DestroyImage();
+	}
+
+	m_render_settings.internal_render_dim = { p_window->GetWidth(), p_window->GetHeight() };
+	if (m_render_settings.dlss_preset != 0) {
+		sl::DLSSOptions dlss_options{};
+		dlss_options.mode = static_cast<sl::DLSSMode>(m_render_settings.dlss_preset);
+		dlss_options.outputWidth = p_window->GetWidth();
+		dlss_options.outputHeight = p_window->GetHeight();
+		dlss_options.colorBuffersHDR = sl::Boolean::eTrue;
+		dlss_options.useAutoExposure = sl::Boolean::eTrue;
+		dlss_options.alphaUpscalingEnabled = sl::Boolean::eFalse;
+		sl::DLSSOptimalSettings optimal_settings = StreamlineWrapper::GetDLSS_OptimalSettings(dlss_options);
+		dlss_options.sharpness = optimal_settings.optimalSharpness;
+
+		m_render_settings.internal_render_dim = { optimal_settings.optimalRenderWidth, optimal_settings.optimalRenderHeight };
+		m_streamline.SetDLSS_Options(dlss_options);
+	}
+
+	Image2DSpec internal_render_spec;
+	internal_render_spec.aspect_flags = vk::ImageAspectFlagBits::eColor;
+	internal_render_spec.format = vk::Format::eR16G16B16A16Sfloat;
+	internal_render_spec.size = m_render_settings.internal_render_dim;
+	internal_render_spec.tiling = vk::ImageTiling::eOptimal;
+	internal_render_spec.usage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferSrc |
+		vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eStorage | vk::ImageUsageFlagBits::eSampled;
+
+	// Only create display render image if DLSS is being used (as the output), if not then internal_render_image will just be used for the full pipeline
+	if (m_render_settings.dlss_preset != 0) {
+		Image2DSpec display_render_spec = internal_render_spec;
+		display_render_spec.size = glm::vec2{ p_window->GetWidth(), p_window->GetHeight() };
+		display_render_image.SetSpec(display_render_spec);
+		display_render_image.CreateImage();
+		display_render_image.TransitionImageLayout(vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal, vk::AccessFlagBits::eNone,
+			vk::AccessFlagBits::eNone, vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTopOfPipe);
+	}
+
+	internal_render_image.SetSpec(internal_render_spec);
+	internal_render_image.CreateImage();
+
+	InitGBuffer(m_render_settings.internal_render_dim);
+}
+
+
+
+void EditorLayer::OnFrameStart() {
+	sl::Constants c;
+
+	if (m_render_settings.realloc_render_resources) {
+		InitRenderResources();
+		m_render_settings.realloc_render_resources = false;
+		c.reset = sl::Boolean::eTrue;
+	}
+	else {
+		c.reset = sl::Boolean::eFalse;
+	}
+
+	if (m_render_settings.dlss_preset == 0)
+		return;
+
+	auto* p_cam = scene.GetSystem<CameraSystem>()->GetActiveCam();
+	auto* p_cam_transform = p_cam->GetEntity()->GetComponent<TransformComponent>();
+
+	auto cam_pos = p_cam_transform->GetPosition();
+	memcpy(&c.cameraPos, &cam_pos, sizeof(glm::vec3));
+	memcpy(&c.cameraRight, &p_cam_transform->right, sizeof(glm::vec3));
+	memcpy(&c.cameraFwd, &p_cam_transform->forward, sizeof(glm::vec3));
+	c.cameraUp = { 0, 1, 0 };
+	c.cameraNear = p_cam->z_near;
+	c.cameraFar = p_cam->z_far;
+	c.cameraFOV = glm::radians(p_cam->fov);
+	c.cameraAspectRatio = p_cam->aspect_ratio;
+	
+	// Jitter in pixel space
+	glm::vec2 jitter = GetFrameJitter(VkContext::GetCurrentFrameIdx(), m_render_settings.internal_render_dim.x, p_window->GetWidth());
+	c.jitterOffset = { jitter.x, jitter.y };
+	c.mvecScale = { 1, 1 };
+
+	auto proj_matrix = p_cam->GetProjectionMatrix();
+	auto view = glm::lookAt(p_cam_transform->GetAbsPosition(), p_cam_transform->GetAbsPosition() + p_cam_transform->forward, glm::vec3{ 0.f, 1.f, 0.f });
+
+	// Streamline expects d3d clip space
+	glm::mat4 proj_matrix_d3d = proj_matrix;
+	glm::mat4 prev_proj_matrix_d3d = m_prev_frame_projection_matrix;
+	proj_matrix_d3d[1][1] *= -1.f;
+	prev_proj_matrix_d3d[1][1] *= -1.f;
+
+	glm::mat4 reprojection_matrix = prev_proj_matrix_d3d * (m_prev_frame_view_matrix * glm::inverse(view)) * glm::inverse(proj_matrix_d3d);
+	c.cameraViewToClip = StreamlineWrapper::GlmToSl(proj_matrix);
+	c.clipToCameraView = StreamlineWrapper::GlmToSl(glm::inverse(proj_matrix));
+	c.clipToLensClip = StreamlineWrapper::GlmToSl(glm::identity<glm::mat4>());
+	c.clipToPrevClip = StreamlineWrapper::GlmToSl(reprojection_matrix);
+	c.prevClipToClip = StreamlineWrapper::GlmToSl(glm::inverse(reprojection_matrix));
+
+	m_prev_frame_projection_matrix = p_cam_ent->GetComponent<CameraComponent>()->GetProjectionMatrix();
+	m_prev_frame_view_matrix = glm::lookAt(p_cam_transform->GetPosition(), p_cam_transform->GetPosition() + p_cam_transform->forward, glm::vec3(0.f, 1.f, 0.f));
+
+	c.depthInverted = sl::Boolean::eFalse;
+	c.cameraMotionIncluded = sl::Boolean::eTrue;
+	c.motionVectors3D = sl::Boolean::eFalse;
+	c.orthographicProjection = sl::Boolean::eFalse;
+	c.motionVectorsJittered = sl::Boolean::eFalse;
+
+	if (SL_FAILED(res, slSetConstants(c, *StreamlineWrapper::GetCurrentFrameToken(), {}))) {
+		SNK_CORE_ERROR("slSetConstants failed, err: {}", (uint32_t)res);
+	}
+}
+
 void EditorLayer::OnUpdate() {
+	auto* p_cam_transform = p_cam_ent->GetComponent<TransformComponent>();
+
 	static float e = 0.f;
 	e += 0.01f;
 	auto& entities = scene.GetEntities();
@@ -363,6 +470,7 @@ void EditorLayer::OnUpdate() {
 		speed *= 10.f;
 
 	p_transform->SetPosition(p_transform->GetPosition() + move * speed);
+
 }
 
 
@@ -373,7 +481,7 @@ void EditorLayer::OnRender() {
 	vk::Semaphore image_avail_semaphore = VkRenderer::AcquireNextSwapchainImage(*p_window, image_index);
 	auto& swapchain_image = p_window->GetVkContext().swapchain_images[image_index];
 
-	auto gbuffer_cmd_buf = gbuffer_pass.RecordCommandBuffer(gbuffer, scene);
+	auto gbuffer_cmd_buf = gbuffer_pass.RecordCommandBuffer(gbuffer, scene, {p_window->GetWidth(), p_window->GetHeight()});
 
 	m_cmd_buffers[fif].buf->reset();
 	vk::CommandBufferBeginInfo begin_info{};
@@ -395,7 +503,7 @@ void EditorLayer::OnRender() {
 		vk::AccessFlagBits::eShaderRead, vk::PipelineStageFlagBits::eEarlyFragmentTests, vk::PipelineStageFlagBits::eRayTracingShaderKHR, 0, 1,
 		*m_cmd_buffers[fif].buf);
 
-	raytracing.RecordRenderCmdBuf(*m_cmd_buffers[fif].buf, render_image, scene.GetSystem<SceneInfoBufferSystem>()->descriptor_buffers[fif]);
+	raytracing.RecordRenderCmdBuf(*m_cmd_buffers[fif].buf, internal_render_image, scene.GetSystem<SceneInfoBufferSystem>()->descriptor_buffers[fif]);
 
 	gbuffer.albedo_image.TransitionImageLayout(vk::ImageLayout::eShaderReadOnlyOptimal, vk::ImageLayout::eColorAttachmentOptimal, vk::AccessFlagBits::eShaderRead,
 		vk::AccessFlagBits::eColorAttachmentWrite, vk::PipelineStageFlagBits::eRayTracingShaderKHR, vk::PipelineStageFlagBits::eColorAttachmentOutput, 0, 1,
@@ -413,6 +521,9 @@ void EditorLayer::OnRender() {
 		vk::AccessFlagBits::eShaderRead, vk::PipelineStageFlagBits::eEarlyFragmentTests, vk::PipelineStageFlagBits::eRayTracingShaderKHR, 0, 1,
 		*m_cmd_buffers[fif].buf);
 
+	if (m_render_settings.dlss_preset != 0)
+		m_streamline.EvaluateDLSS(*m_cmd_buffers[fif].buf, gbuffer, internal_render_image, display_render_image);
+
 	SNK_CHECK_VK_RESULT(m_cmd_buffers[fif].buf->end());
 
 	//VkRenderer::RecordRenderDebugCommands(*m_cmd_buffers[VkContext::GetCurrentFIF()].buf, render_image, depth_image, 
@@ -423,14 +534,14 @@ void EditorLayer::OnRender() {
 	vk::SubmitInfo submit_info_graphics{};
 	submit_info_graphics.commandBufferCount = (uint32_t)graphics_cmd_buffers.size();
 	submit_info_graphics.pCommandBuffers = graphics_cmd_buffers.data();
-	if (m_render_settings.use_taa) {
+	if (m_render_settings.using_taa) {
 		submit_info_graphics.pSignalSemaphores = &*m_compute_graphics_semaphore;
 		submit_info_graphics.signalSemaphoreCount = 1;
 	}
 
 	VkContext::GetLogicalDevice().SubmitGraphics(submit_info_graphics);
 
-	if (m_render_settings.use_taa) {
+	if (m_render_settings.using_taa) {
 		auto wait_stage_mask = vk::PipelineStageFlagBits::eAllGraphics | vk::PipelineStageFlagBits::eRayTracingShaderKHR;
 		auto compute_cmd_buffers = util::array(m_taa_resolve_pass.RecordCommandBuffer());
 		vk::SubmitInfo submit_info_compute{};
@@ -443,9 +554,14 @@ void EditorLayer::OnRender() {
 		VkContext::GetLogicalDevice().SubmitGraphics(submit_info_compute);
 	}
 
-
-	render_image.BlitTo(*swapchain_image, 0, 0, vk::ImageLayout::eGeneral, vk::ImageLayout::eUndefined,
-		vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eColorAttachmentOptimal, vk::Filter::eNearest, image_avail_semaphore);
+	if (m_render_settings.dlss_preset == 0) {
+		internal_render_image.BlitTo(*swapchain_image, 0, 0, vk::ImageLayout::eGeneral, vk::ImageLayout::eUndefined,
+			vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eColorAttachmentOptimal, vk::Filter::eNearest, image_avail_semaphore);
+	}
+	else {
+		display_render_image.BlitTo(*swapchain_image, 0, 0, vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eUndefined,
+			vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eColorAttachmentOptimal, vk::Filter::eNearest, image_avail_semaphore);
+	}
 	
 	asset_editor.Render();
 }
@@ -577,13 +693,12 @@ void EditorLayer::OnImGuiRender() {
 	ImGui::ShowDemoWindow();
 	RenderDialogBoxes();
 	ToolbarGUI();
+	RendererSettingsWindow();
 
 	unsaved_changes |= asset_editor.RenderImGui();
 
 	std::vector<EntityNode> entity_hierarchy = CreateLinearEntityHierarchy(&scene);
 	if (ImGui::Begin("Entities")) {
-		ImGui::Checkbox("TAA", &m_render_settings.use_taa);
-
 		if (ImGui::TreeNode("Directional light")) {
 			ent_editor.DirectionalLightEditor(scene.directional_light);
 			ImGui::TreePop();
@@ -623,6 +738,28 @@ void EditorLayer::OnImGuiRender() {
 
 	unsaved_changes |= ent_editor.RenderImGui();
 
+	ImGui::End();
+}
+
+
+void EditorLayer::RendererSettingsWindow() {
+	static bool visible = false;
+	if (p_window->input.IsKeyDown(Key::LeftControl) && p_window->input.IsKeyPressed('p')) {
+		visible = !visible;
+	}
+
+	if (!visible)
+		return;
+
+	if (ImGui::Begin("Renderer settings")) {
+		ImGui::Checkbox("TAA", &m_render_settings.using_taa);
+
+		const char* dlss_presets[] = {"Off", "Max performance", "Balanced", "Max quality", "Ultra performance", "Ultra quality", "DLAA"};
+		if (StreamlineWrapper::IsAvailable() && ImGui::Combo("DLSS Preset", &m_render_settings.dlss_preset, dlss_presets, IM_ARRAYSIZE(dlss_presets))) {
+			m_render_settings.realloc_render_resources = true;
+		}
+
+	}
 	ImGui::End();
 }
 

@@ -16,6 +16,8 @@ namespace SNAKE {
 		struct GBufferPC {
 			uint32_t transform_idx;
 			uint32_t material_idx;
+			glm::uvec2 render_resolution;
+			glm::vec2 jitter_offset;
 		};
 
 	public:
@@ -53,7 +55,8 @@ namespace SNAKE {
 			}
 		}
 
-		vk::CommandBuffer RecordCommandBuffer(GBufferResources& output, Scene& scene) {
+		// output_size - The size of the final colour output image produced in the pipeline (if DLSS is enabled this is different from the size of the gbuffer resources)
+		vk::CommandBuffer RecordCommandBuffer(GBufferResources& output, Scene& scene, glm::uvec2 output_size) {
 			auto frame_idx = VkContext::GetCurrentFIF();
 
 			auto cmd_buffer = *m_cmd_buffers[frame_idx].buf;
@@ -100,7 +103,7 @@ namespace SNAKE {
 
 			vk::RenderingInfo render_info{};
 			render_info.layerCount = 1;
-			render_info.colorAttachmentCount = colour_attachments.size();
+			render_info.colorAttachmentCount = (uint32_t)colour_attachments.size();
 			render_info.pColorAttachments = colour_attachments.data();
 			render_info.pDepthAttachment = &depth_attachment_info;
 			auto& spec = output.depth_image.GetSpec();
@@ -165,12 +168,14 @@ namespace SNAKE {
 				cmd_buffer.bindVertexBuffers(0, 4, vert_buffers.data(), offsets.data());
 				cmd_buffer.bindIndexBuffer(index_buffers[0], mesh_buffer_entry_data.data_start_indices_idx * sizeof(uint32_t), vk::IndexType::eUint32);
 
+				GBufferPC pc;
 				{
-					glm::uvec2 render_resolution = output.albedo_image.GetSpec().size;
-					cmd_buffer.pushConstants(m_pipeline.pipeline_layout.GetPipelineLayout(), vk::ShaderStageFlagBits::eAll, sizeof(uint32_t) * 2, sizeof(uint32_t) * 2, &render_resolution);
+					pc.render_resolution = output.albedo_image.GetSpec().size;
+					pc.jitter_offset = GetFrameJitter(VkContext::GetCurrentFrameIdx(), pc.render_resolution.x, output_size.x);
+					cmd_buffer.pushConstants(m_pipeline.pipeline_layout.GetPipelineLayout(), vk::ShaderStageFlagBits::eAll, sizeof(uint32_t) * 2, sizeof(uint32_t) * 2, &pc.render_resolution);
+					cmd_buffer.pushConstants(m_pipeline.pipeline_layout.GetPipelineLayout(), vk::ShaderStageFlagBits::eAll, sizeof(uint32_t) * 4, sizeof(float) * 2, &pc.jitter_offset);
 				}
 
-				GBufferPC pc;
 				for (uint32_t i = range.start_idx; i < range.start_idx + range.count; i++) {
 					pc.transform_idx = snapshot.static_mesh_data[i].transform_buffer_idx;
 					cmd_buffer.pushConstants(m_pipeline.pipeline_layout.GetPipelineLayout(), vk::ShaderStageFlagBits::eAll, 0, sizeof(uint32_t), &pc.transform_idx);

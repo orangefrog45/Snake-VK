@@ -7,15 +7,16 @@ namespace SNAKE {
 	public:
 		ImGuiLayer(Window* p_window) : mp_window(p_window) {};
 
-		void OnInit();
-		void OnShutdown();
+		void OnInit() override;
+		void OnFrameStart() override {};
+		void OnShutdown() override;
 
 		void OnImGuiStartRender();
 		void OnImGuiEndRender();
 
-		void OnUpdate() {};
-		void OnRender() {};
-		void OnImGuiRender() {};
+		void OnUpdate() override {};
+		void OnRender() override {};
+		void OnImGuiRender() override {};
 
 	private:
 		vk::UniqueDescriptorPool m_imgui_descriptor_pool;

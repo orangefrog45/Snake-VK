@@ -13,7 +13,9 @@ namespace SNAKE {
 		float aspect_ratio = 16.f / 9.f;
 
 		glm::mat4 GetProjectionMatrix() {
-			return glm::perspective(glm::radians(fov * 0.5f), aspect_ratio, z_near, z_far);
+			auto proj = glm::perspective(glm::radians(fov * 0.5f), aspect_ratio, z_near, z_far);
+			proj[1][1] *= -1; // Flip y for vulkan
+			return proj;
 		}
 
 		// Makes camera active in scene (rendering done from this cameras perspective)

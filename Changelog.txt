@@ -1,3 +1,7 @@
+12/10/24:
+-Streamline/DLSS Integration
+-Image event fix
+
 8/10/24:
 -TAA implementation
 -Compute pipelines

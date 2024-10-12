@@ -1,15 +1,20 @@
 #include "pch/pch.h"
 #define IMGUI_IMPL_VULKAN_HAS_DYNAMIC_RENDERING
 #include "imgui.h"
+#include "core/VkContext.h"
 #include "backends/imgui_impl_vulkan.h"
 #include "backends/imgui_impl_glfw.h"
 #include "layers/ImGuiLayer.h"
 #include "util/util.h"
-#include "core/VkContext.h"
 
 using namespace SNAKE;
 
 void ImGuiLayer::OnInit() {
+	
+	ImGui_ImplVulkan_LoadFunctions([](const char* function_name, void* vulkan_instance) {
+		return vkGetInstanceProcAddr(*(reinterpret_cast<VkInstance*>(vulkan_instance)), function_name);
+		}, &* VkContext::GetInstance());
+
 	IMGUI_CHECKVERSION();
 	ImGui::CreateContext();
 
