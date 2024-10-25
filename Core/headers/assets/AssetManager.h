@@ -105,12 +105,14 @@ namespace SNAKE {
 			return nullptr;
 		}
 
-		template<std::derived_from<Asset> T>
+		template<std::derived_from<Asset> T, bool IncludeCoreAssets = false>
 		static std::vector<T*> GetView() {
 			std::vector<T*> ret;
 			for (auto& [uuid, p_asset] : Get().m_assets) {
-				if (IsCoreAssetUUID(uuid))
-					continue;
+				if constexpr (!IncludeCoreAssets) {
+					if (IsCoreAssetUUID(uuid))
+						continue;
+				}
 
 				if (auto* p_casted = dynamic_cast<T*>(p_asset))
 					ret.push_back(p_casted);

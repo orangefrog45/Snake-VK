@@ -5,8 +5,8 @@
 struct RayPayload {
   vec3 colour;
   vec3 normal;
-  uint num_bounces;
   float distance;
+  float roughness;
 };
 
 layout(location = 0) rayPayloadInEXT RayPayload payload;

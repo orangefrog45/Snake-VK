@@ -92,6 +92,7 @@ namespace SNAKE {
 
 			bool using_taa = false;
 			int dlss_preset = 0;
+			int dlss_quality_preset = 0;
 		} m_render_settings;
 
 		Window* p_window = nullptr;

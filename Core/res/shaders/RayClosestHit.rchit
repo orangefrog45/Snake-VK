@@ -14,8 +14,8 @@
 struct RayPayload {
   vec3 colour;
   vec3 normal;
-  uint num_bounces;
   float distance;
+  float roughness;
 };
 
 layout(location = 0) rayPayloadInEXT RayPayload payload;
@@ -56,11 +56,9 @@ mat3 CalculateTbnMatrix(vec3 _t, vec3 _n, mat4 transform) {
 	return tbn;
 }
 
-float DirectionalShadowTest(vec3 pos) {
+float ShadowTest(vec3 ro, vec3 rd, float max_dist) {
   // Set initially to true, miss shader sets to false
   shadow_payload.hit = true;
-
-  vec3 towards_light_dir = ssbo_light_data.dir_light.dir.xyz;
 
   uint flags = gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsOpaqueEXT | gl_RayFlagsSkipClosestHitShaderEXT;
   traceRayEXT(
@@ -70,46 +68,16 @@ float DirectionalShadowTest(vec3 pos) {
     0,
     0,
     1,
-    pos,
+    ro,
     0.001,
-    towards_light_dir, 
-    10000,
+    rd, 
+    max_dist,
     1
   );
 
   return 1.0 - float(shadow_payload.hit);
 }
 
-vec3 BounceDiffuse(vec3 ro, vec3 normal, vec3 reflected_dir, vec3 albedo, float roughness) {
-  vec3 colour_sum = vec3(0);
-  for (uint ray_idx = 0; ray_idx < 16; ray_idx++) {
-    vec3 rd = normalize(mix(reflected_dir, RandomVectorOnHemisphere(normal, vec3(ro.x + ray_idx, ro.y + ray_idx, ro.z + ray_idx)), roughness));
-
-    traceRayEXT(
-      as,
-      gl_RayFlagsOpaqueEXT,
-      0xff,
-      0,
-      0,
-      0,
-      ro,
-      0.01,
-      rd, 
-      10000,
-      0
-    );
-
-    colour_sum += payload.colour * albedo * (1.0 / 16.0);
-    if (payload.distance < 0.f) {
-     // break;
-    }
-
-    //rd = normalize(reflect(rd, payload.normal));
-    //current_ro += rd * payload.distance;
-  }
-
-  return colour_sum;
-}
 
 void main() {
   vec3 bary = vec3(1.0 - attribs.x - attribs.y, attribs.x, attribs.y);
@@ -152,15 +120,13 @@ void main() {
 
   vec3 biased_pos = pos + n * 0.01;
 
-  vec3 light = CalcDirectionalLight(v, f0, n, material.roughness, material.metallic, albedo.rgb) * DirectionalShadowTest(biased_pos);
-  const uint max_bounces = 1;
+  vec3 light = CalcDirectionalLight(v, f0, n, material.roughness, material.metallic, albedo.rgb) * ShadowTest(biased_pos, ssbo_light_data.dir_light.dir.xyz, 10000);
 
-  payload.num_bounces++;
-
-  if (payload.num_bounces <= max_bounces)
-    light += BounceDiffuse(pos, n, r, albedo, material.roughness)*16;
-
+  if (ssbo_light_data.num_pointlights > 0) {
+    light += CalcPointlight(ssbo_light_data.pointlights[0], v, f0, pos, n, material.roughness, material.metallic, albedo.rgb) * ShadowTest(biased_pos, ssbo_light_data.pointlights[0].pos.xyz - biased_pos, 10000);;
+  }
   payload.colour = light;
   payload.normal = n;
   payload.distance = gl_RayTmaxEXT;
+  payload.roughness = material.roughness;
 }

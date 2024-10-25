@@ -1,3 +1,10 @@
+25/10/24:
+-Some RT code restructured
+
+16/10/24
+-Fixed TLAS creation failing when no meshes are in the scene
+-Single pointlight/spotlight sampling in pathtracer
+
 12/10/24:
 -Streamline/DLSS Integration
 -Image event fix

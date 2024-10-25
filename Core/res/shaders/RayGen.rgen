@@ -5,8 +5,8 @@
 struct RayPayload {
   vec3 colour;
   vec3 normal;
-  uint num_bounces;
   float distance;
+  float roughness;
 };
 
 layout(location = 0) rayPayloadEXT RayPayload payload;
@@ -65,10 +65,10 @@ vec3 BouncePerfectReflections(vec3 ro, vec3 rd) {
   return colour_sum;
 }
 
+
 vec3 BounceDiffuse(vec3 ro, vec3 normal, vec3 reflected_dir, vec3 albedo, float roughness) {
   vec3 colour_sum = vec3(0);
-  payload.num_bounces = 0;
-  for (uint ray_idx = 0; ray_idx < 16; ray_idx++) {
+  for (uint ray_idx = 0; ray_idx < 4; ray_idx++) {
     vec3 rd = normalize(mix(reflected_dir, RandomVectorOnHemisphere(normal, vec3(ro.x + ray_idx, ro.y + ray_idx, ro.z + ray_idx)), roughness));
 
     traceRayEXT(
@@ -85,23 +85,42 @@ vec3 BounceDiffuse(vec3 ro, vec3 normal, vec3 reflected_dir, vec3 albedo, float 
       0
     );
 
-    colour_sum += payload.colour * albedo * (1.0 / 16.0);
+    colour_sum += albedo * payload.colour / 4;
     if (payload.distance < 0.f) {
-     // break;
+      continue;
     }
 
-    //rd = normalize(reflect(rd, payload.normal));
-    //current_ro += rd * payload.distance;
+    vec3 new_pos = ro + rd * payload.distance;
+
+    for (uint bounce_idx = 0; bounce_idx < 4; bounce_idx++) {
+      rd = normalize(mix(reflect(rd, payload.normal), RandomVectorOnHemisphere(payload.normal, vec3(new_pos.x + ray_idx, new_pos.y + ray_idx, new_pos.z + ray_idx)), payload.roughness));
+
+      traceRayEXT(
+        as,
+        gl_RayFlagsOpaqueEXT,
+        0xff,
+        0,
+        0,
+        0,
+        new_pos,
+        0.01,
+        rd, 
+        10000,
+        0
+      );
+      colour_sum += albedo * payload.colour / 4 * 0.5;
+      if (payload.distance < 0.f) {
+        continue;
+      }
+    }
   }
 
   return colour_sum;
 }
 
-float DirectionalShadowTest(vec3 pos) {
+float ShadowTest(vec3 ro, vec3 rd, float max_dist) {
   // Set initially to true, miss shader sets to false
   shadow_payload.hit = true;
-
-  vec3 towards_light_dir = ssbo_light_data.dir_light.dir.xyz;
 
   uint flags = gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsOpaqueEXT | gl_RayFlagsSkipClosestHitShaderEXT;
   traceRayEXT(
@@ -111,10 +130,10 @@ float DirectionalShadowTest(vec3 pos) {
     0,
     0,
     1,
-    pos,
+    ro,
     0.001,
-    towards_light_dir, 
-    10000,
+    rd, 
+    max_dist,
     1
   );
 
@@ -140,7 +159,10 @@ void main() {
 
   vec3 biased_pos = ro + normal * 0.1;
 
-  vec3 light = CalcDirectionalLight(v, f0, normal, rma.r, rma.g, albedo) * DirectionalShadowTest(biased_pos);
+  vec3 light = CalcDirectionalLight(v, f0, normal, rma.r, rma.g, albedo) * ShadowTest(biased_pos, ssbo_light_data.dir_light.dir.xyz, 10000);
+  if (ssbo_light_data.num_pointlights > 0) {
+    light += CalcPointlight(ssbo_light_data.pointlights[0], v, f0, ro, normal, rma.r, rma.g, albedo.rgb) * ShadowTest(biased_pos, ssbo_light_data.pointlights[0].pos.xyz - biased_pos, 10000);
+  }
 
   vec3 colour_sum = light;
   colour_sum += BounceDiffuse(biased_pos, normal, r, albedo, rma.r);

@@ -4,33 +4,11 @@
 #include "components/Components.h"
 #include "scene/LightBufferSystem.h"
 #include "rendering/RenderCommon.h"
+#include "scene/TlasSystem.h"
 
 using namespace SNAKE;
 
-void RT::InitTLAS(Scene& scene, FrameInFlightIndex idx) {
-
-	if (tlas_array[idx].GetAS()) {
-		tlas_array[idx].Destroy();
-	}
-
-	std::vector<vk::AccelerationStructureInstanceKHR> instances;
-
-	auto& reg = scene.GetRegistry();
-	auto mesh_view = reg.view<StaticMeshComponent>();
-	if (mesh_view.empty())
-		return;
-
-	for (auto [entity, mesh] : mesh_view.each()) {
-		for (auto& blas : mesh.GetMeshAsset()->data->submesh_blas_array) {
-			instances.push_back(blas->GenerateInstance(reg.get<TransformComponent>(entity)));
-		}
-	}
-
-	tlas_array[idx].BuildFromInstances(instances);
-}
-
-
-void RT::UpdateTLAS() {
+//void RT::UpdateTLAS() {
 	//auto& logical_device = VkContext::GetLogicalDevice();
 
 	//static float t = 0.f;
@@ -85,9 +63,9 @@ void RT::UpdateTLAS() {
 	//device_address_info.accelerationStructure = *p_tlas;
 	//tlas_handle = logical_device.device->getAccelerationStructureAddressKHR(device_address_info);
 	//SNK_ASSERT(tlas_handle);
-}
+//}
 
-void RT::InitDescriptorBuffers(Image2D& output_image, Scene& scene, GBufferResources& output_gbuffer) {
+void RT::InitDescriptorBuffers(Image2D& output_image, Scene& scene, GBufferResources& output_gbuffer, TlasSystem& tlas_system) {
 	rt_descriptor_set_spec = std::make_shared<DescriptorSetSpec>();
 	rt_descriptor_set_spec->AddDescriptor(0, vk::DescriptorType::eAccelerationStructureKHR, vk::ShaderStageFlagBits::eAll) // TLAS
 		.AddDescriptor(1, vk::DescriptorType::eStorageImage, vk::ShaderStageFlagBits::eRaygenKHR) // Output image
@@ -110,7 +88,7 @@ void RT::InitDescriptorBuffers(Image2D& output_image, Scene& scene, GBufferResou
 		
 		auto mesh_buffers = AssetManager::Get().mesh_buffer_manager.GetMeshBuffers();
 
-		auto get_info_tlas = tlas_array[i].CreateDescriptorGetInfo();
+		auto get_info_tlas = tlas_system.GetTlas(i).CreateDescriptorGetInfo();
 		auto get_info_image = output_image.CreateDescriptorGetInfo(vk::ImageLayout::eGeneral, vk::DescriptorType::eStorageImage);
 		auto get_info_position_buf = mesh_buffers.position_buf.CreateDescriptorGetInfo();
 		auto get_info_index_buf = mesh_buffers.indices_buf.CreateDescriptorGetInfo();
@@ -124,7 +102,7 @@ void RT::InitDescriptorBuffers(Image2D& output_image, Scene& scene, GBufferResou
 		auto get_info_depth_gbuffer_image = output_gbuffer.depth_image.CreateDescriptorGetInfo(vk::ImageLayout::eGeneral, vk::DescriptorType::eCombinedImageSampler);
 		auto get_info_rma_gbuffer_image = output_gbuffer.rma_image.CreateDescriptorGetInfo(vk::ImageLayout::eGeneral, vk::DescriptorType::eCombinedImageSampler);
 
-		rt_descriptor_buffers[i].LinkResource(&tlas_array[i], get_info_tlas, 0, 0);
+		rt_descriptor_buffers[i].LinkResource(&tlas_system.GetTlas(i), get_info_tlas, 0, 0);
 		rt_descriptor_buffers[i].LinkResource(&output_image, get_info_image, 1, 0);
 		rt_descriptor_buffers[i].LinkResource(&mesh_buffers.position_buf, get_info_position_buf, 2, 0);
 		rt_descriptor_buffers[i].LinkResource(&mesh_buffers.indices_buf, get_info_index_buf, 3, 0);
@@ -166,18 +144,14 @@ void SBT::Init(vk::Pipeline pipeline, const RtPipelineBuilder& builder) {
 	auto sbt_handle_alignment = ray_pipeline_properties.shaderGroupHandleAlignment;
 	m_sbt_aligned_handle_size = (uint32_t)aligned_size(sbt_handle_size, sbt_handle_alignment);
 
-	// TODO: Base these counts off of shaders added in builder
-	uint32_t miss_count = 2;
-	uint32_t hit_count = 1;
-
 	address_regions.rgen.stride = aligned_size(m_sbt_aligned_handle_size, ray_pipeline_properties.shaderGroupBaseAlignment);
 	address_regions.rgen.size = address_regions.rgen.stride; // For rgen, size must be same as stride
 
 	address_regions.rmiss.stride = m_sbt_aligned_handle_size;
-	address_regions.rmiss.size = aligned_size(miss_count * m_sbt_aligned_handle_size, ray_pipeline_properties.shaderGroupBaseAlignment);
+	address_regions.rmiss.size = aligned_size(builder.GetShaderCount(vk::ShaderStageFlagBits::eMissKHR) * m_sbt_aligned_handle_size, ray_pipeline_properties.shaderGroupBaseAlignment);
 
 	address_regions.rhit.stride = m_sbt_aligned_handle_size;
-	address_regions.rhit.size = aligned_size(hit_count * m_sbt_aligned_handle_size, ray_pipeline_properties.shaderGroupBaseAlignment);
+	address_regions.rhit.size = aligned_size(builder.GetShaderCount(vk::ShaderStageFlagBits::eClosestHitKHR) * m_sbt_aligned_handle_size, ray_pipeline_properties.shaderGroupBaseAlignment);
 
 	auto sbt_size = address_regions.rgen.size + address_regions.rmiss.size + address_regions.rhit.size + address_regions.callable.size;
 
@@ -201,14 +175,14 @@ void SBT::Init(vk::Pipeline pipeline, const RtPipelineBuilder& builder) {
 
 	// Miss
 	p_data = p_sbt_buf + address_regions.rgen.size;
-	for (uint32_t i = 0; i < miss_count; i++) {
+	for (uint32_t i = 0; i < builder.GetShaderCount(vk::ShaderStageFlagBits::eMissKHR); i++) {
 		memcpy(p_data, GetHandle(handle_idx++), sbt_handle_size);
 		p_data += address_regions.rmiss.stride;
 	}
 
 	// Hit
 	p_data = p_sbt_buf + address_regions.rgen.size + address_regions.rmiss.size;
-	for (uint32_t i = 0; i < hit_count; i++) {
+	for (uint32_t i = 0; i < builder.GetShaderCount(vk::ShaderStageFlagBits::eClosestHitKHR); i++) {
 		memcpy(p_data, GetHandle(handle_idx++), sbt_handle_size);
 		p_data += address_regions.rhit.stride;
 	}
@@ -219,13 +193,6 @@ void SBT::Init(vk::Pipeline pipeline, const RtPipelineBuilder& builder) {
 	address_regions.rhit.deviceAddress = sbt_buffer.GetDeviceAddress() + address_regions.rgen.size + address_regions.rmiss.size;
 }
 
-//void RT::RecordGBufferPassCmdBuf(vk::CommandBuffer cmd, GBufferResources& output) {
-//	vk::CommandBufferBeginInfo begin_info{};
-//	SNK_CHECK_VK_RESULT(cmd.begin(begin_info));
-//
-//
-//	SNK_CHECK_VK_RESULT(cmd.end());
-//}
 
 void RT::RecordRenderCmdBuf(vk::CommandBuffer cmd, Image2D& output_image, DescriptorBuffer& common_ubo_db) {
 
@@ -250,108 +217,13 @@ void RT::RecordRenderCmdBuf(vk::CommandBuffer cmd, Image2D& output_image, Descri
 }
 
 void RT::Init(Scene& scene, Image2D& output_image, std::weak_ptr<const DescriptorSetSpec> common_ubo_set, GBufferResources& gbuffer) {
-	frame_start_listener.callback = [&]([[maybe_unused]] Event const* p_event) {
-		InitTLAS(scene, VkContext::GetCurrentFIF());
-		};
-	EventManagerG::RegisterListener<FrameStartEvent>(frame_start_listener);
-
-	for (FrameInFlightIndex i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-		InitTLAS(scene, i);
+	if (auto* p_tlas_system = scene.GetSystem<TlasSystem>(); p_tlas_system) {
+		InitDescriptorBuffers(output_image, scene, gbuffer, *p_tlas_system);
+	} else {
+		SNK_CORE_ERROR("RT::Init failed, tried to initialize from a scene with no TlasSystem attached");
+		return;
 	}
 
-	InitDescriptorBuffers(output_image, scene, gbuffer);
 	InitPipeline(common_ubo_set);
 }
 
-void BLAS::GenerateFromMeshData(MeshData& mesh_data, uint32_t submesh_index) {
-	m_submesh_index = submesh_index;
-
-	auto& logical_device = VkContext::GetLogicalDevice();
-	vk::AccelerationStructureGeometryKHR as_geom_info{};
-	as_geom_info.flags = vk::GeometryFlagBitsKHR::eOpaque;
-	as_geom_info.geometryType = vk::GeometryTypeKHR::eTriangles;
-
-	S_VkBuffer position_buf{};
-	S_VkBuffer index_buf{};
-
-	auto& submesh = mesh_data.submeshes[submesh_index];
-	position_buf.CreateBuffer(submesh.num_vertices * sizeof(aiVector3D), vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eAccelerationStructureBuildInputReadOnlyKHR,
-		VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT);
-
-	index_buf.CreateBuffer(submesh.num_indices * sizeof(unsigned), vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eAccelerationStructureBuildInputReadOnlyKHR,
-		VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT);
-
-	memcpy(position_buf.Map(), mesh_data.positions + submesh.base_vertex, submesh.num_vertices * sizeof(aiVector3D));
-	memcpy(index_buf.Map(), mesh_data.indices + submesh.base_index, submesh.num_indices * sizeof(unsigned));
-
-	as_geom_info.geometry.triangles.vertexData = position_buf.GetDeviceAddress();
-	as_geom_info.geometry.triangles.indexData = index_buf.GetDeviceAddress();
-	as_geom_info.geometry.triangles.vertexFormat = vk::Format::eR32G32B32Sfloat;
-	as_geom_info.geometry.triangles.maxVertex = submesh.num_vertices;
-	as_geom_info.geometry.triangles.vertexStride = sizeof(glm::vec3);
-	as_geom_info.geometry.triangles.indexType = vk::IndexType::eUint32;
-
-	vk::AccelerationStructureBuildGeometryInfoKHR as_build_geom_info{};
-	as_build_geom_info.type = vk::AccelerationStructureTypeKHR::eBottomLevel;
-	as_build_geom_info.flags = vk::BuildAccelerationStructureFlagBitsKHR::ePreferFastTrace;
-	as_build_geom_info.geometryCount = 1;
-	as_build_geom_info.pGeometries = &as_geom_info;
-
-	vk::AccelerationStructureBuildSizesInfoKHR as_build_sizes_info = logical_device.device->getAccelerationStructureBuildSizesKHR(
-		vk::AccelerationStructureBuildTypeKHR::eDevice, as_build_geom_info, submesh.num_indices);
-
-	m_blas_buf.CreateBuffer(as_build_sizes_info.accelerationStructureSize, vk::BufferUsageFlagBits::eAccelerationStructureStorageKHR |
-		vk::BufferUsageFlagBits::eShaderDeviceAddress);
-
-	vk::AccelerationStructureCreateInfoKHR as_info{};
-	as_info.buffer = m_blas_buf.buffer;
-	as_info.size = as_build_sizes_info.accelerationStructureSize;
-	as_info.type = vk::AccelerationStructureTypeKHR::eBottomLevel;
-
-	auto [res, val] = logical_device.device->createAccelerationStructureKHRUnique(as_info);
-	SNK_CHECK_VK_RESULT(res);
-	mp_blas = std::move(val);
-
-	S_VkBuffer blas_scratch_buf;
-	blas_scratch_buf.CreateBuffer(as_build_sizes_info.buildScratchSize, vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress);
-
-	vk::AccelerationStructureBuildGeometryInfoKHR as_build_geom_info_scratch{};
-	as_build_geom_info_scratch.type = vk::AccelerationStructureTypeKHR::eBottomLevel;
-	as_build_geom_info_scratch.flags = vk::BuildAccelerationStructureFlagBitsKHR::ePreferFastTrace;
-	as_build_geom_info_scratch.mode = vk::BuildAccelerationStructureModeKHR::eBuild;
-	as_build_geom_info_scratch.dstAccelerationStructure = *mp_blas;
-	as_build_geom_info_scratch.geometryCount = 1;
-	as_build_geom_info_scratch.pGeometries = &as_geom_info;
-	as_build_geom_info_scratch.scratchData.deviceAddress = blas_scratch_buf.GetDeviceAddress();
-
-	vk::AccelerationStructureBuildRangeInfoKHR as_build_range_info{};
-	as_build_range_info.primitiveCount = submesh.num_indices / 3;
-	as_build_range_info.primitiveOffset = 0;
-	as_build_range_info.firstVertex = 0;
-	as_build_range_info.transformOffset = 0;
-	std::vector<vk::AccelerationStructureBuildRangeInfoKHR*> build_range_infos = { &as_build_range_info };
-
-	auto cmd = BeginSingleTimeCommands();
-	cmd->buildAccelerationStructuresKHR(as_build_geom_info_scratch, build_range_infos);
-	EndSingleTimeCommands(*cmd);
-
-	vk::AccelerationStructureDeviceAddressInfoKHR as_address_info{};
-	as_address_info.accelerationStructure = *mp_blas;
-	m_blas_handle = logical_device.device->getAccelerationStructureAddressKHR(as_address_info);
-
-	SNK_ASSERT(mp_blas);
-}
-
-vk::AccelerationStructureInstanceKHR BLAS::GenerateInstance(TransformComponent& comp) {
-	vk::AccelerationStructureInstanceKHR instance{};
-	instance.mask = 0xFF;
-	instance.instanceShaderBindingTableRecordOffset = 0;
-	instance.flags = static_cast<VkGeometryInstanceFlagBitsKHR>(vk::GeometryInstanceFlagBitsKHR::eTriangleCullDisable);
-	instance.instanceCustomIndex = comp.GetEntity()->GetComponent<RaytracingInstanceBufferIdxComponent>()->idx + m_submesh_index;
-	instance.accelerationStructureReference = m_blas_handle; // Handle of BLAS for the sphere mesh
-
-	auto t = glm::transpose(comp.GetMatrix());
-	memcpy(instance.transform.matrix.data(), &t, sizeof(float) * 3 * 4);
-
-	return instance;
-}

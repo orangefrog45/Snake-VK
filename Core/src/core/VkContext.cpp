@@ -69,6 +69,7 @@ bool VkContext::IsDeviceSuitable(vk::PhysicalDevice device, vk::SurfaceKHR surfa
 	QueueFamilyIndices qf_indices = FindQueueFamilies(device, surface);
 
 	vk::PhysicalDeviceFeatures device_features = device.getFeatures();
+
 	return properties.deviceType == vk::PhysicalDeviceType::eDiscreteGpu && qf_indices.IsComplete() && swapchain_valid && device_features.samplerAnisotropy;
 }
 
@@ -116,6 +117,12 @@ void VkContext::ICreateLogicalDevice(vk::SurfaceKHR surface, const std::vector<c
 	features_12.pNext = &rtp_features;
 	features_12.descriptorIndexing = true;
 	features_12.bufferDeviceAddress = true;
+
+	vk::PhysicalDeviceFeatures2 f;
+	vk::PhysicalDeviceRobustness2FeaturesEXT f2;
+	f.pNext = &f2;
+
+	SNK_CORE_CRITICAL(f2.nullDescriptor);
 
 	auto device_create_info = vk::DeviceCreateInfo{}
 		.setQueueCreateInfoCount((uint32_t)queue_create_infos.size())

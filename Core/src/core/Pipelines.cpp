@@ -141,6 +141,7 @@ namespace SNAKE {
 		shader_stage_info.pName = "main";
 
 		shaders.push_back(shader_stage_info);
+		shader_counts[shader_stage]++;
 		return *this;
 	}
 

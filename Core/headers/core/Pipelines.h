@@ -169,6 +169,16 @@ namespace SNAKE {
 		RtPipelineBuilder& AddShader(vk::ShaderStageFlagBits shader_stage, const std::string& filepath);
 		RtPipelineBuilder& AddShaderGroup(vk::RayTracingShaderGroupTypeKHR group, uint32_t general_shader, uint32_t chit_shader, uint32_t any_hit_shader, uint32_t intersection_shader);
 
+		uint32_t GetShaderCount(vk::ShaderStageFlagBits stage) const {
+			try {
+				return shader_counts.at(stage);
+			}
+			catch ([[maybe_unused]] std::exception& e) {
+				return 0;
+			}
+		}
+
+		std::unordered_map<vk::ShaderStageFlagBits, uint32_t> shader_counts;
 		std::vector<vk::PipelineShaderStageCreateInfo> shaders;
 		std::vector<vk::RayTracingShaderGroupCreateInfoKHR> shader_groups;
 		std::vector<vk::UniqueShaderModule> shader_modules;

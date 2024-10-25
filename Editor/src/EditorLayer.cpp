@@ -1,20 +1,16 @@
-#include "EditorLayer.h"
 #include "components/Components.h"
-#include "rendering/VkRenderer.h"
+#include "EditorLayer.h"
+#include "events/EventsCommon.h"
 #include "imgui.h"
 #include "misc/cpp/imgui_stdlib.h"
-#include "util/FileUtil.h"
+#include "rendering/StreamlineWrapper.h"
+#include "rendering/VkRenderer.h"
 #include "scene/SceneSerializer.h"
 #include "scene/SceneInfoBufferSystem.h"
-#include "util/UI.h"
-#include "core/JobSystem.h"
-#include "scene/RaytracingBufferSystem.h"
 #include "scene/CameraSystem.h"
-#include "events/EventsCommon.h"
-
-#include <sl_matrix_helpers.h>
-
-#include "rendering/StreamlineWrapper.h"
+#include "scene/TlasSystem.h"
+#include "util/FileUtil.h"
+#include "util/UI.h"
 
 using namespace SNAKE;
 
@@ -309,6 +305,7 @@ void EditorLayer::OnInit() {
 	InitRenderResources();
 	gbuffer_pass.Init(scene, gbuffer);
 
+	scene.AddSystem<TlasSystem>();
 	raytracing.Init(scene, internal_render_image, scene.GetSystem<SceneInfoBufferSystem>()->descriptor_buffers[0].GetDescriptorSpec(), gbuffer);
 	m_taa_resolve_pass.Init();
 }
@@ -332,8 +329,13 @@ void EditorLayer::InitRenderResources() {
 		dlss_options.mode = static_cast<sl::DLSSMode>(m_render_settings.dlss_preset);
 		dlss_options.outputWidth = p_window->GetWidth();
 		dlss_options.outputHeight = p_window->GetHeight();
+		dlss_options.qualityPreset = (sl::DLSSPreset)m_render_settings.dlss_quality_preset;
+		dlss_options.ultraPerformancePreset = sl::DLSSPreset::eDefault;
+		dlss_options.ultraQualityPreset = sl::DLSSPreset::eDefault;
+		dlss_options.performancePreset = sl::DLSSPreset::eDefault;
+		dlss_options.balancedPreset = sl::DLSSPreset::eDefault;
 		dlss_options.colorBuffersHDR = sl::Boolean::eTrue;
-		dlss_options.useAutoExposure = sl::Boolean::eTrue;
+		dlss_options.useAutoExposure = sl::Boolean::eFalse;
 		dlss_options.alphaUpscalingEnabled = sl::Boolean::eFalse;
 		sl::DLSSOptimalSettings optimal_settings = StreamlineWrapper::GetDLSS_OptimalSettings(dlss_options);
 		dlss_options.sharpness = optimal_settings.optimalSharpness;
@@ -386,7 +388,7 @@ void EditorLayer::OnFrameStart() {
 	auto* p_cam = scene.GetSystem<CameraSystem>()->GetActiveCam();
 	auto* p_cam_transform = p_cam->GetEntity()->GetComponent<TransformComponent>();
 
-	auto cam_pos = p_cam_transform->GetPosition();
+	auto cam_pos = p_cam_transform->GetAbsPosition();
 	memcpy(&c.cameraPos, &cam_pos, sizeof(glm::vec3));
 	memcpy(&c.cameraRight, &p_cam_transform->right, sizeof(glm::vec3));
 	memcpy(&c.cameraFwd, &p_cam_transform->forward, sizeof(glm::vec3));
@@ -395,6 +397,7 @@ void EditorLayer::OnFrameStart() {
 	c.cameraFar = p_cam->z_far;
 	c.cameraFOV = glm::radians(p_cam->fov);
 	c.cameraAspectRatio = p_cam->aspect_ratio;
+	c.cameraPinholeOffset = { 0, 0 };
 	
 	// Jitter in pixel space
 	glm::vec2 jitter = GetFrameJitter(VkContext::GetCurrentFrameIdx(), m_render_settings.internal_render_dim.x, p_window->GetWidth());
@@ -417,8 +420,8 @@ void EditorLayer::OnFrameStart() {
 	c.clipToPrevClip = StreamlineWrapper::GlmToSl(reprojection_matrix);
 	c.prevClipToClip = StreamlineWrapper::GlmToSl(glm::inverse(reprojection_matrix));
 
-	m_prev_frame_projection_matrix = p_cam_ent->GetComponent<CameraComponent>()->GetProjectionMatrix();
-	m_prev_frame_view_matrix = glm::lookAt(p_cam_transform->GetPosition(), p_cam_transform->GetPosition() + p_cam_transform->forward, glm::vec3(0.f, 1.f, 0.f));
+	m_prev_frame_projection_matrix = proj_matrix;
+	m_prev_frame_view_matrix = view;
 
 	c.depthInverted = sl::Boolean::eFalse;
 	c.cameraMotionIncluded = sl::Boolean::eTrue;
@@ -759,6 +762,8 @@ void EditorLayer::RendererSettingsWindow() {
 			m_render_settings.realloc_render_resources = true;
 		}
 
+		if (ImGui::InputInt("MQP", &m_render_settings.dlss_quality_preset))
+			m_render_settings.realloc_render_resources = true;
 	}
 	ImGui::End();
 }

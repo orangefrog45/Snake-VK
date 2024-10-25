@@ -24,6 +24,9 @@ namespace SNAKE {
 	}
 
 	inline static glm::vec2 GetFrameJitter(unsigned frame_idx, unsigned internal_render_width, unsigned output_render_width) {
+		if (internal_render_width == 0 || output_render_width == 0)
+			return { 0, 0 };
+
 		float scale_ratio = (float)output_render_width / (float)internal_render_width;
 		unsigned jitter_phases = (unsigned)(8 * scale_ratio * scale_ratio + 0.5f);
 		unsigned jitter_current_idx = (frame_idx % jitter_phases) + 1;
