@@ -1,5 +1,7 @@
 #define INVALID_GLOBAL_INDEX (~(uint(0)))
 
+#define MAT_FLAG_EMISSIVE (1u)
+
 struct Material {
     uint albedo_tex_idx;
     uint normal_tex_idx;

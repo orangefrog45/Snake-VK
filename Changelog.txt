@@ -1,3 +1,9 @@
+27/10/24:
+-GPU particle system with RT-accelerated collisions
+-Particle renderer
+-Emissive material support
+
+
 25/10/24:
 -Some RT code restructured
 

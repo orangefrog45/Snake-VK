@@ -73,6 +73,8 @@ namespace SNAKE {
 			vk::AccessFlags src_access, vk::AccessFlags dst_access, vk::PipelineStageFlags src_stage, vk::PipelineStageFlags dst_stage,  
 			unsigned mip_level = 0, unsigned level_count = 1, vk::CommandBuffer buf = {});
 
+		vk::RenderingAttachmentInfo CreateAttachmentInfo(vk::AttachmentLoadOp load_op, vk::AttachmentStoreOp store_op, vk::ImageLayout layout, vk::ClearColorValue clear_val = {0.f, 0.f, 0.f, 0.f});
+
 		vk::ImageView GetImageView() const {
 			return *m_view;
 		}

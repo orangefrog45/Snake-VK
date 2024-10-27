@@ -88,6 +88,8 @@ namespace SNAKE {
 
 		Entity* GetEntity(uint64_t uuid);
 
+		Entity* GetEntity(const std::string& name);
+
 		void DeleteEntity(Entity* p_ent) {
 			EventManagerG::DispatchEvent(EntityDeleteEvent(p_ent));
 

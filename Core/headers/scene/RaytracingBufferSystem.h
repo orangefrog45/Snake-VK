@@ -12,10 +12,10 @@ namespace SNAKE {
 	};
 
 	struct InstanceData {
-		alignas(16) glm::mat4 transform;
+		uint32_t transform_idx;
 
 		// Index offset of mesh data in mesh buffers managed by MeshBufferManager
-		alignas(16) uint32_t mesh_buffer_index_offset;
+		uint32_t mesh_buffer_index_offset;
 
 		// Vertex offset of mesh data in mesh buffers managed by MeshBufferManager
 		uint32_t mesh_buffer_vertex_offset;

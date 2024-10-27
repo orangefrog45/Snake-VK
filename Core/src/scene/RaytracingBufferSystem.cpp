@@ -3,6 +3,7 @@
 #include "assets/AssetManager.h"
 #include "components/Components.h"
 #include "scene/Scene.h"
+#include "scene/TransformBufferSystem.h"
 
 using namespace SNAKE;
 
@@ -77,7 +78,7 @@ void RaytracingInstanceBufferSystem::UpdateBuffer(FrameInFlightIndex idx) {
 		auto& mesh_buffer_entry_data = mesh_buffer_manager.GetEntryData(p_mesh_asset->data.get());
 
 		InstanceData instance_data{
-			.transform = reg.get<TransformComponent>(ent).GetMatrix(),
+			.transform_idx = reg.get<TransformBufferIdxComponent>(ent).idx,
 			.flags = 0,
 		};
 

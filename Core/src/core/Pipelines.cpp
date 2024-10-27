@@ -37,7 +37,7 @@ namespace SNAKE {
 	GraphicsPipelineBuilder::GraphicsPipelineBuilder() {
 		depth_stencil_info.depthTestEnable = true;
 		depth_stencil_info.depthWriteEnable = true;
-		depth_stencil_info.depthCompareOp = vk::CompareOp::eLessOrEqual;
+		depth_stencil_info.depthCompareOp = vk::CompareOp::eLess;
 		depth_stencil_info.depthBoundsTestEnable = false; // Only needed if keeping fragments that fall into a certain depth range
 		depth_stencil_info.stencilTestEnable = false;
 
@@ -81,7 +81,7 @@ namespace SNAKE {
 
 		vk::PipelineColorBlendAttachmentState state;
 		state.colorWriteMask = vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG | vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA;
-		state.blendEnable = VK_TRUE;
+		state.blendEnable = VK_FALSE;
 		state.srcColorBlendFactor = vk::BlendFactor::eSrcAlpha;
 		state.dstColorBlendFactor = vk::BlendFactor::eOneMinusSrcAlpha;
 		state.colorBlendOp = vk::BlendOp::eAdd;

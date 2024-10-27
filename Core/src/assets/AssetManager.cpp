@@ -48,12 +48,20 @@ namespace SNAKE {
 		material->DispatchUpdateEvent();
 
 
-		auto mesh = CreateAsset<StaticMeshAsset>(CoreAssetIDs::SPHERE_MESH);
-		mesh->data = CreateAsset<MeshDataAsset>(CoreAssetIDs::SPHERE_MESH_DATA);
-		mesh->data->filepath = "res/meshes/sphere.glb";
-		auto p_data = AssetLoader::LoadMeshDataFromRawFile("res/meshes/sphere.glb", false);
-		AssetManager::Get().mesh_buffer_manager.LoadMeshFromData(mesh->data.get(), *p_data);
-		mesh->data->materials.push_back(material);
+		auto sphere_mesh = CreateAsset<StaticMeshAsset>(CoreAssetIDs::SPHERE_MESH);
+		sphere_mesh->data = CreateAsset<MeshDataAsset>(CoreAssetIDs::SPHERE_MESH_DATA);
+		sphere_mesh->data->filepath = "res/meshes/sphere.glb";
+		auto p_sphere_data = AssetLoader::LoadMeshDataFromRawFile("res/meshes/sphere.glb", false);
+		AssetManager::Get().mesh_buffer_manager.LoadMeshFromData(sphere_mesh->data.get(), *p_sphere_data);
+		sphere_mesh->data->materials.push_back(material);
+
+		auto cube_mesh = CreateAsset<StaticMeshAsset>(CoreAssetIDs::CUBE_MESH);
+		cube_mesh->data = CreateAsset<MeshDataAsset>(CoreAssetIDs::CUBE_MESH_DATA);
+		cube_mesh->data->filepath = "res/meshes/cube.glb";
+		auto p_cube_data = AssetLoader::LoadMeshDataFromRawFile("res/meshes/cube.glb", false);
+		AssetManager::Get().mesh_buffer_manager.LoadMeshFromData(cube_mesh->data.get(), *p_cube_data);
+		cube_mesh->data->materials.push_back(material);
+
 	}
 
 	void AssetManager::Shutdown() {

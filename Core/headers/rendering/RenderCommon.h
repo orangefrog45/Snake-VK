@@ -3,11 +3,23 @@
 
 namespace SNAKE {
 	struct GBufferResources {
+		// 8-bit colour
 		Image2D albedo_image;
+
+		// 16-bit normals
 		Image2D normal_image;
+
+		// 32-bit depth
 		Image2D depth_image;
+
+		// 16-bit RMA
 		Image2D rma_image;
+
+		// 16-bit motion vectors
 		Image2D pixel_motion_image;
+
+		// 16-bit material flags
+		Image2D mat_flag_image;
 	};
 
 

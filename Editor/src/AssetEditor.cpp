@@ -152,6 +152,14 @@ bool AssetEditor::RenderMaterialEditor() {
 	ret |= ImGui::InputFloat("Metallic", &p_mat->metallic);
 	ret |= ImGui::InputFloat("AO", &p_mat->ao);
 
+	static bool emissive;
+	emissive = (uint32_t)p_mat->flags & (uint32_t)MaterialAsset::MaterialFlagBits::EMISSIVE;
+
+	if (ImGui::Checkbox("Emissive", &emissive)) {
+		ret = true;
+		p_mat->FlipFlag(MaterialAsset::MaterialFlagBits::EMISSIVE);
+	}
+
 	if (ImGui::BeginTable("##material-table", 5)) {
 		ImGui::TableNextColumn();
 		ImGui::Text("Albedo");

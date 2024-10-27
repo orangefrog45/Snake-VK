@@ -117,7 +117,7 @@ namespace SNAKE {
 		GraphicsPipeline(GraphicsPipeline&& other) = delete;
 		GraphicsPipeline& operator=(const GraphicsPipeline& other) = delete;
 
-		void Init( GraphicsPipelineBuilder& builder) {
+		void Init(GraphicsPipelineBuilder& builder) {
 			SNK_ASSERT(!m_pipeline);
 			auto [res, pipeline] = VkContext::GetLogicalDevice().device->createGraphicsPipelineUnique(VK_NULL_HANDLE, builder.pipeline_info);
 			SNK_CHECK_VK_RESULT(res);

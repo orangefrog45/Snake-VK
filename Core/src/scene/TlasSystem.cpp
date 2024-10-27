@@ -17,7 +17,7 @@ void TlasSystem::OnSystemAdd() {
 	EventManagerG::RegisterListener<FrameStartEvent>(m_frame_start_listener);
 }
 
-void TlasSystem::OnSceneShutdown() {
+void TlasSystem::OnSystemRemove() {
 	EventManagerG::DeregisterListener(m_frame_start_listener);
 }
 

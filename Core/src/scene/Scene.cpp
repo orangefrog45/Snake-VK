@@ -6,6 +6,7 @@
 #include "scene/RaytracingBufferSystem.h"
 #include "scene/TransformBufferSystem.h"
 #include "scene/SceneSnapshotSystem.h"
+#include "scene/ParticleSystem.h"
 #include "components/Components.h"
 
 using namespace SNAKE;
@@ -34,4 +35,13 @@ Entity* Scene::GetEntity(entt::entity handle) {
 
 Entity* Scene::GetEntity(uint64_t _uuid) {
 	return m_uuid_entity_lookup[_uuid];
+}
+
+Entity* Scene::GetEntity(const std::string& _name) {
+	for (auto [ent, tag] : m_registry.view<TagComponent>().each()) {
+		if (tag.name == _name)
+			return GetEntity(ent);
+	}
+
+	return nullptr;
 }

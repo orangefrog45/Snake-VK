@@ -8,7 +8,7 @@ namespace SNAKE {
 	public:
 		void OnSystemAdd() override;
 
-		void OnSceneShutdown() override;
+		void OnSystemRemove() override;
 
 		const TLAS& GetTlas(FrameInFlightIndex idx) {
 			return m_tlas_array[idx];

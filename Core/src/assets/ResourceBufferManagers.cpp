@@ -72,20 +72,27 @@ void GlobalMaterialBufferManager::UpdateMaterialUBO() {
 		std::array<std::byte, material_size> data;
 
 		unsigned idx = 0;
+		auto* p_current_data = data.data();
+
+		auto CopyData = [&](void* arg_data, uint32_t size) {memcpy(p_current_data, arg_data, size); p_current_data += size; };
 
 		idx = mat_ref->albedo_tex ? mat_ref->albedo_tex->GetGlobalIndex() : Texture2DAsset::INVALID_GLOBAL_INDEX;
-		memcpy(data.data(), &idx, sizeof(unsigned));
+		CopyData(&idx, sizeof(unsigned));
 		idx = mat_ref->normal_tex ? mat_ref->normal_tex->GetGlobalIndex() : Texture2DAsset::INVALID_GLOBAL_INDEX;
-		memcpy(data.data() + sizeof(unsigned), &idx, sizeof(unsigned));
+		CopyData(&idx, sizeof(unsigned));
 		idx = mat_ref->roughness_tex ? mat_ref->roughness_tex->GetGlobalIndex() : Texture2DAsset::INVALID_GLOBAL_INDEX;
-		memcpy(data.data() + sizeof(unsigned) * 2, &idx, sizeof(unsigned));
+		CopyData(&idx, sizeof(unsigned));
 		idx = mat_ref->metallic_tex ? mat_ref->metallic_tex->GetGlobalIndex() : Texture2DAsset::INVALID_GLOBAL_INDEX;
-		memcpy(data.data() + sizeof(unsigned) * 3, &idx, sizeof(unsigned));
+		CopyData(&idx, sizeof(unsigned));
 		idx = mat_ref->ao_tex ? mat_ref->ao_tex->GetGlobalIndex() : Texture2DAsset::INVALID_GLOBAL_INDEX;
-		memcpy(data.data() + sizeof(unsigned) * 4, &idx, sizeof(unsigned));
+		CopyData(&idx, sizeof(unsigned));
 
-		std::array<float, 7> params = { mat_ref->roughness, mat_ref->metallic, mat_ref->ao, mat_ref->albedo.r, mat_ref->albedo.g, mat_ref->albedo.b, 1.f };
-		memcpy(data.data() + sizeof(unsigned) * 5, &params, sizeof(float) * 7);
+		CopyData(&mat_ref->roughness, sizeof(float));
+		CopyData(&mat_ref->metallic, sizeof(float));
+		CopyData(&mat_ref->ao, sizeof(float));
+		CopyData(&mat_ref->albedo, sizeof(glm::vec3));
+		CopyData(&idx, sizeof(float)); // PADDING
+		CopyData(&mat_ref->flags, sizeof(unsigned));
 
 		memcpy(p_data + mat_ref->GetGlobalBufferIndex() * material_size, data.data(), data.size());
 	}

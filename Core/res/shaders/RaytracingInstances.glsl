@@ -3,7 +3,8 @@
 #endif
 
 struct InstanceData {
-    mat4 transform;
+    uint transform_idx;
+    
     uint mesh_buffer_index_offset;
     uint mesh_buffer_vertex_offset;
     uint flags;

@@ -130,7 +130,7 @@ void SceneSerializer::DeserializeEntity(Entity& ent, json& j) {
 		p_mesh->SetMeshAsset(AssetManager::GetAsset<StaticMeshAsset>(tget(m["AssetUUID"], uint64_t)));
 		std::vector<uint64_t> material_uuids;
 		m.at("Materials").get_to<std::vector<uint64_t>>(material_uuids);
-		for (size_t i = 0; i < p_mesh->materials.size(); i++) {
+		for (size_t i = 0; i < material_uuids.size(); i++) {
 			auto uuid = material_uuids[i];
 			auto mat = AssetManager::GetAsset<MaterialAsset>(uuid);
 			if (!mat) {

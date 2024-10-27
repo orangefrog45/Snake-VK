@@ -7,6 +7,7 @@ struct RayPayload {
   vec3 normal;
   float distance;
   float roughness;
+  uint mat_flags;
 };
 
 layout(location = 0) rayPayloadInEXT RayPayload payload;

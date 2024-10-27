@@ -5,6 +5,8 @@
 #include "scene/LightBufferSystem.h"
 #include "rendering/RenderCommon.h"
 #include "scene/TlasSystem.h"
+#include "scene/SceneInfoBufferSystem.h"
+#include "scene/TransformBufferSystem.h"
 
 using namespace SNAKE;
 
@@ -76,10 +78,13 @@ void RT::InitDescriptorBuffers(Image2D& output_image, Scene& scene, GBufferResou
 		.AddDescriptor(6, vk::DescriptorType::eStorageBuffer, vk::ShaderStageFlagBits::eClosestHitKHR) // Vertex tangent buffer
 		.AddDescriptor(7, vk::DescriptorType::eStorageBuffer, vk::ShaderStageFlagBits::eClosestHitKHR) // Raytracing instance buffer
 		.AddDescriptor(8, vk::DescriptorType::eStorageBuffer, vk::ShaderStageFlagBits::eClosestHitKHR | vk::ShaderStageFlagBits::eRaygenKHR)  // Light buffer
-		.AddDescriptor(9, vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eRaygenKHR) // Input gbuffer albedo combined image sampler
-		.AddDescriptor(10, vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eRaygenKHR) // Input gbuffer normal combined image sampler
-		.AddDescriptor(11, vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eRaygenKHR) // Input gbuffer depth combined image sampler
-		.AddDescriptor(12, vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eRaygenKHR) // Input gbuffer rma combined image sampler
+		.AddDescriptor(9, vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eRaygenKHR) // Input gbuffer albedo sampler
+		.AddDescriptor(10, vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eRaygenKHR) // Input gbuffer normal sampler
+		.AddDescriptor(11, vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eRaygenKHR) // Input gbuffer depth sampler
+		.AddDescriptor(12, vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eRaygenKHR) // Input gbuffer rma sampler
+		.AddDescriptor(13, vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eRaygenKHR) // Input gbuffer mat flag sampler
+		.AddDescriptor(14, vk::DescriptorType::eStorageBuffer, vk::ShaderStageFlagBits::eAll) // Transforms
+		.AddDescriptor(15, vk::DescriptorType::eStorageBuffer, vk::ShaderStageFlagBits::eAll) // Transforms (previous frame)
 		.GenDescriptorLayout();
 
 	for (FrameInFlightIndex i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
@@ -101,6 +106,10 @@ void RT::InitDescriptorBuffers(Image2D& output_image, Scene& scene, GBufferResou
 		auto get_info_normal_gbuffer_image = output_gbuffer.normal_image.CreateDescriptorGetInfo(vk::ImageLayout::eGeneral, vk::DescriptorType::eCombinedImageSampler);
 		auto get_info_depth_gbuffer_image = output_gbuffer.depth_image.CreateDescriptorGetInfo(vk::ImageLayout::eGeneral, vk::DescriptorType::eCombinedImageSampler);
 		auto get_info_rma_gbuffer_image = output_gbuffer.rma_image.CreateDescriptorGetInfo(vk::ImageLayout::eGeneral, vk::DescriptorType::eCombinedImageSampler);
+		auto get_info_mat_flag_image = output_gbuffer.mat_flag_image.CreateDescriptorGetInfo(vk::ImageLayout::eGeneral, vk::DescriptorType::eCombinedImageSampler);
+		auto* p_transform_buffer_sys = scene.GetSystem<TransformBufferSystem>();
+		auto get_info_transform_buffer = p_transform_buffer_sys->GetTransformStorageBuffer(i).CreateDescriptorGetInfo();
+		auto get_info_transform_buffer_prev_frame = p_transform_buffer_sys->GetLastFramesTransformStorageBuffer(i).CreateDescriptorGetInfo();
 
 		rt_descriptor_buffers[i].LinkResource(&tlas_system.GetTlas(i), get_info_tlas, 0, 0);
 		rt_descriptor_buffers[i].LinkResource(&output_image, get_info_image, 1, 0);
@@ -115,6 +124,9 @@ void RT::InitDescriptorBuffers(Image2D& output_image, Scene& scene, GBufferResou
 		rt_descriptor_buffers[i].LinkResource(&output_gbuffer.normal_image, get_info_normal_gbuffer_image, 10, 0);
 		rt_descriptor_buffers[i].LinkResource(&output_gbuffer.depth_image, get_info_depth_gbuffer_image, 11, 0);
 		rt_descriptor_buffers[i].LinkResource(&output_gbuffer.rma_image, get_info_rma_gbuffer_image, 12, 0);
+		rt_descriptor_buffers[i].LinkResource(&output_gbuffer.mat_flag_image, get_info_mat_flag_image, 13, 0);
+		rt_descriptor_buffers[i].LinkResource(&p_transform_buffer_sys->GetTransformStorageBuffer(i), get_info_transform_buffer, 14, 0);
+		rt_descriptor_buffers[i].LinkResource(&p_transform_buffer_sys->GetLastFramesTransformStorageBuffer(i), get_info_transform_buffer_prev_frame, 15, 0);
 	}
 }
 
@@ -194,7 +206,8 @@ void SBT::Init(vk::Pipeline pipeline, const RtPipelineBuilder& builder) {
 }
 
 
-void RT::RecordRenderCmdBuf(vk::CommandBuffer cmd, Image2D& output_image, DescriptorBuffer& common_ubo_db) {
+void RT::RecordRenderCmdBuf(vk::CommandBuffer cmd, Image2D& output_image, Scene& scene) {
+	FrameInFlightIndex fif = VkContext::GetCurrentFIF();
 
 	output_image.TransitionImageLayout(vk::ImageLayout::eUndefined, vk::ImageLayout::eGeneral,
 		vk::AccessFlagBits::eShaderWrite, vk::AccessFlagBits::eShaderWrite, vk::PipelineStageFlagBits::eRayTracingShaderKHR,
@@ -204,8 +217,11 @@ void RT::RecordRenderCmdBuf(vk::CommandBuffer cmd, Image2D& output_image, Descri
 	std::array<uint32_t, 3> db_indices = { 0, 1, 2 };
 	std::array<vk::DeviceSize, 3> db_offsets = { 0, 0, 0 };
 
-	auto binding_infos = util::array(common_ubo_db.GetBindingInfo(), rt_descriptor_buffers[VkContext::GetCurrentFIF()].GetBindingInfo(), 
-		AssetManager::GetGlobalTexMatBufBindingInfo(VkContext::GetCurrentFIF()));
+	auto binding_infos = util::array(
+		scene.GetSystem<SceneInfoBufferSystem>()->descriptor_buffers[fif].GetBindingInfo(),
+		rt_descriptor_buffers[fif].GetBindingInfo(), 
+		AssetManager::GetGlobalTexMatBufBindingInfo(fif)
+		);
 
 	cmd.bindDescriptorBuffersEXT(binding_infos);
 	cmd.setDescriptorBufferOffsetsEXT(vk::PipelineBindPoint::eRayTracingKHR, pipeline.GetPipelineLayout(), 0, db_indices, db_offsets);

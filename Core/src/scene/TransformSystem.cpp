@@ -130,7 +130,7 @@ void TransformSystem::SetAbsolutePosition(TransformComponent* p_comp, glm::vec3 
 	p_comp->SetPosition(final_pos);
 }
 
-void TransformSystem::OnSceneShutdown() {
+void TransformSystem::OnSystemRemove() {
 	EventManagerG::DeregisterListener(m_transform_event_listener);
 	EventManagerG::DeregisterListener(m_relationship_event_listener);
 };

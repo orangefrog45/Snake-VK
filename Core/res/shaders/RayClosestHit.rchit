@@ -10,12 +10,17 @@
 #define RAYTRACING_INSTANCE_BUFFER_DESCRIPTOR_BINDING 7
 #include "RaytracingInstances.glsl"
 
+#define TRANSFORM_BUFFER_DESCRIPTOR_SET_IDX 1
+#define TRANSFORM_BUFFER_DESCRIPTOR_BINDING 14
+#include "Transforms.glsl"
+
 
 struct RayPayload {
   vec3 colour;
   vec3 normal;
   float distance;
   float roughness;
+  uint mat_flags;
 };
 
 layout(location = 0) rayPayloadInEXT RayPayload payload;
@@ -98,18 +103,26 @@ void main() {
   vec2 tc2 = vert_tex_coords.t[i.z];
 
   vec3 p = p0 * bary.x + p1 * bary.y + p2 * bary.z;
-  vec3 n = n0 * bary.x + n1 * bary.y + n2 * bary.z;
+  vec3 n = normalize(n0 * bary.x + n1 * bary.y + n2 * bary.z);
   vec2 tc = tc0 * bary.x + tc1 * bary.y + tc2 * bary.z;
 
-  mat4 transform = instance_data.transform;
+  mat4 transform = transforms.m[instance_data.transform_idx];
   vec3 pos = vec4(transform * vec4(p, 1.0)).xyz;
   n = normalize(transpose(inverse(mat3(transform))) * n);
 
   Material material = material_ubo.materials[instance_data.material_idx];
   vec3 albedo = material.albedo.xyz;
-
   if (material.albedo_tex_idx != INVALID_GLOBAL_INDEX)
     albedo *= texture(textures[material.albedo_tex_idx], tc).rgb;
+
+  payload.mat_flags = material.flags;
+  if (bool(material.flags & MAT_FLAG_EMISSIVE)) {
+    payload.colour = albedo;
+    payload.distance = gl_RayTmaxEXT;
+    return;
+  }
+
+
 
   vec3 v = normalize(-gl_WorldRayDirectionEXT);
 	vec3 r = reflect(-v, n);

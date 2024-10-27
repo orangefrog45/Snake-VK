@@ -66,6 +66,9 @@ namespace SNAKE {
 			SPHERE_MESH_DATA,
 			MATERIAL,
 			TEXTURE,
+			CUBE_MESH,
+			CUBE_MESH_DATA,
+			NUM_CORE_ASSETS
 		};
 
 		template<std::derived_from<Asset> T>
@@ -154,7 +157,6 @@ namespace SNAKE {
 		MeshBufferManager mesh_buffer_manager{};
 
 	private:
-		static constexpr size_t NUM_CORE_ASSETS = 4;
 		void LoadCoreAssets();
 		void I_Init();
 

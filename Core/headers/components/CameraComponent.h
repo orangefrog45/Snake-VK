@@ -8,8 +8,8 @@ namespace SNAKE {
 		CameraComponent(Entity* p_entity) : Component(p_entity) {};
 
 		float fov = 90.f;
-		float z_near = 0.01f;
-		float z_far = 10000.f;
+		float z_near = 0.1f;
+		float z_far = 2500.f;
 		float aspect_ratio = 16.f / 9.f;
 
 		glm::mat4 GetProjectionMatrix() {

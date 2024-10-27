@@ -104,6 +104,8 @@ namespace SNAKE {
 
 	void CopyBuffer(vk::Buffer src, vk::Buffer dst, vk::DeviceSize size, vk::DeviceSize src_offset = 0, vk::DeviceSize dst_offset = 0);
 
+	vk::Viewport CreateDefaultVkViewport(float width, float height);
+
 	inline constexpr vk::DeviceSize aligned_size(vk::DeviceSize value, vk::DeviceSize alignment)
 	{
 		return (value + alignment - 1) & ~(alignment - 1);

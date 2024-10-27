@@ -272,6 +272,18 @@ void Image2D::CreateImageView() {
 	m_view = CreateImageView(*this);
 }
 
+vk::RenderingAttachmentInfo Image2D::CreateAttachmentInfo(vk::AttachmentLoadOp load_op, vk::AttachmentStoreOp store_op, vk::ImageLayout layout, vk::ClearColorValue clear_val) {
+	vk::RenderingAttachmentInfo attachment_info{};
+	attachment_info.loadOp = load_op;
+	attachment_info.storeOp = store_op;
+	attachment_info.imageView = GetImageView();
+	attachment_info.imageLayout = layout;
+	attachment_info.clearValue = clear_val;
+
+	return attachment_info;
+}
+
+
 FullscreenImage2D::FullscreenImage2D(vk::ImageLayout initial_layout) : m_initial_layout(initial_layout) {
 	m_swapchain_invalidate_listener.callback = [this](Event const* p_event) {
 		auto* p_casted = dynamic_cast<SwapchainInvalidateEvent const*>(p_event);

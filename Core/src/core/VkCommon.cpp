@@ -176,6 +176,18 @@ namespace SNAKE {
 		EndSingleTimeCommands(*cmd_buf);
 	}
 
+	vk::Viewport CreateDefaultVkViewport(float width, float height) {
+		vk::Viewport viewport{};
+		viewport.x = 0.0f;
+		viewport.y = 0.0f;
+		viewport.width = width;
+		viewport.height = height;
+		viewport.minDepth = 0.0f;
+		viewport.maxDepth = 1.0f;
+
+		return viewport;
+	}
+
 	vk::Format FindSupportedFormat(const std::vector<vk::Format>& candidates, vk::ImageTiling tiling, vk::FormatFeatureFlags features) {
 		for (auto format : candidates) {
 			vk::FormatProperties properties = VkContext::GetPhysicalDevice().device.getFormatProperties(format);

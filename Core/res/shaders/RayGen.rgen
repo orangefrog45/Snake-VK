@@ -7,6 +7,7 @@ struct RayPayload {
   vec3 normal;
   float distance;
   float roughness;
+  uint mat_flags;
 };
 
 layout(location = 0) rayPayloadEXT RayPayload payload;
@@ -25,14 +26,22 @@ layout(set = 1, binding = 9) uniform sampler2D sampler_gbuffer_albedo;
 layout(set = 1, binding = 10) uniform sampler2D sampler_gbuffer_normals;
 layout(set = 1, binding = 11) uniform sampler2D sampler_gbuffer_depth;
 layout(set = 1, binding = 12) uniform sampler2D sampler_gbuffer_rma;
+layout(set = 1, binding = 13) uniform usampler2D sampler_gbuffer_mat_flags;
 
 #define LIGHT_BUFFER_DESCRIPTOR_SET_BINDING_OVERRIDE
 #define LIGHT_BUFFER_DESCRIPTOR_SET_IDX 1
 #define LIGHT_BUFFER_DESCRIPTOR_BINDING 8
 #include "LightBuffers.glsl"
 
+#define TRANSFORM_BUFFER_DESCRIPTOR_SET_IDX 1
+#define TRANSFORM_BUFFER_DESCRIPTOR_BINDING 14
+#include "Transforms.glsl"
+
 #include "CommonUBO.glsl"
 #include "Util.glsl"
+
+#define TEX_MAT_DESCRIPTOR_SET_IDX 2
+#include "TexMatBuffers.glsl"
 
 
 vec3 BouncePerfectReflections(vec3 ro, vec3 rd) {
@@ -86,7 +95,7 @@ vec3 BounceDiffuse(vec3 ro, vec3 normal, vec3 reflected_dir, vec3 albedo, float 
     );
 
     colour_sum += albedo * payload.colour / 4;
-    if (payload.distance < 0.f) {
+    if (payload.distance < 0.f || bool(payload.mat_flags & MAT_FLAG_EMISSIVE)) {
       continue;
     }
 
@@ -109,9 +118,6 @@ vec3 BounceDiffuse(vec3 ro, vec3 normal, vec3 reflected_dir, vec3 albedo, float 
         0
       );
       colour_sum += albedo * payload.colour / 4 * 0.5;
-      if (payload.distance < 0.f) {
-        continue;
-      }
     }
   }
 
@@ -146,8 +152,17 @@ void main() {
   vec2 uv = pixel_center / vec2(gl_LaunchSizeEXT.xy);
 
   vec3 albedo = texelFetch(sampler_gbuffer_albedo, ivec2(gl_LaunchIDEXT), 0).rgb;
+
+  const vec3 rma = texelFetch(sampler_gbuffer_rma, ivec2(gl_LaunchIDEXT), 0).rgb;
+  const uint mat_flags = texelFetch(sampler_gbuffer_mat_flags, ivec2(gl_LaunchIDEXT), 0).r;
+
+
+  if (bool(mat_flags & MAT_FLAG_EMISSIVE)) {
+    imageStore(img_output, ivec2(gl_LaunchIDEXT), vec4(albedo, 1.0));
+    return;
+  } 
+
   vec3 normal = texelFetch(sampler_gbuffer_normals, ivec2(gl_LaunchIDEXT), 0).rgb;
-  vec3 rma = texelFetch(sampler_gbuffer_rma, ivec2(gl_LaunchIDEXT), 0).rgb;
   vec3 ro = WorldPosFromDepth(texelFetch(sampler_gbuffer_depth, ivec2(gl_LaunchIDEXT), 0).r, uv);
 
   vec3 v = normalize(common_ubo.cam_pos.xyz - ro);

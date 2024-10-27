@@ -14,7 +14,7 @@ namespace SNAKE {
 
 		void InitPipeline(std::weak_ptr<const DescriptorSetSpec> common_ubo_set);
 
-		void RecordRenderCmdBuf(vk::CommandBuffer cmd, Image2D& output_image, DescriptorBuffer& common_ubo_db);
+		void RecordRenderCmdBuf(vk::CommandBuffer cmd, Image2D& output_image, Scene& scene);
 
 		void Init(Scene& scene, Image2D& output_image, std::weak_ptr<const DescriptorSetSpec> common_ubo_set, struct GBufferResources& gbuffer);
 	private:

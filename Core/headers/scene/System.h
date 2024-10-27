@@ -9,7 +9,7 @@ namespace SNAKE {
 		virtual void OnSceneStart() {};
 		virtual void OnUpdate() {};
 		virtual void OnSceneEnd() {};
-		virtual void OnSceneShutdown() {};
+		virtual void OnSystemRemove() {};
 
 		class Scene* p_scene = nullptr;
 	};

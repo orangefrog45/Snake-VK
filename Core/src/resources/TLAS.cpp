@@ -60,7 +60,7 @@ void TLAS::BuildFromInstances(const std::vector<vk::AccelerationStructureInstanc
 	as_build_geom_info.geometryCount = 1;
 	as_build_geom_info.pGeometries = &as_geom_info;
 	as_build_geom_info.scratchData.deviceAddress = tlas_scratch_buf.GetDeviceAddress();
-	as_build_geom_info.flags = vk::BuildAccelerationStructureFlagBitsKHR::eAllowUpdate;
+	//as_build_geom_info.flags = vk::BuildAccelerationStructureFlagBitsKHR::eAllowUpdate;
 
 	vk::AccelerationStructureBuildRangeInfoKHR as_build_range_info{};
 	as_build_range_info.primitiveCount = (uint32_t)instances.size();
@@ -183,7 +183,7 @@ vk::AccelerationStructureInstanceKHR BLAS::GenerateInstance(TransformComponent& 
 	vk::AccelerationStructureInstanceKHR instance{};
 	instance.mask = 0xFF;
 	instance.instanceShaderBindingTableRecordOffset = 0;
-	instance.flags = static_cast<VkGeometryInstanceFlagBitsKHR>(vk::GeometryInstanceFlagBitsKHR::eTriangleCullDisable);
+	//instance.flags = static_cast<VkGeometryInstanceFlagBitsKHR>(vk::GeometryInstanceFlagBitsKHR::eTriangleCullDisable);
 	instance.instanceCustomIndex = comp.GetEntity()->GetComponent<RaytracingInstanceBufferIdxComponent>()->idx + m_submesh_index;
 	instance.accelerationStructureReference = m_blas_handle; // Handle of BLAS for the sphere mesh
 

@@ -9,7 +9,7 @@ namespace SNAKE {
 	public:
 		void OnSystemAdd() override;
 
-		void OnSceneShutdown() override;
+		void OnSystemRemove() override;
 
 		TransformComponent* GetParent(TransformComponent* p_comp);
 

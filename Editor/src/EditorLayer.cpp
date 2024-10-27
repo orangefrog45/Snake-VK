@@ -8,6 +8,7 @@
 #include "scene/SceneSerializer.h"
 #include "scene/SceneInfoBufferSystem.h"
 #include "scene/CameraSystem.h"
+#include "scene/ParticleSystem.h"
 #include "scene/TlasSystem.h"
 #include "util/FileUtil.h"
 #include "util/UI.h"
@@ -218,26 +219,18 @@ void EditorLayer::InitGBuffer(glm::vec2 internal_render_dim) {
 	albedo_spec.usage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled;
 	albedo_spec.aspect_flags = vk::ImageAspectFlagBits::eColor;
 
-	Image2DSpec normal_spec{};
+	Image2DSpec normal_spec = albedo_spec;
 	normal_spec.format = vk::Format::eR16G16B16A16Sfloat;
-	normal_spec.size = internal_render_dim;
-	normal_spec.tiling = vk::ImageTiling::eOptimal;
-	normal_spec.usage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled;
-	normal_spec.aspect_flags = vk::ImageAspectFlagBits::eColor;
 
-	Image2DSpec rma_spec{};
+	Image2DSpec rma_spec = normal_spec;
 	rma_spec.format = vk::Format::eR16G16B16A16Sfloat;
-	rma_spec.size = internal_render_dim;
-	rma_spec.tiling = vk::ImageTiling::eOptimal;
-	rma_spec.usage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled;
-	rma_spec.aspect_flags = vk::ImageAspectFlagBits::eColor;
 
-	Image2DSpec pixel_motion_spec{};
+	Image2DSpec pixel_motion_spec = rma_spec;
 	pixel_motion_spec.format = vk::Format::eR16G16Sfloat;
-	pixel_motion_spec.size = internal_render_dim;
-	pixel_motion_spec.tiling = vk::ImageTiling::eOptimal;
 	pixel_motion_spec.usage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferSrc;
-	pixel_motion_spec.aspect_flags = vk::ImageAspectFlagBits::eColor;
+
+	Image2DSpec mat_flag_spec = rma_spec;
+	mat_flag_spec.format = vk::Format::eR16Uint;
 
 	gbuffer.albedo_image.SetSpec(albedo_spec);
 	gbuffer.albedo_image.CreateImage();
@@ -254,7 +247,7 @@ void EditorLayer::InitGBuffer(glm::vec2 internal_render_dim) {
 	gbuffer.depth_image.TransitionImageLayout(vk::ImageLayout::eUndefined,
 		(HasStencilComponent(depth_format) ? vk::ImageLayout::eDepthAttachmentOptimal : vk::ImageLayout::eDepthAttachmentOptimal), 0);
 
-	gbuffer.rma_image.SetSpec(normal_spec);
+	gbuffer.rma_image.SetSpec(rma_spec);
 	gbuffer.rma_image.CreateImage();
 	gbuffer.rma_image.TransitionImageLayout(vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal,
 		vk::AccessFlagBits::eNone, vk::AccessFlagBits::eNone, vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTopOfPipe);
@@ -264,6 +257,10 @@ void EditorLayer::InitGBuffer(glm::vec2 internal_render_dim) {
 	gbuffer.pixel_motion_image.TransitionImageLayout(vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal,
 		vk::AccessFlagBits::eNone, vk::AccessFlagBits::eNone, vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTopOfPipe);
 
+	gbuffer.mat_flag_image.SetSpec(mat_flag_spec);
+	gbuffer.mat_flag_image.CreateImage();
+	gbuffer.mat_flag_image.TransitionImageLayout(vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal,
+		vk::AccessFlagBits::eNone, vk::AccessFlagBits::eNone, vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTopOfPipe);
 }
 
 void EditorLayer::OnInit() {
@@ -279,8 +276,9 @@ void EditorLayer::OnInit() {
 	SNK_CHECK_VK_RESULT(semaphore_res);
 	m_compute_graphics_semaphore = std::move(semaphore);
 
-	for (auto& cmd_buf : m_cmd_buffers) {
-		cmd_buf.Init(vk::CommandBufferLevel::ePrimary);
+	for (FrameInFlightIndex i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+		m_gbuffer_cmd_buffers[i].Init(vk::CommandBufferLevel::ePrimary);
+		m_rt_cmd_buffers[i].Init(vk::CommandBufferLevel::ePrimary);
 	}
 
 	editor_executable_dir = std::filesystem::current_path().string();
@@ -294,6 +292,8 @@ void EditorLayer::OnInit() {
 	EventManagerG::RegisterListener<EntityDeleteEvent>(entity_deletion_listener);
 
 	scene.AddDefaultSystems();
+	scene.AddSystem<TlasSystem>();
+	scene.AddSystem<ParticleSystem>();
 
 	p_cam_ent = std::make_unique<Entity>(&scene, scene.GetRegistry().create(), &scene.GetRegistry(), 0);
 	p_cam_ent->AddComponent<TransformComponent>();
@@ -305,7 +305,6 @@ void EditorLayer::OnInit() {
 	InitRenderResources();
 	gbuffer_pass.Init(scene, gbuffer);
 
-	scene.AddSystem<TlasSystem>();
 	raytracing.Init(scene, internal_render_image, scene.GetSystem<SceneInfoBufferSystem>()->descriptor_buffers[0].GetDescriptorSpec(), gbuffer);
 	m_taa_resolve_pass.Init();
 }
@@ -321,6 +320,7 @@ void EditorLayer::InitRenderResources() {
 		gbuffer.rma_image.DestroyImage();
 		gbuffer.pixel_motion_image.DestroyImage();
 		gbuffer.normal_image.DestroyImage();
+		gbuffer.mat_flag_image.DestroyImage();
 	}
 
 	m_render_settings.internal_render_dim = { p_window->GetWidth(), p_window->GetHeight() };
@@ -437,11 +437,27 @@ void EditorLayer::OnFrameStart() {
 void EditorLayer::OnUpdate() {
 	auto* p_cam_transform = p_cam_ent->GetComponent<TransformComponent>();
 
+	if (p_window->input.IsKeyPressed('f')) {
+
+		for (int i = 0; i < 200; i++) {
+			auto& pillar = scene.CreateEntity();
+			pillar.AddComponent<StaticMeshComponent>()->SetMeshAsset(AssetManager::GetAsset<StaticMeshAsset>(AssetManager::CoreAssetIDs::CUBE_MESH));
+			pillar.GetComponent<TransformComponent>()->SetPosition(rand() % 1000 - 500.f, 0, rand() % 1000 - 500.f);
+			pillar.GetComponent<TransformComponent>()->SetOrientation(rand() % 10, rand() % 10, rand() % 10);
+			pillar.GetComponent<TransformComponent>()->SetScale(4.f, rand() % 20 + 100, 4.f);
+		}
+	}
+
+
 	static float e = 0.f;
-	e += 0.01f;
+	e += 0.5f;
+
 	auto& entities = scene.GetEntities();
-	if (!entities.empty())
-		scene.GetEntities()[0]->GetComponent<TransformComponent>()->SetOrientation(sinf(e) * 360.f, 0.f, 0.f);
+	if (auto* p_ent = scene.GetEntity("Spinner")) {
+		auto* p_transform0 = p_ent->GetComponent<TransformComponent>();
+		p_transform0->SetOrientation(0.f, e*10.f, 0.f);
+		//p_transform0->SetPosition(sin(e * 0.01) * 20.f, 0.f, 0.f);
+	}
 
 	glm::vec3 move{ 0,0,0 };
 	auto* p_transform = p_cam_ent->GetComponent<TransformComponent>();
@@ -472,6 +488,9 @@ void EditorLayer::OnUpdate() {
 	if (p_window->input.IsKeyDown(Key::Shift))
 		speed *= 10.f;
 
+	if (p_window->input.IsKeyDown(Key::Space))
+		speed *= 100.f;
+
 	p_transform->SetPosition(p_transform->GetPosition() + move * speed);
 
 }
@@ -479,69 +498,75 @@ void EditorLayer::OnUpdate() {
 
 void EditorLayer::OnRender() {
 	FrameInFlightIndex fif = VkContext::GetCurrentFIF();
+	auto graphics_cmd_buffers = util::array(*m_gbuffer_cmd_buffers[fif].buf);
+
+	vk::SubmitInfo submit_info_graphics{};
+	submit_info_graphics.commandBufferCount = (uint32_t)graphics_cmd_buffers.size();
+	submit_info_graphics.pCommandBuffers = graphics_cmd_buffers.data();
 
 	uint32_t image_index;
 	vk::Semaphore image_avail_semaphore = VkRenderer::AcquireNextSwapchainImage(*p_window, image_index);
 	auto& swapchain_image = p_window->GetVkContext().swapchain_images[image_index];
 
-	auto gbuffer_cmd_buf = gbuffer_pass.RecordCommandBuffer(gbuffer, scene, {p_window->GetWidth(), p_window->GetHeight()});
-
-	m_cmd_buffers[fif].buf->reset();
+	m_gbuffer_cmd_buffers[fif].buf->reset();
+	m_rt_cmd_buffers[fif].buf->reset();
 	vk::CommandBufferBeginInfo begin_info{};
-	SNK_CHECK_VK_RESULT(m_cmd_buffers[fif].buf->begin(begin_info));
+	SNK_CHECK_VK_RESULT(m_gbuffer_cmd_buffers[fif].buf->begin(begin_info));
+	gbuffer_pass.RecordCommandBuffer(gbuffer, scene, {p_window->GetWidth(), p_window->GetHeight()}, *m_gbuffer_cmd_buffers[fif].buf);
+	SNK_CHECK_VK_RESULT(m_gbuffer_cmd_buffers[fif].buf->end());
+	VkContext::GetLogicalDevice().SubmitGraphics(submit_info_graphics);
+
+	SNK_CHECK_VK_RESULT(m_rt_cmd_buffers[fif].buf->begin(begin_info));
 
 	gbuffer.albedo_image.TransitionImageLayout(vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eShaderReadOnlyOptimal, vk::AccessFlagBits::eColorAttachmentWrite,
 		vk::AccessFlagBits::eShaderRead, vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eRayTracingShaderKHR, 0, 1, 
-		*m_cmd_buffers[fif].buf);
+		*m_rt_cmd_buffers[fif].buf);
 
 	gbuffer.normal_image.TransitionImageLayout(vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eShaderReadOnlyOptimal, vk::AccessFlagBits::eColorAttachmentWrite,
 		vk::AccessFlagBits::eShaderRead, vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eRayTracingShaderKHR, 0, 1,
-		*m_cmd_buffers[fif].buf);
+		*m_rt_cmd_buffers[fif].buf);
 
 	gbuffer.rma_image.TransitionImageLayout(vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eShaderReadOnlyOptimal, vk::AccessFlagBits::eColorAttachmentWrite,
 		vk::AccessFlagBits::eShaderRead, vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eRayTracingShaderKHR, 0, 1,
-		*m_cmd_buffers[fif].buf);
+		*m_rt_cmd_buffers[fif].buf);
 
 	gbuffer.depth_image.TransitionImageLayout(vk::ImageLayout::eDepthAttachmentOptimal, vk::ImageLayout::eShaderReadOnlyOptimal, vk::AccessFlagBits::eDepthStencilAttachmentWrite,
 		vk::AccessFlagBits::eShaderRead, vk::PipelineStageFlagBits::eEarlyFragmentTests, vk::PipelineStageFlagBits::eRayTracingShaderKHR, 0, 1,
-		*m_cmd_buffers[fif].buf);
+		*m_rt_cmd_buffers[fif].buf);
 
-	raytracing.RecordRenderCmdBuf(*m_cmd_buffers[fif].buf, internal_render_image, scene.GetSystem<SceneInfoBufferSystem>()->descriptor_buffers[fif]);
+	raytracing.RecordRenderCmdBuf(*m_rt_cmd_buffers[fif].buf, internal_render_image, scene);
 
 	gbuffer.albedo_image.TransitionImageLayout(vk::ImageLayout::eShaderReadOnlyOptimal, vk::ImageLayout::eColorAttachmentOptimal, vk::AccessFlagBits::eShaderRead,
 		vk::AccessFlagBits::eColorAttachmentWrite, vk::PipelineStageFlagBits::eRayTracingShaderKHR, vk::PipelineStageFlagBits::eColorAttachmentOutput, 0, 1,
-		*m_cmd_buffers[fif].buf);
+		*m_rt_cmd_buffers[fif].buf);
 
 	gbuffer.normal_image.TransitionImageLayout(vk::ImageLayout::eShaderReadOnlyOptimal, vk::ImageLayout::eColorAttachmentOptimal, vk::AccessFlagBits::eShaderRead,
 		vk::AccessFlagBits::eColorAttachmentWrite, vk::PipelineStageFlagBits::eRayTracingShaderKHR, vk::PipelineStageFlagBits::eColorAttachmentOutput, 0, 1,
-		*m_cmd_buffers[fif].buf);
+		*m_rt_cmd_buffers[fif].buf);
 
 	gbuffer.rma_image.TransitionImageLayout(vk::ImageLayout::eShaderReadOnlyOptimal, vk::ImageLayout::eColorAttachmentOptimal, vk::AccessFlagBits::eShaderRead,
 		vk::AccessFlagBits::eColorAttachmentWrite, vk::PipelineStageFlagBits::eRayTracingShaderKHR, vk::PipelineStageFlagBits::eColorAttachmentOutput, 0, 1,
-		*m_cmd_buffers[fif].buf);
+		*m_rt_cmd_buffers[fif].buf);
 
 	gbuffer.depth_image.TransitionImageLayout(vk::ImageLayout::eShaderReadOnlyOptimal, vk::ImageLayout::eDepthAttachmentOptimal, vk::AccessFlagBits::eDepthStencilAttachmentWrite,
 		vk::AccessFlagBits::eShaderRead, vk::PipelineStageFlagBits::eEarlyFragmentTests, vk::PipelineStageFlagBits::eRayTracingShaderKHR, 0, 1,
-		*m_cmd_buffers[fif].buf);
+		*m_rt_cmd_buffers[fif].buf);
 
 	if (m_render_settings.dlss_preset != 0)
-		m_streamline.EvaluateDLSS(*m_cmd_buffers[fif].buf, gbuffer, internal_render_image, display_render_image);
+		m_streamline.EvaluateDLSS(*m_rt_cmd_buffers[fif].buf, gbuffer, internal_render_image, display_render_image);
 
-	SNK_CHECK_VK_RESULT(m_cmd_buffers[fif].buf->end());
+	SNK_CHECK_VK_RESULT(m_rt_cmd_buffers[fif].buf->end());
 
 	//VkRenderer::RecordRenderDebugCommands(*m_cmd_buffers[VkContext::GetCurrentFIF()].buf, render_image, depth_image, 
 	//	scene.GetSystem<SceneInfoBufferSystem>()->descriptor_buffers[VkContext::GetCurrentFIF()]);
 
-	auto graphics_cmd_buffers = util::array(gbuffer_cmd_buf, *m_cmd_buffers[fif].buf);
-
-	vk::SubmitInfo submit_info_graphics{};
-	submit_info_graphics.commandBufferCount = (uint32_t)graphics_cmd_buffers.size();
-	submit_info_graphics.pCommandBuffers = graphics_cmd_buffers.data();
 	if (m_render_settings.using_taa) {
 		submit_info_graphics.pSignalSemaphores = &*m_compute_graphics_semaphore;
 		submit_info_graphics.signalSemaphoreCount = 1;
 	}
 
+	graphics_cmd_buffers = util::array(*m_rt_cmd_buffers[fif].buf);
+	submit_info_graphics.pCommandBuffers = graphics_cmd_buffers.data();
 	VkContext::GetLogicalDevice().SubmitGraphics(submit_info_graphics);
 
 	if (m_render_settings.using_taa) {
@@ -706,6 +731,8 @@ void EditorLayer::OnImGuiRender() {
 			ent_editor.DirectionalLightEditor(scene.directional_light);
 			ImGui::TreePop();
 		}
+
+		ImGui::Checkbox("Particles updating", &scene.GetSystem<ParticleSystem>()->active);
 
 		ImGui::Text(std::to_string(ImGui::GetIO().Framerate).c_str());
 		Entity* p_right_clicked_entity = nullptr;
