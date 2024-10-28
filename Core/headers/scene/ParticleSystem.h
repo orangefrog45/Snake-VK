@@ -8,7 +8,10 @@
 namespace SNAKE {
 	enum class ParticleComputeShader {
 		INIT,
-		UPDATE,
+		CELL_KEY_GENERATION,
+		BITONIC_CELL_KEY_SORT,
+		CELL_KEY_START_IDX_GENERATION,
+		HANDLE_COLLISIONS,
 	};
 
 	class ParticleSystem : public System {
@@ -39,7 +42,7 @@ namespace SNAKE {
 		bool active = false;
 
 	private:
-		uint32_t m_num_particles = 10'000'000;
+		uint32_t m_num_particles = 1'000'000;
 
 		EventListener m_frame_start_listener;
 
@@ -56,6 +59,10 @@ namespace SNAKE {
 		std::array<DescriptorBuffer, MAX_FRAMES_IN_FLIGHT> m_ptcl_rt_descriptor_buffers;
 
 		std::array<S_VkBuffer, MAX_FRAMES_IN_FLIGHT> m_ptcl_buffers;
+		std::array<S_VkBuffer, MAX_FRAMES_IN_FLIGHT> m_ptcl_result_buffers;
+		std::array<S_VkBuffer, MAX_FRAMES_IN_FLIGHT> m_cell_key_buffers;
+		std::array<S_VkBuffer, MAX_FRAMES_IN_FLIGHT> m_cell_key_start_index_buffers;
+
 		// The particle buffers containing last frames data relative to the current frame
 		std::array<S_VkBuffer, MAX_FRAMES_IN_FLIGHT> m_ptcl_buffers_prev_frame;
 

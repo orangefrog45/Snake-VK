@@ -46,7 +46,7 @@ void TraceCollisionRay(vec3 dir, float len, inout float current_highest_speed_we
 }
 
 void main() {
-    const float dt = 1.0 / 20.0;
+    const float dt = 1.0 / 120.0;
 
     ray_payload.distance = -1.f;
     ptcl_buf.ptcls[gl_LaunchIDEXT.x].velocity.y -= 9.8 * dt;
@@ -69,8 +69,13 @@ void main() {
         const float restitution = 0.5;
         
         vec3 relative_velocity = ptcl_buf.ptcls[gl_LaunchIDEXT.x].velocity.xyz - candidate_payload.contact_velocity;
-        ptcl_buf.ptcls[gl_LaunchIDEXT.x].position_radius.xyz = candidate_payload.contact_position + candidate_payload.contact_normal * (ptcl_buf.ptcls[gl_LaunchIDEXT.x].position_radius.w + 0.01);
-        ptcl_buf.ptcls[gl_LaunchIDEXT.x].velocity.xyz = reflect(relative_velocity, candidate_payload.contact_normal) * restitution;
+        float relative_speed = length(relative_velocity);
+        
+        
+        float overlap = ptcl_buf.ptcls[gl_LaunchIDEXT.x].position_radius.w - length(candidate_payload.contact_position - ptcl_buf.ptcls[gl_LaunchIDEXT.x].position_radius.xyz);
+        ptcl_buf.ptcls[gl_LaunchIDEXT.x].position_radius.xyz += candidate_payload.contact_normal * overlap;
+        vec3 impulse = candidate_payload.contact_normal * relative_speed * dot(-relative_velocity / relative_speed, candidate_payload.contact_normal) * 2.0 * restitution;
+        ptcl_buf.ptcls[gl_LaunchIDEXT.x].velocity.xyz += impulse;
     }
 
     ptcl_buf.ptcls[gl_LaunchIDEXT.x].position_radius.xyz += ptcl_buf.ptcls[gl_LaunchIDEXT.x].velocity.xyz * dt;

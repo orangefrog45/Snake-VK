@@ -3,10 +3,13 @@
 #include <array>
 #include <vector>
 #include <filesystem>
-#include <fstream>
 #include <sstream>
 #include <future>
 #include <bitset>
+#include <cstdio>
+#include <memory>
+#include <stdexcept>
+#include <fstream>
 
 bool IsShaderFile(const std::string& filepath) {
 	return filepath.ends_with(".vert") ||
@@ -72,6 +75,8 @@ ShaderFileData ReadShaderFile(const std::string& filepath) {
 	return ret;
 }
 
+std::string g_errors;
+
 void CompilePermutation(const ShaderFileData& data, uint8_t bits, const std::string& output_path) {
 	std::string define_str;
 	for (uint32_t i = 0; i < data.defines.size(); i++) {
@@ -85,9 +90,17 @@ void CompilePermutation(const ShaderFileData& data, uint8_t bits, const std::str
 	// Reverse bits for more intuitive filename (each bit corresponds in the same order to a define in SNAKE_PERMUTATIONS(...))
 	std::ranges::reverse(bit_str);
 
-	auto cmd = std::format("%VULKAN_SDK%/Bin/glslc.exe --target-env=vulkan1.3 {} {} -o {}", define_str, data.path, output_path + "_" + bit_str + ".spv");
+	auto cmd = std::format("%VULKAN_SDK%/Bin/glslc.exe --target-env=vulkan1.3 {} {} -o {}", define_str, data.path, output_path + "_" + bit_str + ".spv 2>&1");
+
+	// Errors go here
+	static std::array<char, 20'000> output_buffer;
+
+	std::unique_ptr<FILE, decltype(&_pclose)> pipe(_popen(cmd.c_str(), "r"), _pclose);
+	while (fgets(output_buffer.data(), output_buffer.size(), pipe.get()) != nullptr) {
+		g_errors += output_buffer.data();
+	}
+
 	std::cout << cmd << "\n";
-	std::system(cmd.c_str());
 }
 
 std::vector<std::future<void>> g_futures;
@@ -150,7 +163,17 @@ int main() {
 			}
 		}
 
-		std::cout << "\n\n\n PRESS ANY KEY + ENTER TO CONTINUE";
+		if (!g_errors.empty()) {
+			std::cout << "\n\n\nSOME SHADERS FAILED TO COMPILE:\n";
+			std::cout << g_errors;
+			g_errors.clear();
+		}
+		else {
+			std::cout << "\n\n\nALL SHADERS SUCCESSFULLY COMPILED\n";
+		}
+
+
+		std::cout << "\n\nPRESS ANY KEY + ENTER TO CONTINUE";
 		std::string temp;
 		std::cin >> temp;
 	}

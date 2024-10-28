@@ -58,7 +58,7 @@ void main() {
         albedo *= texture(textures[material.albedo_tex_idx], vs_tex_coord).rgb;
 
 #ifdef PARTICLE
-    out_albedo = vec4(mix(vec3(0, 0, 1), vec3(0, 1, 0), length(ptcl_buf.ptcls[vs_instance_idx].velocity.xyz) / 50.0), 1.0);
+    out_albedo = vec4(mix(vec3(0, 0, 1), vec3(0, 1, 0), length(ptcl_buf.ptcls[vs_instance_idx].velocity.xyz) / 20.0), 1.0);
     out_mat_flags = 1u;
 #else
     out_albedo = vec4(albedo, 1.0);

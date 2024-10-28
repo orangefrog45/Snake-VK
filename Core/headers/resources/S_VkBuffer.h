@@ -34,6 +34,9 @@ namespace SNAKE {
 
 		void RefreshDescriptorGetInfo(DescriptorGetInfo& info) const override;
 
+		void MemoryBarrier(vk::AccessFlagBits src_access_mask, vk::AccessFlagBits dst_access_mask, vk::PipelineStageFlagBits src_stage, 
+			vk::PipelineStageFlagBits dst_stage, vk::CommandBuffer buf = {});
+
 		DescriptorGetInfo CreateDescriptorGetInfo() const;
 
 		vk::DeviceAddress GetDeviceAddress() const {

@@ -163,17 +163,23 @@ namespace SNAKE {
 		return required_extensions.empty();
 	}
 
-	void CopyBuffer(vk::Buffer src, vk::Buffer dst, vk::DeviceSize size, vk::DeviceSize src_offset, vk::DeviceSize dst_offset) {
-		vk::UniqueCommandBuffer cmd_buf = BeginSingleTimeCommands();
+	void CopyBuffer(vk::Buffer src, vk::Buffer dst, vk::DeviceSize size, vk::DeviceSize src_offset, vk::DeviceSize dst_offset, vk::CommandBuffer cmd) {
+		bool temp_cmd = !cmd;
+		vk::UniqueCommandBuffer temp;
+		if (temp_cmd) {
+			temp = BeginSingleTimeCommands();
+			cmd = *temp;
+		}
 
 		vk::BufferCopy copy_region{};
 		copy_region.srcOffset = src_offset;
 		copy_region.dstOffset = dst_offset;
 		copy_region.size = size;
 
-		cmd_buf->copyBuffer(src, dst, copy_region);
+		cmd.copyBuffer(src, dst, copy_region);
 
-		EndSingleTimeCommands(*cmd_buf);
+		if (temp_cmd)
+			EndSingleTimeCommands(cmd);
 	}
 
 	vk::Viewport CreateDefaultVkViewport(float width, float height) {

@@ -150,7 +150,7 @@ void BLAS::GenerateFromMeshData(MeshData& mesh_data, uint32_t submesh_index) {
 	mp_blas = std::move(val);
 
 	S_VkBuffer blas_scratch_buf;
-	blas_scratch_buf.CreateBuffer(as_build_sizes_info.buildScratchSize, vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress);
+	blas_scratch_buf.CreateBuffer(as_build_sizes_info.buildScratchSize, vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eAccelerationStructureStorageKHR);
 
 	vk::AccelerationStructureBuildGeometryInfoKHR as_build_geom_info_scratch{};
 	as_build_geom_info_scratch.type = vk::AccelerationStructureTypeKHR::eBottomLevel;

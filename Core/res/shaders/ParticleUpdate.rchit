@@ -51,7 +51,7 @@ void main() {
 
   payload.distance = gl_RayTmaxEXT;
   payload.contact_normal = n;
-  const float dt = 1.0 / 20.0;
+  const float dt = 1.0 / 120.0;
   payload.contact_position = contact_position;
   payload.contact_velocity = vec3(contact_position - (transform_prev_frame * vec4(p, 1)).xyz) / dt;
 }

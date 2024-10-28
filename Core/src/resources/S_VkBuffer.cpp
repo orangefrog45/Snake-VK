@@ -43,6 +43,31 @@ namespace SNAKE {
 		DispatchResourceEvent(S_VkResourceEvent::ResourceEventType::UPDATE);
 	}
 
+	void S_VkBuffer::MemoryBarrier(vk::AccessFlagBits src_access_mask, vk::AccessFlagBits dst_access_mask, vk::PipelineStageFlagBits src_stage,
+		vk::PipelineStageFlagBits dst_stage, vk::CommandBuffer buf) {
+		bool temporary_buf = !buf;
+		vk::UniqueCommandBuffer temp_handle;
+
+		if (temporary_buf) {
+			temp_handle = BeginSingleTimeCommands();
+			buf = *temp_handle;
+		}
+
+		vk::BufferMemoryBarrier barrier{};
+		barrier.srcQueueFamilyIndex = vk::QueueFamilyIgnored; // Not transfering queue family ownership so leave at ignore
+		barrier.dstQueueFamilyIndex = vk::QueueFamilyIgnored;
+		barrier.buffer = buffer;
+		barrier.srcAccessMask = src_access_mask;
+		barrier.dstAccessMask = dst_access_mask;
+		barrier.offset = 0;
+		barrier.size = alloc_info.size;
+
+		buf.pipelineBarrier(src_stage, dst_stage, {}, {}, barrier, {});
+
+		if (temporary_buf)
+			EndSingleTimeCommands(buf);
+	}
+
 	DescriptorGetInfo S_VkBuffer::CreateDescriptorGetInfo() const {
 		DescriptorGetInfo ret;
 
