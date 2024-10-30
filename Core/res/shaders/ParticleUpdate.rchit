@@ -23,6 +23,17 @@ layout(set = 1, binding = 7, scalar) readonly buffer VertexPosBuf { vec3 p[]; } 
 #define TRANSFORM_BUFFER_DESCRIPTOR_SET_IDX 1
 #define TRANSFORM_BUFFER_DESCRIPTOR_BINDING 5
 #include "Transforms.glsl"
+#include "Particle.glsl"
+
+layout(set = 1, binding = 11) uniform PhysicsParamsUBO {
+    float particle_restitution;
+    float timestep;
+    float friction_coefficient;
+    float repulsion_factor;
+    float penetration_slop;
+    float restitution_slop;
+    float sleep_threshold;
+} params_ubo;
 
 hitAttributeEXT vec3 attribs;
 
@@ -47,11 +58,10 @@ void main() {
   mat4 transform_prev_frame = transforms_prev_frame.m[instance_data.transform_idx];
   n = normalize(transpose(inverse(mat3(transform))) * n);
 
-  vec3 contact_position = (transform * vec4(p, 1)).xyz;
+  vec3 contact_position = gl_WorldRayOriginEXT + gl_WorldRayDirectionEXT * gl_RayTmaxEXT;
 
   payload.distance = gl_RayTmaxEXT;
   payload.contact_normal = n;
-  const float dt = 1.0 / 120.0;
   payload.contact_position = contact_position;
-  payload.contact_velocity = vec3(contact_position - (transform_prev_frame * vec4(p, 1)).xyz) / dt;
+  payload.contact_velocity = vec3(contact_position - (transform_prev_frame * vec4(p, 1)).xyz) / params_ubo.timestep;
 }

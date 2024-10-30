@@ -17,9 +17,79 @@ layout(set = 1, binding = 0) uniform accelerationStructureEXT as;
 #include "Util.glsl"
 #include "Particle.glsl"
 
-layout(set = 1, binding = 1) buffer ParticleBuf { Particle ptcls[]; } ptcl_buf;
+layout(set = 1, binding = 1) readonly buffer ParticleBuf { Particle ptcls[]; } ptcl_buf;
+layout(set = 1, binding = 8) readonly buffer CellKeyBuf { CellKeyEntry k[]; } cell_keys;
+layout(set = 1, binding = 9) readonly buffer CellKeyStartIndexBuf { uint i[]; } cell_key_start_idx_buf;
+layout(set = 1, binding = 10) writeonly buffer ParticleBufResult { Particle ptcls[]; } ptcl_buf_result;
+
+layout(set = 1, binding = 11) uniform PhysicsParamsUBO {
+    float particle_restitution;
+    float timestep;
+    float friction_coefficient;
+    float repulsion_factor;
+    float penetration_slop;
+    float restitution_slop;
+    float sleep_threshold;
+} params_ubo;
+
+uint ptcl_idx = gl_LaunchIDEXT.x;
+#define P ptcl_buf.ptcls[ptcl_idx]
+
+uint HandleParticleOnParticleCollision(inout vec3 total_impulse, inout vec3 total_offset) {
+    ivec3 cell_pos = GetParticleCellPos(ptcl_buf.ptcls[ptcl_idx]);
+    uint collision_count = 0;
+    vec3 total_local_impulse = vec3(0);
+    vec3 total_local_offset = vec3(0);
+
+    for (int x_offset = -1; x_offset <= 1; x_offset++) {
+        for (int y_offset = -1; y_offset <= 1; y_offset++) {
+            for (int z_offset = -1; z_offset <= 1; z_offset++) {
+                uint cell_key = GetCellKey(cell_pos + ivec3(x_offset, y_offset, z_offset), ptcl_buf.ptcls.length());
+                uint cell_start_idx = cell_key_start_idx_buf.i[cell_key];
+                if (cell_start_idx == ~0u) continue;
+
+                for (uint i = cell_start_idx; i < cell_keys.k.length(); i++) {
+                    if (cell_keys.k[i].ptcl_idx == ptcl_idx) continue;
+                    if (cell_keys.k[i].key != cell_key) break;
+
+#define OTHER ptcl_buf.ptcls[cell_keys.k[i].ptcl_idx]
+
+                    float min_dist = OTHER.position_radius.w + P.position_radius.w;
+                    vec3 between = P.position_radius.xyz - OTHER.position_radius.xyz;
+                    float dist = length(between);
+
+                    if (dist < (min_dist - 0.005)) {
+                        vec3 contact_normal = between / dist;
+                        vec3 relative_velocity = P.velocity.xyz - OTHER.velocity.xyz;
+                        float relative_speed = length(relative_velocity);
+                        vec3 impulse = vec3(0);
+                        if (relative_speed > params_ubo.restitution_slop) {
+                            collision_count++;
+                            impulse += contact_normal * relative_speed * dot(contact_normal, -relative_velocity / relative_speed) * 2.0 * params_ubo.particle_restitution;
+                        }
+                        
+                        // Repulsion
+                        total_local_offset += contact_normal * (min_dist - dist) * 0.5;
+                        impulse += contact_normal / DT * (min_dist - dist - 0.005) * params_ubo.repulsion_factor;
+                        total_local_impulse += impulse;
+#undef OTHER
+                    }
+                }
+            }
+        }
+    }
+
+    float i2 = abs(dot(total_local_impulse, total_local_impulse));
+    if ((IsParticleAsleep(P) && i2 > params_ubo.sleep_threshold * params_ubo.sleep_threshold) || !IsParticleAsleep(P)) {
+        total_offset += total_local_offset;
+        total_impulse += total_local_impulse; 
+    }
+    
+    return collision_count;
+}
 
 void TraceCollisionRay(vec3 dir, float len, inout float current_highest_speed_weight, inout RayPayload candidate_payload) {
+    ray_payload.distance = -1.0;
     traceRayEXT(
     as,
     gl_RayFlagsOpaqueEXT | gl_RayFlagsTerminateOnFirstHitEXT,
@@ -45,11 +115,56 @@ void TraceCollisionRay(vec3 dir, float len, inout float current_highest_speed_we
     }
 }
 
-void main() {
-    const float dt = 1.0 / 120.0;
+vec3 ConstrainOffsetWithScene(vec3 offset) {
+    float offset_length = length(offset);
+    if (offset_length < 0.00001) return vec3(0);
+    
+    vec3 offset_dir = offset / offset_length;
 
+    ray_payload.distance = -1.0;
+    traceRayEXT(
+    as,
+    gl_RayFlagsOpaqueEXT | gl_RayFlagsTerminateOnFirstHitEXT,
+    0xff,
+    0,
+    0,
+    0,
+    P.position_radius.xyz,
+    0.0,
+    offset_dir, 
+    offset_length + P.position_radius.w,
+    0
+    );
+
+    if (ray_payload.distance > 0.0) { // Collision detected
+        return offset_dir * max((ray_payload.distance - P.position_radius.w * 0.9), 0); // Generate a small overlap for the next iteration
+    } else {
+        return offset;
+    }
+}
+
+float CalculateGravity() {
+    ray_payload.distance = -1.0;
+    // Tracing downward ray to check if particle is resting on another object before applying gravity
+    traceRayEXT(
+    as,
+    gl_RayFlagsOpaqueEXT | gl_RayFlagsTerminateOnFirstHitEXT,
+    0xff,
+    0,
+    0,
+    0,
+    ptcl_buf.ptcls[gl_LaunchIDEXT.x].position_radius.xyz, 
+    0.0,
+    vec3(0, -1, 0), 
+    ptcl_buf.ptcls[gl_LaunchIDEXT.x].position_radius.w + 0.001,
+    0
+    );
+
+    return -9.8 * DT * float(ray_payload.distance < 0);
+}
+
+void main() {
     ray_payload.distance = -1.f;
-    ptcl_buf.ptcls[gl_LaunchIDEXT.x].velocity.y -= 9.8 * dt;
 
     float speed = length(ptcl_buf.ptcls[gl_LaunchIDEXT.x].velocity.xyz);
     vec3 velocity_dir = ptcl_buf.ptcls[gl_LaunchIDEXT.x].velocity.xyz / speed;
@@ -61,22 +176,48 @@ void main() {
     float current_highest_speed_weight = 0.0;
 
     // Trace multiple collision rays in different directions to increase chance of intersection with overlapping geometry
-    TraceCollisionRay(velocity_dir, speed * dt + ptcl_buf.ptcls[gl_LaunchIDEXT.x].position_radius.w * 2.0, current_highest_speed_weight, candidate_payload);
-    TraceCollisionRay(velocity_right, ptcl_buf.ptcls[gl_LaunchIDEXT.x].position_radius.w * 2.0, current_highest_speed_weight, candidate_payload);
-    TraceCollisionRay(velocity_up, ptcl_buf.ptcls[gl_LaunchIDEXT.x].position_radius.w * 2.0, current_highest_speed_weight, candidate_payload);
+    if (!IsParticleAsleep(P)) {
+        TraceCollisionRay(velocity_dir, speed * DT + ptcl_buf.ptcls[gl_LaunchIDEXT.x].position_radius.w * 2.0, current_highest_speed_weight, candidate_payload);
+        TraceCollisionRay(velocity_right, ptcl_buf.ptcls[gl_LaunchIDEXT.x].position_radius.w * 2.0, current_highest_speed_weight, candidate_payload);
+        TraceCollisionRay(velocity_up, ptcl_buf.ptcls[gl_LaunchIDEXT.x].position_radius.w * 2.0, current_highest_speed_weight, candidate_payload);
+    }
     
-    if (candidate_payload.distance > 0.f) { // Collision detected
-        const float restitution = 0.5;
+    vec3 total_offset = vec3(0);
+    vec3 total_impulse = vec3(0);
+    uint num_collisions = HandleParticleOnParticleCollision(total_impulse, total_offset);
+    total_impulse.y += CalculateGravity();
+
+    if (candidate_payload.distance > 0.f) { // Collision with scene detected
+        const float restitution = 0.2;
         
-        vec3 relative_velocity = ptcl_buf.ptcls[gl_LaunchIDEXT.x].velocity.xyz - candidate_payload.contact_velocity;
+        vec3 relative_velocity = ptcl_buf.ptcls[ptcl_idx].velocity.xyz - candidate_payload.contact_velocity;
         float relative_speed = length(relative_velocity);
         
-        
-        float overlap = ptcl_buf.ptcls[gl_LaunchIDEXT.x].position_radius.w - length(candidate_payload.contact_position - ptcl_buf.ptcls[gl_LaunchIDEXT.x].position_radius.xyz);
-        ptcl_buf.ptcls[gl_LaunchIDEXT.x].position_radius.xyz += candidate_payload.contact_normal * overlap;
-        vec3 impulse = candidate_payload.contact_normal * relative_speed * dot(-relative_velocity / relative_speed, candidate_payload.contact_normal) * 2.0 * restitution;
-        ptcl_buf.ptcls[gl_LaunchIDEXT.x].velocity.xyz += impulse;
+        float overlap = max(ptcl_buf.ptcls[ptcl_idx].position_radius.w - length(candidate_payload.contact_position - ptcl_buf.ptcls[ptcl_idx].position_radius.xyz), 0.0);
+        total_offset += candidate_payload.contact_normal * overlap;
+        total_impulse += candidate_payload.contact_normal * relative_speed * dot(-relative_velocity / relative_speed, candidate_payload.contact_normal) * 2.0 * (0.5 + restitution * 0.5);
     }
 
-    ptcl_buf.ptcls[gl_LaunchIDEXT.x].position_radius.xyz += ptcl_buf.ptcls[gl_LaunchIDEXT.x].velocity.xyz * dt;
+    vec3 new_velocity = P.velocity.xyz + total_impulse;
+    total_offset += new_velocity * DT;
+    
+    total_offset = ConstrainOffsetWithScene(total_offset);
+
+    const float mass = 1.0;
+    float kinetic_energy = 0.5 * mass * dot(new_velocity, new_velocity);
+    float friction_energy_loss = mass * length(total_offset) * params_ubo.friction_coefficient;
+    kinetic_energy -= min(friction_energy_loss, kinetic_energy);
+
+    float v2 = abs(2 * kinetic_energy / mass);
+    if (abs(dot(new_velocity, new_velocity)) > 0.0001)
+        new_velocity = normalize(new_velocity) * sqrt(v2);
+
+    if (v2 > params_ubo.sleep_threshold * params_ubo.sleep_threshold)
+        ptcl_buf_result.ptcls[ptcl_idx].velocity.w = 1.0;
+    else
+        ptcl_buf_result.ptcls[ptcl_idx].velocity.w = 0.0;
+
+    ptcl_buf_result.ptcls[ptcl_idx].position_radius.xyz = P.position_radius.xyz + total_offset * float(!IsParticleAsleep(P));
+    ptcl_buf_result.ptcls[ptcl_idx].position_radius.w = P.position_radius.w;
+    ptcl_buf_result.ptcls[ptcl_idx].velocity.xyz = new_velocity * float(!IsParticleAsleep(P));
 }

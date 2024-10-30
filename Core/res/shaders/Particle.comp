@@ -1,22 +1,17 @@
 #version 460
-#define SNAKE_PERMUTATIONS(INIT,CELL_KEY_GENERATION,CELL_KEY_SORT,CELL_KEY_START_IDX_GENERATION,HANDLE_COLLISIONS)
+#define SNAKE_PERMUTATIONS(INIT,CELL_KEY_GENERATION,CELL_KEY_SORT,CELL_KEY_START_IDX_GENERATION)
 
 #ifdef CELL_KEY_SORT
 layout(local_size_x = 128, local_size_y = 1, local_size_z = 1) in;
 #else
-layout(local_size_x = 32, local_size_y = 1, local_size_z = 1) in;
+layout(local_size_x = 128, local_size_y = 1, local_size_z = 1) in;
 #endif
 
 #include "CommonUBO.glsl"
 #include "Particle.glsl"
 
-struct CellKeyEntry {
-    uint key;
-    uint ptcl_idx;
-};
-
-layout(set = 1, binding = 1) buffer ParticleBuf { Particle ptcls[]; } ptcl_buf;
 layout(set = 1, binding = 0) buffer CellKeyBuf { CellKeyEntry k[]; } cell_keys;
+layout(set = 1, binding = 1) buffer ParticleBuf { Particle ptcls[]; } ptcl_buf;
 layout(set = 1, binding = 2) buffer CellKeyStartIndexBuf { uint i[]; } cell_key_start_idx_buf;
 layout(set = 1, binding = 3) buffer ParticleBufResult { Particle ptcls[]; } ptcl_buf_result;
 
@@ -26,31 +21,26 @@ layout(push_constant) uniform pc {
     uint step_idx;
 } push;
 
-uint GetCellKey(ivec3 cell) {
-    return ((cell.x * 73856093) ^ (cell.y * 10357) ^ (cell.z * 83492791)) % cell_keys.k.length();
+uint ptcl_idx = gl_GlobalInvocationID.x;
+
+void Init() {
+    ivec3 box = ivec3(100);
+
+    ptcl_buf.ptcls[ptcl_idx].position_radius = vec4((vec3(ptcl_idx % box.x, (ptcl_idx % (box.x * box.y)) / box.x, ptcl_idx / (box.x * box.y)) - vec3(box.x, 0, box.z) * 0.5)*0.5, 0.15);
+    ptcl_buf.ptcls[ptcl_idx].velocity.xyz = vec3(0);
+    WakeParticle(ptcl_buf.ptcls[ptcl_idx]);
+    ptcl_buf.ptcls[ptcl_idx].position_radius.xyz += vec3(-100, 10, 200);
+    ptcl_buf.ptcls[ptcl_idx].velocity.xyz = -vec3(-100, 40, 0) + 0.1 * vec3(sin(ptcl_idx*8.34534), cos(ptcl_idx*5.34342), sin(ptcl_idx*2.3435));
 }
 
-void main() {
-    const uint ptcl_idx = gl_GlobalInvocationID.x;
-
-#ifndef CELL_KEY_SORT
-    if (ptcl_idx >= ptcl_buf.ptcls.length()) return;
-#endif
-
-#ifdef INIT
-    ivec3 box = ivec3(100, 100, 100);
-
-    ptcl_buf.ptcls[ptcl_idx].position_radius = vec4((vec3(ptcl_idx % box.x, (ptcl_idx % (box.x * box.y)) / box.x, ptcl_idx / (box.x * box.y)) - vec3(box.x, 0, box.z) * 0.5)*0.5, 0.1 * sqrt(3));
-    ptcl_buf.ptcls[ptcl_idx].velocity.xyz = vec3(0);
-    // ptcl_buf.ptcls[ptcl_idx].position_radius.xyz += vec3(-100, 40, 0);
-    ptcl_buf.ptcls[ptcl_idx].position_radius.xyz += vec3(100, 50, 0);
-    ptcl_buf.ptcls[ptcl_idx].velocity.xyz = -vec3(-100, 40, 0) + 0 * vec3(sin(ptcl_idx*8.34534), cos(ptcl_idx*5.34342), sin(ptcl_idx*2.3435));
-#elif defined CELL_KEY_GENERATION
-    ivec3 cell_pos = ivec3(ptcl_buf.ptcls[ptcl_idx].position_radius.xyz);
-    cell_keys.k[ptcl_idx].key = GetCellKey(cell_pos);
+void GenerateCellKey() {
+    ivec3 cell_pos = GetParticleCellPos(ptcl_buf.ptcls[ptcl_idx]);
+    cell_keys.k[ptcl_idx].key = GetCellKey(cell_pos, ptcl_buf.ptcls.length());
     cell_keys.k[ptcl_idx].ptcl_idx = ptcl_idx;
-#elif defined CELL_KEY_SORT
-	// Ty Sebastian Lague "Coding Adventure: Simulating Fluids"
+}
+
+// Ty Sebastian Lague "Coding Adventure: Simulating Fluids"
+void BitonicSortCellKey() {
     uint i = gl_GlobalInvocationID.x;
     uint h = i & (push.group_width - 1);
     uint index_low = h + (push.group_height + 1) * (i / push.group_width);
@@ -65,56 +55,10 @@ void main() {
         cell_keys.k[index_low] = value_high;
         cell_keys.k[index_high] = value_low;
     }
-#elif defined HANDLE_COLLISIONS
-    ivec3 cell_pos = ivec3(ptcl_buf.ptcls[ptcl_idx].position_radius.xyz);
+}
 
-#define P ptcl_buf.ptcls[ptcl_idx]
-    vec3 total_impulse = vec3(0);
-    vec3 total_offset = vec3(0);
 
-    for (int x_offset = -1; x_offset <= 1; x_offset++) {
-        for (int y_offset = -1; y_offset <= 1; y_offset++) {
-            for (int z_offset = -1; z_offset <= 1; z_offset++) {
-                uint cell_key = GetCellKey(cell_pos + ivec3(x_offset, y_offset, z_offset));
-                uint cell_start_idx = cell_key_start_idx_buf.i[cell_key];
-                if (cell_start_idx == ~0u) continue;
-
-                for (uint i = cell_start_idx; i < cell_keys.k.length(); i++) {
-                    if (cell_keys.k[i].ptcl_idx == ptcl_idx) continue;
-                    if (cell_keys.k[i].key != cell_key) break;
-
-#define OTHER ptcl_buf.ptcls[cell_keys.k[i].ptcl_idx]
-
-                    float min_dist = OTHER.position_radius.w + P.position_radius.w;
-                    vec3 between = P.position_radius.xyz - OTHER.position_radius.xyz;
-                    float dist = length(between);
-                    if (dist < min_dist) {
-                        vec3 contact_normal = between / dist;
-                        vec3 relative_velocity = P.velocity.xyz - OTHER.velocity.xyz;
-                        float relative_speed = length(relative_velocity);
-                        vec3 impulse = vec3(0);
-                        if (relative_speed > 0.00001) {
-                            // Multiply by two for accurate collision response
-                            // Multiply by 0.5 as collision will be handled twice
-                            const float restitution = 0.5;
-                            impulse += contact_normal * relative_speed * dot(contact_normal, -relative_velocity / relative_speed) * 2.0 * 0.5 * restitution;
-                        }
-                        
-                        // Repulsion
-                        total_offset += contact_normal * (min_dist - dist) * 0.1;
-                        impulse += contact_normal * (min_dist - dist) * 0.1;
-                        total_impulse += impulse;
-                    }
-                }
-            }
-        }
-    }
-    
-    ptcl_buf_result.ptcls[ptcl_idx].position_radius.xyz = P.position_radius.xyz + total_offset;
-    ptcl_buf_result.ptcls[ptcl_idx].position_radius.w = P.position_radius.w;
-    ptcl_buf_result.ptcls[ptcl_idx].velocity.xyz = P.velocity.xyz + total_impulse;
-
-#elif defined CELL_KEY_START_IDX_GENERATION
+void TryGenerateCellKeyStartIdx() {
     if (gl_GlobalInvocationID.x >= cell_keys.k.length()) return;
 
     uint cell_key_at_idx = cell_keys.k[gl_GlobalInvocationID.x].key;
@@ -122,6 +66,20 @@ void main() {
 
     if (gl_GlobalInvocationID.x == 0 || cell_key_at_idx != cell_key_at_prev_idx)
         cell_key_start_idx_buf.i[cell_key_at_idx] = gl_GlobalInvocationID.x;
+}
 
+void main() {
+#ifndef CELL_KEY_SORT
+    if (ptcl_idx >= ptcl_buf.ptcls.length()) return;
+#endif
+
+#ifdef INIT
+    Init();
+#elif defined CELL_KEY_GENERATION
+    GenerateCellKey();
+#elif defined CELL_KEY_SORT
+    BitonicSortCellKey();
+#elif defined CELL_KEY_START_IDX_GENERATION
+    TryGenerateCellKeyStartIdx();
 #endif
 }

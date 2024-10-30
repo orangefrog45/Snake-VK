@@ -202,6 +202,28 @@ void EditorLayer::ToolbarGUI() {
 	ImGui::End();
 }
 
+void EditorLayer::PhysicsParamsUI() {
+	auto& particle_system = *scene.GetSystem<ParticleSystem>();
+	PhysicsParamsUBO& params_ubo = particle_system.parameters;
+
+	if (ImGui::Button("Restart sim"))
+		particle_system.InitializeSimulation();
+
+	static int num_particles = particle_system.GetNumParticles();
+	if (ImGui::InputInt("Num particles", &num_particles)) {
+		particle_system.SetNumParticles(num_particles);
+	}
+
+	ImGui::DragFloat("Particle restitution", &params_ubo.particle_restitution, 0.01f);
+	//ImGui::DragFloat("Timestep", &params_ubo.particle_restitution, 0.01f);
+	ImGui::DragFloat("Friction coefficient", &params_ubo.friction_coefficient, 0.01f);
+	ImGui::DragFloat("Repulsion factor", &params_ubo.repulsion_factor, 0.01f);
+	ImGui::DragFloat("Penetration slop", &params_ubo.penetration_slop, 0.01f);
+	ImGui::DragFloat("Restitution slop", &params_ubo.restitution_slop, 0.01f);
+	ImGui::DragFloat("Sleep threshold", &params_ubo.sleep_threshold, 0.01f);
+}
+
+
 void EditorLayer::InitGBuffer(glm::vec2 internal_render_dim) {
 	// Create depth image
 	auto depth_format = FindDepthFormat();
@@ -733,6 +755,7 @@ void EditorLayer::OnImGuiRender() {
 		}
 
 		ImGui::Checkbox("Particles updating", &scene.GetSystem<ParticleSystem>()->active);
+		PhysicsParamsUI();
 
 		ImGui::Text(std::to_string(ImGui::GetIO().Framerate).c_str());
 		Entity* p_right_clicked_entity = nullptr;

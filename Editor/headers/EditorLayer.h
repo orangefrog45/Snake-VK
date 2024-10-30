@@ -40,7 +40,6 @@ namespace SNAKE {
 		[[nodiscard]] DialogBox* CreateDialogBox();
 		void ErrorMessagePopup(const std::string& err);
 
-
 		Scene scene;
 
 		Image2D internal_render_image;
@@ -53,6 +52,23 @@ namespace SNAKE {
 
 		RT raytracing;
 	private:
+		void InitRenderResources();
+		void InitGBuffer(glm::vec2 internal_render_dim);
+
+		bool CreateEntityPopup(bool open_condition);
+		bool ModifyEntityPopup(bool open_condition, Entity* p_ent);
+
+		void LoadProject(const std::string& project_path);
+		void SaveProject();
+
+		void PromptCreateNewProject();
+		void CreateProject(const std::string& directory, const std::string& project_name);
+
+		void ToolbarGUI();
+		void PhysicsParamsUI();
+		void RendererSettingsWindow();
+		void RenderDialogBoxes();
+
 		// TODO: move these elsewhere
 		glm::mat4 m_prev_frame_projection_matrix;
 		glm::mat4 m_prev_frame_view_matrix;
@@ -64,24 +80,6 @@ namespace SNAKE {
 		StreamlinePasses m_streamline;
 
 		EventListener m_window_resize_listener;
-
-		void InitRenderResources();
-
-		void InitGBuffer(glm::vec2 internal_render_dim);
-		void RenderDialogBoxes();
-
-		bool CreateEntityPopup(bool open_condition);
-		bool ModifyEntityPopup(bool open_condition, Entity* p_ent);
-
-		void LoadProject(const std::string& project_path);
-		void SaveProject();
-
-		void ToolbarGUI();
-		
-		void PromptCreateNewProject();
-		void CreateProject(const std::string& directory, const std::string& project_name);
-
-		void RendererSettingsWindow();
 
 		std::array<CommandBuffer, MAX_FRAMES_IN_FLIGHT> m_gbuffer_cmd_buffers;
 		std::array<CommandBuffer, MAX_FRAMES_IN_FLIGHT> m_rt_cmd_buffers;

@@ -37,6 +37,10 @@ namespace SNAKE {
 		void MemoryBarrier(vk::AccessFlagBits src_access_mask, vk::AccessFlagBits dst_access_mask, vk::PipelineStageFlagBits src_stage, 
 			vk::PipelineStageFlagBits dst_stage, vk::CommandBuffer buf = {});
 
+		bool IsCreated() {
+			return buffer != VK_NULL_HANDLE;
+		}
+
 		DescriptorGetInfo CreateDescriptorGetInfo() const;
 
 		vk::DeviceAddress GetDeviceAddress() const {

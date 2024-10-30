@@ -124,6 +124,7 @@ namespace SNAKE {
 			m_pipeline = std::move(pipeline);
 			pipeline_layout.pipeline_layout = std::move(builder.pipeline_layout.pipeline_layout);
 			pipeline_layout.descriptor_set_layouts = std::move(builder.pipeline_layout.descriptor_set_layouts);
+			pipeline_layout.reflected_descriptor_specs = std::move(builder.pipeline_layout.reflected_descriptor_specs);
 		}
 
 		vk::Pipeline GetPipeline() {

@@ -130,7 +130,6 @@ namespace SNAKE {
 				set_spec->GenDescriptorLayout();
 			}
 
-
 			return shader_module;
 		}
 	};
