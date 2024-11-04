@@ -53,8 +53,8 @@ float floatConstruct( uint m ) {
 
 
 
-// Pseudo-random value in range [-1:1].
-float random( float x ) { return floatConstruct(hash(floatBitsToUint(x))) * 2.0 - 1.0; }
+// Pseudo-random value in range [0:1].
+float random( float x ) { return floatConstruct(hash(floatBitsToUint(x))); }
 
 vec3 random(vec3 seed) {
   return vec3(random(seed.x), random(seed.y), random(seed.z));

@@ -13,8 +13,9 @@ namespace SNAKE {
 		};
 
 		struct MeshRenderData {
-			MeshRenderData(std::vector<AssetRef<MaterialAsset>> const* m, uint32_t _transform_buffer_idx) : material_vec(m), transform_buffer_idx(_transform_buffer_idx) {}
-			std::vector<AssetRef<MaterialAsset>> const* material_vec;
+			MeshRenderData(const std::vector<AssetRef<MaterialAsset>>& m, uint32_t _transform_buffer_idx) : material_vec(m), transform_buffer_idx(_transform_buffer_idx) {}
+			// A copy of material pointers for this mesh
+			std::vector<AssetRef<MaterialAsset>> material_vec;
 			uint32_t transform_buffer_idx;
 		};
 

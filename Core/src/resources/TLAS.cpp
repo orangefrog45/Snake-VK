@@ -7,7 +7,7 @@
 
 using namespace SNAKE;
 
-void TLAS::BuildFromInstances(const std::vector<vk::AccelerationStructureInstanceKHR>& instances) {
+void TLAS::BuildFromInstances(const std::vector<vk::AccelerationStructureInstanceKHR>& instances, vk::CommandBuffer cmd) {
 	uint32_t max_primitive_count = 0;
 
 	for (auto* p_mesh : AssetManager::GetView<MeshDataAsset, true>()) {
@@ -68,9 +68,15 @@ void TLAS::BuildFromInstances(const std::vector<vk::AccelerationStructureInstanc
 	as_build_range_info.firstVertex = 0;
 	as_build_range_info.transformOffset = 0;
 
-	auto cmd = BeginSingleTimeCommands();
-	cmd->buildAccelerationStructuresKHR(as_build_geom_info, &as_build_range_info);
-	EndSingleTimeCommands(*cmd);
+	cmd.reset();
+	vk::CommandBufferBeginInfo begin_info{};
+	SNK_CHECK_VK_RESULT(cmd.begin(begin_info));
+	cmd.buildAccelerationStructuresKHR(as_build_geom_info, &as_build_range_info);
+	SNK_CHECK_VK_RESULT(cmd.end());
+	vk::SubmitInfo si{};
+	si.pCommandBuffers = &cmd;
+	si.commandBufferCount = 1;
+	VkContext::GetLogicalDevice().SubmitGraphics(si);
 
 	vk::AccelerationStructureDeviceAddressInfoKHR device_address_info{};
 	device_address_info.accelerationStructure = *m_as;

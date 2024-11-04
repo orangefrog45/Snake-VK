@@ -23,8 +23,6 @@ void TAA_ResolvePass::Init() {
 		vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTopOfPipe);
 
 	for (FrameInFlightIndex i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-		m_cmd_buffers[i].Init(vk::CommandBufferLevel::ePrimary);
-
 		m_descriptor_buffers[i].SetDescriptorSpec(m_pipeline.pipeline_layout.GetDescriptorSetLayout(0));
 		m_descriptor_buffers[i].CreateBuffer(1);
 		auto output_image_get_info = mp_output_image->CreateDescriptorGetInfo(vk::ImageLayout::eGeneral, vk::DescriptorType::eStorageImage);
@@ -38,14 +36,10 @@ void TAA_ResolvePass::Init() {
 	}
 }
 
-vk::CommandBuffer TAA_ResolvePass::RecordCommandBuffer() {
+void TAA_ResolvePass::RecordCommandBuffer(vk::CommandBuffer cmd) {
 	FrameInFlightIndex fif = VkContext::GetCurrentFIF();
 
-	auto& cmd = *m_cmd_buffers[fif].buf;
-	vk::CommandBufferBeginInfo begin_info{};
-	SNK_CHECK_VK_RESULT(cmd.begin(begin_info));
 	cmd.bindPipeline(vk::PipelineBindPoint::eCompute, m_pipeline.GetPipeline());
-
 	auto binding_infos = util::array(m_descriptor_buffers[fif].GetBindingInfo());
 	cmd.bindDescriptorBuffersEXT(binding_infos);
 	uint32_t offset = 0u;
@@ -59,8 +53,4 @@ vk::CommandBuffer TAA_ResolvePass::RecordCommandBuffer() {
 
 	mp_velocity_image->BlitTo(m_prev_frame_velocity_image, 0, 0, vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
 		vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eShaderReadOnlyOptimal, vk::Filter::eNearest, std::nullopt, cmd);
-
-	SNK_CHECK_VK_RESULT(cmd.end());
-
-	return cmd;
 }

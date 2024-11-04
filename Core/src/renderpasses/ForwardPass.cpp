@@ -125,7 +125,7 @@ namespace SNAKE {
 			for (uint32_t i = range.start_idx; i < range.start_idx + range.count; i++) {
 				cmd_buffer.pushConstants(m_graphics_pipeline.pipeline_layout.GetPipelineLayout(), vk::ShaderStageFlagBits::eAllGraphics, 0, sizeof(uint32_t), &i);
 				for (auto& submesh : mesh_asset->data->submeshes) {
-					uint32_t mat_index = (*snapshot.static_mesh_data[i].material_vec)[submesh.material_index]->GetGlobalBufferIndex();
+					uint32_t mat_index = (snapshot.static_mesh_data[i].material_vec)[submesh.material_index]->GetGlobalBufferIndex();
 					cmd_buffer.pushConstants(m_graphics_pipeline.pipeline_layout.GetPipelineLayout(), vk::ShaderStageFlagBits::eAllGraphics, sizeof(uint32_t), sizeof(uint32_t), &mat_index);
 					cmd_buffer.drawIndexed(submesh.num_indices, 1, submesh.base_index, submesh.base_vertex, 0);
 				}

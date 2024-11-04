@@ -159,7 +159,7 @@ void GBufferPass::RecordCommandBuffer(GBufferResources& output, Scene& scene, gl
 			cmd_buffer.pushConstants(m_mesh_pipeline.pipeline_layout.GetPipelineLayout(), vk::ShaderStageFlagBits::eAll, 0, sizeof(uint32_t), &pc.transform_idx);
 
 			for (auto& submesh : mesh_asset->data->submeshes) {
-				pc.material_idx = (*snapshot.static_mesh_data[i].material_vec)[submesh.material_index]->GetGlobalBufferIndex();
+				pc.material_idx = (snapshot.static_mesh_data[i].material_vec)[submesh.material_index]->GetGlobalBufferIndex();
 				cmd_buffer.pushConstants(m_mesh_pipeline.pipeline_layout.GetPipelineLayout(), vk::ShaderStageFlagBits::eAll, sizeof(uint32_t), sizeof(uint32_t), &pc.material_idx);
 				cmd_buffer.drawIndexed(submesh.num_indices, 1, submesh.base_index, submesh.base_vertex, 0);
 			}

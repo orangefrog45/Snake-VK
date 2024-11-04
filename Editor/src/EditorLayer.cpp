@@ -301,6 +301,7 @@ void EditorLayer::OnInit() {
 	for (FrameInFlightIndex i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
 		m_gbuffer_cmd_buffers[i].Init(vk::CommandBufferLevel::ePrimary);
 		m_rt_cmd_buffers[i].Init(vk::CommandBufferLevel::ePrimary);
+		m_final_blit_cmd_buffers[i].Init(vk::CommandBufferLevel::ePrimary);
 	}
 
 	editor_executable_dir = std::filesystem::current_path().string();
@@ -474,10 +475,10 @@ void EditorLayer::OnUpdate() {
 	static float e = 0.f;
 	e += 0.5f;
 
-	auto& entities = scene.GetEntities();
+
 	if (auto* p_ent = scene.GetEntity("Spinner")) {
 		auto* p_transform0 = p_ent->GetComponent<TransformComponent>();
-		p_transform0->SetOrientation(0.f, e*10.f, 0.f);
+		p_transform0->SetOrientation(0.f, e*1.f, 0.f);
 		//p_transform0->SetPosition(sin(e * 0.01) * 20.f, 0.f, 0.f);
 	}
 
@@ -577,42 +578,41 @@ void EditorLayer::OnRender() {
 	if (m_render_settings.dlss_preset != 0)
 		m_streamline.EvaluateDLSS(*m_rt_cmd_buffers[fif].buf, gbuffer, internal_render_image, display_render_image);
 
-	SNK_CHECK_VK_RESULT(m_rt_cmd_buffers[fif].buf->end());
-
 	//VkRenderer::RecordRenderDebugCommands(*m_cmd_buffers[VkContext::GetCurrentFIF()].buf, render_image, depth_image, 
 	//	scene.GetSystem<SceneInfoBufferSystem>()->descriptor_buffers[VkContext::GetCurrentFIF()]);
 
 	if (m_render_settings.using_taa) {
+		m_taa_resolve_pass.RecordCommandBuffer(*m_rt_cmd_buffers[fif].buf);
 		submit_info_graphics.pSignalSemaphores = &*m_compute_graphics_semaphore;
 		submit_info_graphics.signalSemaphoreCount = 1;
 	}
+
+	SNK_CHECK_VK_RESULT(m_rt_cmd_buffers[fif].buf->end());
 
 	graphics_cmd_buffers = util::array(*m_rt_cmd_buffers[fif].buf);
 	submit_info_graphics.pCommandBuffers = graphics_cmd_buffers.data();
 	VkContext::GetLogicalDevice().SubmitGraphics(submit_info_graphics);
 
-	if (m_render_settings.using_taa) {
-		auto wait_stage_mask = vk::PipelineStageFlagBits::eAllGraphics | vk::PipelineStageFlagBits::eRayTracingShaderKHR;
-		auto compute_cmd_buffers = util::array(m_taa_resolve_pass.RecordCommandBuffer());
-		vk::SubmitInfo submit_info_compute{};
-		submit_info_compute.commandBufferCount = (uint32_t)compute_cmd_buffers.size();
-		submit_info_compute.pCommandBuffers = compute_cmd_buffers.data();
-		submit_info_compute.waitSemaphoreCount = 1;
-		submit_info_compute.pWaitSemaphores = &*m_compute_graphics_semaphore;
-		submit_info_compute.pWaitDstStageMask = &wait_stage_mask;
-
-		VkContext::GetLogicalDevice().SubmitGraphics(submit_info_compute);
-	}
-
+	auto blit_cmd = *m_final_blit_cmd_buffers[fif].buf;
+	blit_cmd.reset();
+	SNK_CHECK_VK_RESULT(blit_cmd.begin(begin_info));
 	if (m_render_settings.dlss_preset == 0) {
 		internal_render_image.BlitTo(*swapchain_image, 0, 0, vk::ImageLayout::eGeneral, vk::ImageLayout::eUndefined,
-			vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eColorAttachmentOptimal, vk::Filter::eNearest, image_avail_semaphore);
+			vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eColorAttachmentOptimal, vk::Filter::eNearest, std::nullopt, blit_cmd);
 	}
 	else {
 		display_render_image.BlitTo(*swapchain_image, 0, 0, vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eUndefined,
-			vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eColorAttachmentOptimal, vk::Filter::eNearest, image_avail_semaphore);
+			vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eColorAttachmentOptimal, vk::Filter::eNearest, std::nullopt, blit_cmd);
 	}
+	SNK_CHECK_VK_RESULT(blit_cmd.end());
 	
+	submit_info_graphics.pCommandBuffers = &blit_cmd;
+	submit_info_graphics.waitSemaphoreCount = 1;
+	submit_info_graphics.pWaitSemaphores = &image_avail_semaphore;
+	vk::PipelineStageFlags wait_stages = vk::PipelineStageFlagBits::eTransfer;
+	submit_info_graphics.pWaitDstStageMask = &wait_stages;
+	VkContext::GetLogicalDevice().SubmitGraphics(submit_info_graphics);
+
 	asset_editor.Render();
 }
 

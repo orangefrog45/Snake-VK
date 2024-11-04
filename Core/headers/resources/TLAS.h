@@ -4,7 +4,7 @@
 namespace SNAKE {
 	class TLAS : public S_VkResource {
 	public:
-		void BuildFromInstances(const std::vector<vk::AccelerationStructureInstanceKHR>& instances);
+		void BuildFromInstances(const std::vector<vk::AccelerationStructureInstanceKHR>& instances, vk::CommandBuffer cmd);
 
 		void Destroy();
 

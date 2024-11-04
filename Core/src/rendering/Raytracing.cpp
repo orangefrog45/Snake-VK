@@ -226,10 +226,14 @@ void RT::RecordRenderCmdBuf(vk::CommandBuffer cmd, Image2D& output_image, Scene&
 	cmd.bindDescriptorBuffersEXT(binding_infos);
 	cmd.setDescriptorBufferOffsetsEXT(vk::PipelineBindPoint::eRayTracingKHR, pipeline.GetPipelineLayout(), 0, db_indices, db_offsets);
 
+
 	auto& spec = output_image.GetSpec();
 
 	auto& sbt = pipeline.GetSBT();
 	cmd.traceRaysKHR(sbt.address_regions.rgen, sbt.address_regions.rmiss, sbt.address_regions.rhit, sbt.address_regions.callable, spec.size.x, spec.size.y, 1);
+	//output_image.TransitionImageLayout(vk::ImageLayout::eGeneral, vk::ImageLayout::eGeneral,
+		//vk::AccessFlagBits::eShaderWrite, vk::AccessFlagBits::eShaderRead, vk::PipelineStageFlagBits::eRayTracingShaderKHR,
+		//vk::PipelineStageFlagBits::eAllCommands, 0, 1, cmd);
 }
 
 void RT::Init(Scene& scene, Image2D& output_image, std::weak_ptr<const DescriptorSetSpec> common_ubo_set, GBufferResources& gbuffer) {

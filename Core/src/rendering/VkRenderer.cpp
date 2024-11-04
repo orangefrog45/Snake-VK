@@ -51,7 +51,7 @@ void VkRenderer::InitImpl() {
 
 void VkRenderer::RenderImGuiAndPresentImpl(Window& window, Image2D& render_image, vk::ImageView render_image_view) {
 	auto cmd_buf = *imgui_cmd_buffers[VkContext::GetCurrentFIF()].buf;
-	VkContext::GetLogicalDevice().device->resetCommandPool(VkContext::GetCommandPool());
+	cmd_buf.reset();
 	vk::CommandBufferBeginInfo begin_info{};
 	SNK_CHECK_VK_RESULT(cmd_buf.begin(begin_info));
 

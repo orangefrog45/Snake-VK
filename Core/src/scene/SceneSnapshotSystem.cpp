@@ -38,7 +38,7 @@ void SceneSnapshotSystem::TakeSceneSnapshot() {
 		}
 
 		same_mesh_count++;
-		m_snapshot_data.static_mesh_data.emplace_back(&p_mesh->GetMaterials(), p_mesh->GetEntity()->GetComponent<TransformBufferIdxComponent>()->idx);
+		m_snapshot_data.static_mesh_data.emplace_back(p_mesh->GetMaterials(), p_mesh->GetEntity()->GetComponent<TransformBufferIdxComponent>()->idx);
 	}
 
 	if (p_current_mesh)

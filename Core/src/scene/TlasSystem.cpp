@@ -7,7 +7,10 @@ using namespace SNAKE;
 
 void TlasSystem::OnSystemAdd() {
 	for (FrameInFlightIndex i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+		m_cmd_buffers[i].Init(vk::CommandBufferLevel::ePrimary);
 		BuildTlas(i);
+		VkContext::GetLogicalDevice().GraphicsQueueWaitIdle();
+
 	}
 
 	m_frame_start_listener.callback = [&]([[maybe_unused]] Event const* p_event) {
@@ -37,5 +40,10 @@ void TlasSystem::BuildTlas(FrameInFlightIndex idx) {
 		}
 	}
 
-	m_tlas_array[idx].BuildFromInstances(instances);
+	auto cmd = *m_cmd_buffers[VkContext::GetCurrentFIF()].buf;
+
+	m_tlas_array[idx].BuildFromInstances(instances, cmd);
+
+
+
 }

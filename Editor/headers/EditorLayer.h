@@ -83,6 +83,7 @@ namespace SNAKE {
 
 		std::array<CommandBuffer, MAX_FRAMES_IN_FLIGHT> m_gbuffer_cmd_buffers;
 		std::array<CommandBuffer, MAX_FRAMES_IN_FLIGHT> m_rt_cmd_buffers;
+		std::array<CommandBuffer, MAX_FRAMES_IN_FLIGHT> m_final_blit_cmd_buffers;
 
 		struct RenderSettings {
 			bool realloc_render_resources = false;

@@ -6,6 +6,8 @@
 
 namespace SNAKE {
 	using FrameInFlightIndex = uint8_t;
+
+	// THIS SHOULD NEVER BE ABOVE 4
 	constexpr FrameInFlightIndex MAX_FRAMES_IN_FLIGHT = 2;
 
 	class LogicalDevice {

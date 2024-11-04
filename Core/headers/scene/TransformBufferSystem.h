@@ -6,6 +6,7 @@
 #include "Entity.h"
 #include "Scene.h"
 #include "core/VkCommon.h"
+#include "core/VkCommands.h"
 
 
 /* 
@@ -27,20 +28,25 @@ namespace SNAKE {
 			m_transform_event_listener.callback = [this](Event const* p_event) {
 				auto* p_casted = dynamic_cast<ComponentEvent<TransformComponent> const*>(p_event);
 
-				if (p_casted->event_type == ComponentEventType::UPDATED)
-					m_transforms_to_update.push_back(std::make_pair(p_casted->p_component->GetEntity()->GetEnttHandle(), 0));
+				if (p_casted->event_type == ComponentEventType::UPDATED) {
+					m_transforms_to_update.emplace_back(p_casted->p_component->GetEntity()->GetComponent<TransformBufferIdxComponent>()->idx, 
+						p_casted->p_component->GetMatrix());
+				}
 				else if (p_casted->event_type == ComponentEventType::ADDED) {
 					p_casted->p_component->GetEntity()->AddComponent<TransformBufferIdxComponent>(m_current_buffer_idx++);
-					m_transforms_to_update.push_back(std::make_pair(p_casted->p_component->GetEntity()->GetEnttHandle(), 0));
+					m_transforms_to_update.emplace_back(m_current_buffer_idx - 1, p_casted->p_component->GetMatrix());
 				}
 				else if (p_casted->event_type == ComponentEventType::REMOVED) {
 					// Delete all references to this instance from the update queue
 					unsigned deletion_count = 0;
 					std::vector<uint32_t> deletion_indices;
-					entt::entity deleted_entity_handle = p_casted->p_component->GetEntity()->GetEnttHandle();
+					auto* p_idx_comp = p_casted->p_component->GetEntity()->GetComponent<TransformBufferIdxComponent>();
+					if (!p_idx_comp)
+						return;
 
+					auto buffer_idx = p_idx_comp->idx;
 					for (uint32_t i = 0; i < m_transforms_to_update.size(); i++) {
-						if (m_transforms_to_update[i].first == deleted_entity_handle)
+						if (m_transforms_to_update[i].transform_buf_idx == buffer_idx)
 							deletion_indices.push_back(i);
 					}
 
@@ -56,10 +62,6 @@ namespace SNAKE {
 			m_frame_start_event_listener.callback = [this]([[maybe_unused]] Event const* p_event) {
 				uint8_t fif = VkContext::GetCurrentFIF();
 				UpdateTransformBuffer(fif);
-
-				uint8_t old_idx = (uint8_t)glm::min(fif - 1u, MAX_FRAMES_IN_FLIGHT - 1u);
-				// Copy previous frames transforms into current frames "old" transform buffer
-				CopyBuffer(m_transform_storage_buffers[old_idx].buffer, m_prev_frame_transform_storage_buffers[fif].buffer, sizeof(glm::mat4) * 4096);
 			};
 
 			EventManagerG::RegisterListener<FrameStartEvent>(m_frame_start_event_listener);
@@ -70,24 +72,49 @@ namespace SNAKE {
 					VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT);
 
 				m_prev_frame_transform_storage_buffers[i].CreateBuffer(sizeof(glm::mat4) * 4096, vk::BufferUsageFlagBits::eStorageBuffer |
-					vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eTransferDst);
+					vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eTransferDst,
+					VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT);
 
 				m_transform_storage_buffers[i].Map();
+				m_cmd_buffers[i].Init(vk::CommandBufferLevel::ePrimary);
 			}
 		};
 
-		void UpdateTransformBuffer(FrameInFlightIndex idx) {
+		static constexpr uint8_t GetEraseBits() {
+			uint8_t bits = 0u;
+			for (FrameInFlightIndex i = 0u; i < MAX_FRAMES_IN_FLIGHT; i++) {
+				bits = (bits | (1u << i));
+				bits = (bits | (1u << (i + 4)));
+			}
+			return bits;
+		}
+
+		void UpdateTransformBuffer(FrameInFlightIndex fif) {
+			uint32_t current_frame_idx = VkContext::GetCurrentFrameIdx();
+			constexpr uint8_t ERASE_BITS = GetEraseBits();
+
 			for (size_t i = 0; i < m_transforms_to_update.size(); i++) {
-				auto& [ent, update_count] = m_transforms_to_update[i];
-				update_count++;
+				auto& [update_bitset, transform_buf_idx, transform, frame_idx_transform_updated] = m_transforms_to_update[i];
 
-				auto& reg = p_scene->GetRegistry();
-				auto buf_idx = reg.get<TransformBufferIdxComponent>(ent).idx;
+				// If current buffer hasn't been updated with transform, update it
+				if (!(update_bitset & (1u << fif))) {
+					memcpy(reinterpret_cast<std::byte*>(m_transform_storage_buffers[fif].Map()) + transform_buf_idx * sizeof(glm::mat4),
+						&transform, sizeof(glm::mat4));
 
-				memcpy(reinterpret_cast<std::byte*>(m_transform_storage_buffers[idx].Map()) + buf_idx * sizeof(glm::mat4), 
-					&reg.get<TransformComponent>(ent).GetMatrix(), sizeof(glm::mat4));
+					// Update flag that current buffer for this frame has been updated with transform
+					update_bitset = update_bitset | (1u << fif);
+				}
 
-				if (update_count == MAX_FRAMES_IN_FLIGHT) {
+				// If the transform is at least one frame old, update the "old" buffer for this frame with it
+				if ((!(update_bitset & (1u << (fif + 4)))) && (int)frame_idx_transform_updated < ((int)current_frame_idx - 1)) {
+					memcpy(reinterpret_cast<std::byte*>(m_prev_frame_transform_storage_buffers[fif].Map()) + transform_buf_idx * sizeof(glm::mat4),
+						&transform, sizeof(glm::mat4));
+
+					// Update flag that "old" buffer for this frame has been updated with transform
+					update_bitset = update_bitset | (1u << (fif + 4));
+				}
+
+				if (update_bitset == ERASE_BITS) {
 					m_transforms_to_update.erase(m_transforms_to_update.begin() + i);
 					i--;
 				}
@@ -104,13 +131,27 @@ namespace SNAKE {
 		}
 
 	private:
+		std::array<CommandBuffer, MAX_FRAMES_IN_FLIGHT> m_cmd_buffers;
+
 		std::array<S_VkBuffer, MAX_FRAMES_IN_FLIGHT> m_transform_storage_buffers;
 
 		// Contains transform data from last rendered frame, used for motion vectors
 		std::array<S_VkBuffer, MAX_FRAMES_IN_FLIGHT> m_prev_frame_transform_storage_buffers;
 
+		struct TransformUpdateEntry {
+			TransformUpdateEntry(uint32_t _transform_buf_idx, const glm::mat4& _transform) : 
+				transform_buf_idx(_transform_buf_idx), transform(_transform), frame_idx_transform_updated(VkContext::GetCurrentFrameIdx()) {};
+			// First 4 bits represent if the CURRENT transform buffer at FIF=(bit index) has been updated
+			// Last 4 bits represent if the OLD transform buffer at FIF=(bit index - 4) has been updated
+			// Entry is erased once all frames are updated
+			uint8_t update_bitset = 0u;
+			uint32_t transform_buf_idx;
+			glm::mat4 transform;
+			uint32_t frame_idx_transform_updated;
+		};
+
 		// first = entity to update, second = number of times updated (erased when equal to MAX_FRAMES_IN_FLIGHT)
-		std::vector<std::pair<entt::entity, uint8_t>> m_transforms_to_update;
+		std::vector<TransformUpdateEntry> m_transforms_to_update;
 
 		uint32_t m_current_buffer_idx = 0;
 

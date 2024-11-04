@@ -11,7 +11,7 @@ namespace SNAKE {
 
 		void Init();
 
-		vk::CommandBuffer RecordCommandBuffer();
+		void RecordCommandBuffer(vk::CommandBuffer buf);
 	private:
 		Image2D* mp_output_image;
 		Image2D* mp_velocity_image;
@@ -20,7 +20,6 @@ namespace SNAKE {
 		Image2D m_prev_frame_velocity_image;
 
 		ComputePipeline m_pipeline;
-		std::array<CommandBuffer, MAX_FRAMES_IN_FLIGHT> m_cmd_buffers;
 		std::array<DescriptorBuffer, MAX_FRAMES_IN_FLIGHT> m_descriptor_buffers;
 	};
 }

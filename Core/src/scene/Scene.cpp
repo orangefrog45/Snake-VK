@@ -23,8 +23,8 @@ void Scene::AddDefaultSystems() {
 	AddSystem<CameraSystem>();
 	AddSystem<LightBufferSystem>();
 	AddSystem<SceneInfoBufferSystem>();
-	AddSystem<RaytracingInstanceBufferSystem>();
 	AddSystem<TransformBufferSystem>();
+	AddSystem<RaytracingInstanceBufferSystem>();
 	AddSystem<SceneSnapshotSystem>();
 }
 

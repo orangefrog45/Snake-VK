@@ -137,7 +137,9 @@ vec3 ConstrainOffsetWithScene(vec3 offset) {
     );
 
     if (ray_payload.distance > 0.0) { // Collision detected
-        return offset_dir * max((ray_payload.distance - P.position_radius.w * 0.9), 0); // Generate a small overlap for the next iteration
+        // Generate a small overlap for the next iteration
+        // It's still possible for particles to phase through walls if the contact normal pushes them through another wall, but rare
+        return offset_dir * max((ray_payload.distance - P.position_radius.w * 0.9), 0) + ray_payload.contact_normal * P.position_radius.w * 0.05;
     } else {
         return offset;
     }
@@ -203,6 +205,7 @@ void main() {
     
     total_offset = ConstrainOffsetWithScene(total_offset);
 
+    // TODO: Friction should only be applied if on a surface
     const float mass = 1.0;
     float kinetic_energy = 0.5 * mass * dot(new_velocity, new_velocity);
     float friction_energy_loss = mass * length(total_offset) * params_ubo.friction_coefficient;

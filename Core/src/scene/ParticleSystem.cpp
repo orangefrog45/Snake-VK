@@ -25,9 +25,15 @@ void ParticleSystem::OnSystemAdd() {
 		auto fif = VkContext::GetCurrentFIF();
 		unsigned PARTICLE_DATA_SIZE = sizeof(glm::vec4) * 2 * m_num_particles;
 
-		uint8_t old_idx = (uint8_t)glm::min(fif - 1u, MAX_FRAMES_IN_FLIGHT - 1u);
-		CopyBuffer(m_ptcl_buffers[old_idx].buffer, m_ptcl_buffers_prev_frame[fif].buffer, PARTICLE_DATA_SIZE);
-		CopyBuffer(m_ptcl_buffers[old_idx].buffer, m_ptcl_buffers[fif].buffer, PARTICLE_DATA_SIZE);
+		auto cmd = *m_cmd_buffers[fif].buf;
+		cmd.reset();
+
+		vk::CommandBufferBeginInfo begin_info{};
+		SNK_CHECK_VK_RESULT(cmd.begin(begin_info));
+
+		FrameInFlightIndex old_idx = (FrameInFlightIndex)glm::min(fif - 1u, MAX_FRAMES_IN_FLIGHT - 1u);
+		CopyBuffer(m_ptcl_buffers[old_idx].buffer, m_ptcl_buffers_prev_frame[fif].buffer, PARTICLE_DATA_SIZE, 0u, 0u, *m_cmd_buffers[fif].buf);
+		CopyBuffer(m_ptcl_buffers[old_idx].buffer, m_ptcl_buffers[fif].buffer, PARTICLE_DATA_SIZE, 0u, 0u, *m_cmd_buffers[fif].buf);
 
 		memcpy(m_params_buffers[fif].Map(), &parameters, sizeof(PhysicsParamsUBO));
 
@@ -180,6 +186,8 @@ void ParticleSystem::SetNumParticles(uint32_t num_particles) {
 void ParticleSystem::InitializeSimulation() {
 	auto fif = VkContext::GetCurrentFIF();
 	auto cmd = *m_cmd_buffers[fif].buf;
+	VkContext::GetLogicalDevice().GraphicsQueueWaitIdle();
+	cmd.reset();
 	vk::CommandBufferBeginInfo begin_info{};
 	SNK_CHECK_VK_RESULT(cmd.begin(begin_info));
 	cmd.bindPipeline(vk::PipelineBindPoint::eCompute, m_compute_pipelines[ParticleComputeShader::INIT].GetPipeline());
@@ -193,16 +201,15 @@ void ParticleSystem::InitializeSimulation() {
 	cmd.setDescriptorBufferOffsetsEXT(vk::PipelineBindPoint::eCompute, m_compute_pipelines[ParticleComputeShader::INIT].pipeline_layout.GetPipelineLayout(), 0, db_indices, db_offsets);
 
 	cmd.dispatch(m_num_particles, 1, 1);
+	for (FrameInFlightIndex i = 1; i < MAX_FRAMES_IN_FLIGHT; i++) {
+		CopyBuffer(m_ptcl_buffers[i - 1].buffer, m_ptcl_buffers[i].buffer, sizeof(glm::vec4) * 2 * m_num_particles, 0u, 0u, *m_cmd_buffers[fif].buf);
+	}
 	SNK_CHECK_VK_RESULT(cmd.end());
 
 	vk::SubmitInfo submit_info{};
 	submit_info.pCommandBuffers = &cmd;
 	submit_info.commandBufferCount = 1;
 	VkContext::GetLogicalDevice().SubmitGraphics(submit_info);
-
-	for (FrameInFlightIndex i = 1; i < MAX_FRAMES_IN_FLIGHT; i++) {
-		CopyBuffer(m_ptcl_buffers[i - 1].buffer, m_ptcl_buffers[i].buffer, sizeof(glm::vec4) * 2 * m_num_particles);
-	}
 }
 
 struct BitonicSortData {
@@ -219,69 +226,69 @@ void ParticleSystem::UpdateParticles() {
 
 	auto fif = VkContext::GetCurrentFIF();
 	auto cmd = *m_cmd_buffers[fif].buf;
-	cmd.reset();
 
-	vk::CommandBufferBeginInfo begin_info{};
-	SNK_CHECK_VK_RESULT(cmd.begin(begin_info));
-	cmd.bindPipeline(vk::PipelineBindPoint::eCompute, m_compute_pipelines[ParticleComputeShader::CELL_KEY_GENERATION].GetPipeline());
-	std::array<uint32_t, 2> db_indices = { 0, 1 };
-	std::array<vk::DeviceSize, 2> db_offsets = { 0, 0 };
+	for (int i = 0; i < 3; i++) {
+		cmd.bindPipeline(vk::PipelineBindPoint::eCompute, m_compute_pipelines[ParticleComputeShader::CELL_KEY_GENERATION].GetPipeline());
+		std::array<uint32_t, 2> db_indices = { 0, 1 };
+		std::array<vk::DeviceSize, 2> db_offsets = { 0, 0 };
 
-	auto binding_infos = util::array(p_scene->GetSystem<SceneInfoBufferSystem>()->descriptor_buffers[fif].GetBindingInfo(),
-		m_ptcl_compute_descriptor_buffers[fif].GetBindingInfo());
+		auto binding_infos = util::array(p_scene->GetSystem<SceneInfoBufferSystem>()->descriptor_buffers[fif].GetBindingInfo(),
+			m_ptcl_compute_descriptor_buffers[fif].GetBindingInfo());
 	
-	// Fill cell key buffer
-	cmd.bindDescriptorBuffersEXT(binding_infos);
-	cmd.setDescriptorBufferOffsetsEXT(vk::PipelineBindPoint::eCompute, m_compute_pipelines[ParticleComputeShader::CELL_KEY_GENERATION].pipeline_layout.GetPipelineLayout(), 0, db_indices, db_offsets);
-	cmd.dispatch((uint32_t)glm::ceil(m_num_particles / 128.f), 1, 1);
-	m_cell_key_buffers[fif].MemoryBarrier(vk::AccessFlagBits::eShaderWrite, vk::AccessFlagBits::eShaderRead, vk::PipelineStageFlagBits::eComputeShader, vk::PipelineStageFlagBits::eComputeShader, cmd);
+		// Fill cell key buffer
+		cmd.bindDescriptorBuffersEXT(binding_infos);
+		cmd.setDescriptorBufferOffsetsEXT(vk::PipelineBindPoint::eCompute, m_compute_pipelines[ParticleComputeShader::CELL_KEY_GENERATION].pipeline_layout.GetPipelineLayout(), 0, db_indices, db_offsets);
+		cmd.dispatch((uint32_t)glm::ceil(m_num_particles / 128.f), 1, 1);
+		m_cell_key_buffers[fif].MemoryBarrier(vk::AccessFlagBits::eShaderWrite, vk::AccessFlagBits::eShaderRead, vk::PipelineStageFlagBits::eComputeShader, vk::PipelineStageFlagBits::eComputeShader, cmd);
 
-	// Sort cell keys 
-	cmd.bindPipeline(vk::PipelineBindPoint::eCompute, m_compute_pipelines[ParticleComputeShader::BITONIC_CELL_KEY_SORT].GetPipeline());
-	cmd.bindDescriptorBuffersEXT(binding_infos);
-	cmd.setDescriptorBufferOffsetsEXT(vk::PipelineBindPoint::eCompute, m_compute_pipelines[ParticleComputeShader::BITONIC_CELL_KEY_SORT].pipeline_layout.GetPipelineLayout(), 0, db_indices, db_offsets);
+		// Sort cell keys 
+		cmd.bindPipeline(vk::PipelineBindPoint::eCompute, m_compute_pipelines[ParticleComputeShader::BITONIC_CELL_KEY_SORT].GetPipeline());
+		cmd.bindDescriptorBuffersEXT(binding_infos);
+		cmd.setDescriptorBufferOffsetsEXT(vk::PipelineBindPoint::eCompute, m_compute_pipelines[ParticleComputeShader::BITONIC_CELL_KEY_SORT].pipeline_layout.GetPipelineLayout(), 0, db_indices, db_offsets);
 
-	BitonicSortData bitonic_sort_data;
+		BitonicSortData bitonic_sort_data;
 
-	// Ty Sebastian Lague "Coding Adventure: Simulating Fluids"
-	unsigned num_pairs = glm::ceilPowerOfTwo(m_num_particles) / 2;
-	unsigned num_stages = glm::log2(num_pairs * 2u);
+		// Ty Sebastian Lague "Coding Adventure: Simulating Fluids"
+		unsigned num_pairs = glm::ceilPowerOfTwo(m_num_particles) / 2;
+		unsigned num_stages = glm::log2(num_pairs * 2u);
 
-	for (unsigned stage_idx = 0; stage_idx < num_stages; stage_idx++) {
-		for (unsigned step_idx = 0; step_idx < stage_idx + 1; step_idx++) {
-			unsigned group_width = 1 << (stage_idx - step_idx);
-			unsigned group_height = 2 * group_width - 1;
+		for (unsigned stage_idx = 0; stage_idx < num_stages; stage_idx++) {
+			for (unsigned step_idx = 0; step_idx < stage_idx + 1; step_idx++) {
+				unsigned group_width = 1 << (stage_idx - step_idx);
+				unsigned group_height = 2 * group_width - 1;
 
-			bitonic_sort_data.group_width = group_width;
-			bitonic_sort_data.group_height = group_height;
-			bitonic_sort_data.step_idx = step_idx;
-			cmd.pushConstants(m_compute_pipelines[ParticleComputeShader::BITONIC_CELL_KEY_SORT].pipeline_layout.GetPipelineLayout(), vk::ShaderStageFlagBits::eAll, 0, sizeof(BitonicSortData), &bitonic_sort_data);
+				bitonic_sort_data.group_width = group_width;
+				bitonic_sort_data.group_height = group_height;
+				bitonic_sort_data.step_idx = step_idx;
+				cmd.pushConstants(m_compute_pipelines[ParticleComputeShader::BITONIC_CELL_KEY_SORT].pipeline_layout.GetPipelineLayout(), vk::ShaderStageFlagBits::eAll, 0, sizeof(BitonicSortData), &bitonic_sort_data);
 
-			cmd.dispatch((uint32_t)glm::ceil(num_pairs / 128.f), 1, 1);
-			m_cell_key_buffers[fif].MemoryBarrier(vk::AccessFlagBits::eShaderWrite, vk::AccessFlagBits::eShaderRead, vk::PipelineStageFlagBits::eComputeShader, vk::PipelineStageFlagBits::eComputeShader, cmd);
+				cmd.dispatch((uint32_t)glm::ceil(num_pairs / 128.f), 1, 1);
+				m_cell_key_buffers[fif].MemoryBarrier(vk::AccessFlagBits::eShaderWrite, vk::AccessFlagBits::eShaderRead, vk::PipelineStageFlagBits::eComputeShader, vk::PipelineStageFlagBits::eComputeShader, cmd);
+			}
 		}
+
+		// Generate start indices for cell keys
+		cmd.fillBuffer(m_cell_key_start_index_buffers[fif].buffer, 0, m_num_particles * sizeof(uint32_t), ~0u);
+		cmd.bindPipeline(vk::PipelineBindPoint::eCompute, m_compute_pipelines[ParticleComputeShader::CELL_KEY_START_IDX_GENERATION].GetPipeline());
+		cmd.bindDescriptorBuffersEXT(binding_infos);
+		cmd.setDescriptorBufferOffsetsEXT(vk::PipelineBindPoint::eCompute, m_compute_pipelines[ParticleComputeShader::CELL_KEY_START_IDX_GENERATION].pipeline_layout.GetPipelineLayout(), 0, db_indices, db_offsets);
+		cmd.dispatch((uint32_t)glm::ceil(m_num_particles / 128.f), 1, 1);
+		m_cell_key_start_index_buffers[fif].MemoryBarrier(vk::AccessFlagBits::eShaderWrite, vk::AccessFlagBits::eShaderRead, vk::PipelineStageFlagBits::eComputeShader, vk::PipelineStageFlagBits::eRayTracingShaderKHR, cmd);
+
+		// Collision handling
+		auto& sbt = m_ptcl_rt_pipeline.GetSBT();
+		auto binding_infos_rt = util::array(binding_infos[0], m_ptcl_rt_descriptor_buffers[fif].GetBindingInfo());
+		cmd.bindPipeline(vk::PipelineBindPoint::eRayTracingKHR, m_ptcl_rt_pipeline.GetPipeline());
+		cmd.bindDescriptorBuffersEXT(binding_infos_rt);
+		cmd.setDescriptorBufferOffsetsEXT(vk::PipelineBindPoint::eRayTracingKHR, m_ptcl_rt_pipeline.GetPipelineLayout(), 0, db_indices, db_offsets);
+		cmd.traceRaysKHR(sbt.address_regions.rgen, sbt.address_regions.rmiss, sbt.address_regions.rhit, sbt.address_regions.callable, m_num_particles, 1, 1);
+		m_ptcl_result_buffers[fif].MemoryBarrier(vk::AccessFlagBits::eShaderWrite, vk::AccessFlagBits::eTransferRead, vk::PipelineStageFlagBits::eRayTracingShaderKHR, vk::PipelineStageFlagBits::eTransfer, cmd);
+		CopyBuffer(m_ptcl_result_buffers[fif].buffer, m_ptcl_buffers[fif].buffer, m_num_particles * sizeof(glm::vec4) * 2, 0, 0, cmd);
+		m_ptcl_buffers[fif].MemoryBarrier(vk::AccessFlagBits::eTransferRead, vk::AccessFlagBits::eTransferWrite, vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eTransfer, cmd);
+
 	}
-
-	// Generate start indices for cell keys
-	cmd.fillBuffer(m_cell_key_start_index_buffers[fif].buffer, 0, m_num_particles * sizeof(uint32_t), ~0u);
-	cmd.bindPipeline(vk::PipelineBindPoint::eCompute, m_compute_pipelines[ParticleComputeShader::CELL_KEY_START_IDX_GENERATION].GetPipeline());
-	cmd.bindDescriptorBuffersEXT(binding_infos);
-	cmd.setDescriptorBufferOffsetsEXT(vk::PipelineBindPoint::eCompute, m_compute_pipelines[ParticleComputeShader::CELL_KEY_START_IDX_GENERATION].pipeline_layout.GetPipelineLayout(), 0, db_indices, db_offsets);
-	cmd.dispatch((uint32_t)glm::ceil(m_num_particles / 128.f), 1, 1);
-	m_cell_key_start_index_buffers[fif].MemoryBarrier(vk::AccessFlagBits::eShaderWrite, vk::AccessFlagBits::eShaderRead, vk::PipelineStageFlagBits::eComputeShader, vk::PipelineStageFlagBits::eRayTracingShaderKHR, cmd);
-
-	// Collision handling
-	auto& sbt = m_ptcl_rt_pipeline.GetSBT();
-	auto binding_infos_rt = util::array(binding_infos[0], m_ptcl_rt_descriptor_buffers[fif].GetBindingInfo());
-	cmd.bindPipeline(vk::PipelineBindPoint::eRayTracingKHR, m_ptcl_rt_pipeline.GetPipeline());
-	cmd.bindDescriptorBuffersEXT(binding_infos_rt);
-	cmd.setDescriptorBufferOffsetsEXT(vk::PipelineBindPoint::eRayTracingKHR, m_ptcl_rt_pipeline.GetPipelineLayout(), 0, db_indices, db_offsets);
-	cmd.traceRaysKHR(sbt.address_regions.rgen, sbt.address_regions.rmiss, sbt.address_regions.rhit, sbt.address_regions.callable, m_num_particles, 1, 1);
-	m_ptcl_result_buffers[fif].MemoryBarrier(vk::AccessFlagBits::eShaderWrite, vk::AccessFlagBits::eTransferRead, vk::PipelineStageFlagBits::eRayTracingShaderKHR, vk::PipelineStageFlagBits::eTransfer, cmd);
-	CopyBuffer(m_ptcl_result_buffers[fif].buffer, m_ptcl_buffers[fif].buffer, m_num_particles * sizeof(glm::vec4) * 2, 0, 0, cmd);
-	m_ptcl_buffers[fif].MemoryBarrier(vk::AccessFlagBits::eTransferRead, vk::AccessFlagBits::eTransferWrite, vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eTransfer, cmd);
-	SNK_CHECK_VK_RESULT(cmd.end());
 	
+	SNK_CHECK_VK_RESULT(cmd.end());
 	vk::SubmitInfo submit_info{};
 	submit_info.pCommandBuffers = &cmd;
 	submit_info.commandBufferCount = 1;

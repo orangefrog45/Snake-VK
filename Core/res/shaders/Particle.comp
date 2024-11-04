@@ -29,8 +29,8 @@ void Init() {
     ptcl_buf.ptcls[ptcl_idx].position_radius = vec4((vec3(ptcl_idx % box.x, (ptcl_idx % (box.x * box.y)) / box.x, ptcl_idx / (box.x * box.y)) - vec3(box.x, 0, box.z) * 0.5)*0.5, 0.15);
     ptcl_buf.ptcls[ptcl_idx].velocity.xyz = vec3(0);
     WakeParticle(ptcl_buf.ptcls[ptcl_idx]);
-    ptcl_buf.ptcls[ptcl_idx].position_radius.xyz += vec3(-100, 10, 200);
-    ptcl_buf.ptcls[ptcl_idx].velocity.xyz = -vec3(-100, 40, 0) + 0.1 * vec3(sin(ptcl_idx*8.34534), cos(ptcl_idx*5.34342), sin(ptcl_idx*2.3435));
+    ptcl_buf.ptcls[ptcl_idx].position_radius.xyz += vec3(-100, 20, 190);
+    ptcl_buf.ptcls[ptcl_idx].velocity.xyz = -vec3(-100, 0, 0) * 0.0 + 0.1 * vec3(sin(ptcl_idx*8.34534), cos(ptcl_idx*5.34342), sin(ptcl_idx*2.3435));
 }
 
 void GenerateCellKey() {

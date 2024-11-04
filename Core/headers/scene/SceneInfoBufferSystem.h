@@ -2,6 +2,7 @@
 #include "System.h"
 #include "events/EventManager.h"
 #include "core/DescriptorBuffer.h"
+#include "core/VkCommands.h"
 
 namespace SNAKE {
 	class SceneInfoBufferSystem : public System {
@@ -24,6 +25,8 @@ namespace SNAKE {
 		}
 
 	private:
+		std::array<CommandBuffer, MAX_FRAMES_IN_FLIGHT> m_cmd_buffers;
+
 		std::array<S_VkBuffer, MAX_FRAMES_IN_FLIGHT> m_ubos;
 
 		// Ubos containing scene data from previous frames, used for motion vector generation

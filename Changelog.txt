@@ -1,3 +1,6 @@
+4/11/24:
+-Removed all WaitIdle's in main loop and fixed synchronization issues with transform/particle buffers
+
 30/10/24:
 -More stable/performant particle simulation
 -Configurable simulation parameters and reset button
