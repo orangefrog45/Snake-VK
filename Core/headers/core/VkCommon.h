@@ -1,7 +1,6 @@
 #pragma once
 #include "core/VkIncl.h"
 #include "util/util.h"
-#include <vk_mem_alloc.h>
 
 namespace SNAKE {
 

@@ -254,34 +254,34 @@ void EditorLayer::InitGBuffer(glm::vec2 internal_render_dim) {
 	Image2DSpec mat_flag_spec = rma_spec;
 	mat_flag_spec.format = vk::Format::eR16Uint;
 
-	gbuffer.albedo_image.SetSpec(albedo_spec);
-	gbuffer.albedo_image.CreateImage();
-	gbuffer.albedo_image.TransitionImageLayout(vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal, 
+	render_resources.albedo_image.SetSpec(albedo_spec);
+	render_resources.albedo_image.CreateImage();
+	render_resources.albedo_image.TransitionImageLayout(vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal, 
 		vk::AccessFlagBits::eNone, vk::AccessFlagBits::eNone, vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTopOfPipe);
 
-	gbuffer.normal_image.SetSpec(normal_spec);
-	gbuffer.normal_image.CreateImage();
-	gbuffer.normal_image.TransitionImageLayout(vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal,
+	render_resources.normal_image.SetSpec(normal_spec);
+	render_resources.normal_image.CreateImage();
+	render_resources.normal_image.TransitionImageLayout(vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal,
 		vk::AccessFlagBits::eNone, vk::AccessFlagBits::eNone, vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTopOfPipe);
 
-	gbuffer.depth_image.SetSpec(depth_spec);
-	gbuffer.depth_image.CreateImage();
-	gbuffer.depth_image.TransitionImageLayout(vk::ImageLayout::eUndefined,
+	render_resources.depth_image.SetSpec(depth_spec);
+	render_resources.depth_image.CreateImage();
+	render_resources.depth_image.TransitionImageLayout(vk::ImageLayout::eUndefined,
 		(HasStencilComponent(depth_format) ? vk::ImageLayout::eDepthAttachmentOptimal : vk::ImageLayout::eDepthAttachmentOptimal), 0);
 
-	gbuffer.rma_image.SetSpec(rma_spec);
-	gbuffer.rma_image.CreateImage();
-	gbuffer.rma_image.TransitionImageLayout(vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal,
+	render_resources.rma_image.SetSpec(rma_spec);
+	render_resources.rma_image.CreateImage();
+	render_resources.rma_image.TransitionImageLayout(vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal,
 		vk::AccessFlagBits::eNone, vk::AccessFlagBits::eNone, vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTopOfPipe);
 
-	gbuffer.pixel_motion_image.SetSpec(pixel_motion_spec);
-	gbuffer.pixel_motion_image.CreateImage();
-	gbuffer.pixel_motion_image.TransitionImageLayout(vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal,
+	render_resources.pixel_motion_image.SetSpec(pixel_motion_spec);
+	render_resources.pixel_motion_image.CreateImage();
+	render_resources.pixel_motion_image.TransitionImageLayout(vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal,
 		vk::AccessFlagBits::eNone, vk::AccessFlagBits::eNone, vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTopOfPipe);
 
-	gbuffer.mat_flag_image.SetSpec(mat_flag_spec);
-	gbuffer.mat_flag_image.CreateImage();
-	gbuffer.mat_flag_image.TransitionImageLayout(vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal,
+	render_resources.mat_flag_image.SetSpec(mat_flag_spec);
+	render_resources.mat_flag_image.CreateImage();
+	render_resources.mat_flag_image.TransitionImageLayout(vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal,
 		vk::AccessFlagBits::eNone, vk::AccessFlagBits::eNone, vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTopOfPipe);
 }
 
@@ -326,9 +326,9 @@ void EditorLayer::OnInit() {
 	LoadProject("res/project-template");
 
 	InitRenderResources();
-	gbuffer_pass.Init(scene, gbuffer);
+	gbuffer_pass.Init(scene, render_resources);
 
-	raytracing.Init(scene, internal_render_image, scene.GetSystem<SceneInfoBufferSystem>()->descriptor_buffers[0].GetDescriptorSpec(), gbuffer);
+	raytracing.Init(scene, internal_render_image, scene.GetSystem<SceneInfoBufferSystem>()->descriptor_buffers[0].GetDescriptorSpec(), render_resources);
 	m_taa_resolve_pass.Init();
 }
 
@@ -338,12 +338,12 @@ void EditorLayer::InitRenderResources() {
 	if (bool resources_already_created = internal_render_image.ImageIsCreated()) {
 		internal_render_image.DestroyImage();
 		display_render_image.DestroyImage();
-		gbuffer.depth_image.DestroyImage();
-		gbuffer.albedo_image.DestroyImage();
-		gbuffer.rma_image.DestroyImage();
-		gbuffer.pixel_motion_image.DestroyImage();
-		gbuffer.normal_image.DestroyImage();
-		gbuffer.mat_flag_image.DestroyImage();
+		render_resources.depth_image.DestroyImage();
+		render_resources.albedo_image.DestroyImage();
+		render_resources.rma_image.DestroyImage();
+		render_resources.pixel_motion_image.DestroyImage();
+		render_resources.normal_image.DestroyImage();
+		render_resources.mat_flag_image.DestroyImage();
 	}
 
 	m_render_settings.internal_render_dim = { p_window->GetWidth(), p_window->GetHeight() };
@@ -471,10 +471,30 @@ void EditorLayer::OnUpdate() {
 		}
 	}
 
+	auto& entities = scene.GetEntities();
+	if (p_window->input.IsKeyPressed('g')) {
+		for (int i = 0; i < entities.size(); i++) {
+			if (entities[i]->GetComponent<TransformComponent>()->GetScale().y > 99.f) {
+				scene.DeleteEntity(entities[i]);
+				i--;
+			}
+		}
+	}
+
+	if (p_window->input.IsKeyPressed('h')) {
+		for (float x = 0.f; x <= 20.f; x++) {
+			for (float z = 0.f; z <= 20.f; z++) {
+				auto& ent = scene.CreateEntity();
+				auto* p_light = ent.AddComponent<PointlightComponent>();
+				p_light->attenuation.exp = 0.1f;
+				p_light->colour = glm::vec3{ abs(sinf(x * 0.1f * 2.f * glm::pi<float>())), (x + z) / 20.f , abs(cosf(z * 0.1f * 2.f * glm::pi<float>()))} * 3.f;
+				ent.GetComponent<TransformComponent>()->SetPosition(x * 20.f, 5.f, z * 20.f);
+			}
+		}
+	}
 
 	static float e = 0.f;
 	e += 0.5f;
-
 
 	if (auto* p_ent = scene.GetEntity("Spinner")) {
 		auto* p_transform0 = p_ent->GetComponent<TransformComponent>();
@@ -535,48 +555,48 @@ void EditorLayer::OnRender() {
 	m_rt_cmd_buffers[fif].buf->reset();
 	vk::CommandBufferBeginInfo begin_info{};
 	SNK_CHECK_VK_RESULT(m_gbuffer_cmd_buffers[fif].buf->begin(begin_info));
-	gbuffer_pass.RecordCommandBuffer(gbuffer, scene, {p_window->GetWidth(), p_window->GetHeight()}, *m_gbuffer_cmd_buffers[fif].buf);
+	gbuffer_pass.RecordCommandBuffer(render_resources, scene, {p_window->GetWidth(), p_window->GetHeight()}, *m_gbuffer_cmd_buffers[fif].buf);
 	SNK_CHECK_VK_RESULT(m_gbuffer_cmd_buffers[fif].buf->end());
 	VkContext::GetLogicalDevice().SubmitGraphics(submit_info_graphics);
 
 	SNK_CHECK_VK_RESULT(m_rt_cmd_buffers[fif].buf->begin(begin_info));
 
-	gbuffer.albedo_image.TransitionImageLayout(vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eShaderReadOnlyOptimal, vk::AccessFlagBits::eColorAttachmentWrite,
+	render_resources.albedo_image.TransitionImageLayout(vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eShaderReadOnlyOptimal, vk::AccessFlagBits::eColorAttachmentWrite,
 		vk::AccessFlagBits::eShaderRead, vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eRayTracingShaderKHR, 0, 1, 
 		*m_rt_cmd_buffers[fif].buf);
 
-	gbuffer.normal_image.TransitionImageLayout(vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eShaderReadOnlyOptimal, vk::AccessFlagBits::eColorAttachmentWrite,
+	render_resources.normal_image.TransitionImageLayout(vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eShaderReadOnlyOptimal, vk::AccessFlagBits::eColorAttachmentWrite,
 		vk::AccessFlagBits::eShaderRead, vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eRayTracingShaderKHR, 0, 1,
 		*m_rt_cmd_buffers[fif].buf);
 
-	gbuffer.rma_image.TransitionImageLayout(vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eShaderReadOnlyOptimal, vk::AccessFlagBits::eColorAttachmentWrite,
+	render_resources.rma_image.TransitionImageLayout(vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eShaderReadOnlyOptimal, vk::AccessFlagBits::eColorAttachmentWrite,
 		vk::AccessFlagBits::eShaderRead, vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eRayTracingShaderKHR, 0, 1,
 		*m_rt_cmd_buffers[fif].buf);
 
-	gbuffer.depth_image.TransitionImageLayout(vk::ImageLayout::eDepthAttachmentOptimal, vk::ImageLayout::eShaderReadOnlyOptimal, vk::AccessFlagBits::eDepthStencilAttachmentWrite,
+	render_resources.depth_image.TransitionImageLayout(vk::ImageLayout::eDepthAttachmentOptimal, vk::ImageLayout::eShaderReadOnlyOptimal, vk::AccessFlagBits::eDepthStencilAttachmentWrite,
 		vk::AccessFlagBits::eShaderRead, vk::PipelineStageFlagBits::eEarlyFragmentTests, vk::PipelineStageFlagBits::eRayTracingShaderKHR, 0, 1,
 		*m_rt_cmd_buffers[fif].buf);
 
 	raytracing.RecordRenderCmdBuf(*m_rt_cmd_buffers[fif].buf, internal_render_image, scene);
 
-	gbuffer.albedo_image.TransitionImageLayout(vk::ImageLayout::eShaderReadOnlyOptimal, vk::ImageLayout::eColorAttachmentOptimal, vk::AccessFlagBits::eShaderRead,
+	render_resources.albedo_image.TransitionImageLayout(vk::ImageLayout::eShaderReadOnlyOptimal, vk::ImageLayout::eColorAttachmentOptimal, vk::AccessFlagBits::eShaderRead,
 		vk::AccessFlagBits::eColorAttachmentWrite, vk::PipelineStageFlagBits::eRayTracingShaderKHR, vk::PipelineStageFlagBits::eColorAttachmentOutput, 0, 1,
 		*m_rt_cmd_buffers[fif].buf);
 
-	gbuffer.normal_image.TransitionImageLayout(vk::ImageLayout::eShaderReadOnlyOptimal, vk::ImageLayout::eColorAttachmentOptimal, vk::AccessFlagBits::eShaderRead,
+	render_resources.normal_image.TransitionImageLayout(vk::ImageLayout::eShaderReadOnlyOptimal, vk::ImageLayout::eColorAttachmentOptimal, vk::AccessFlagBits::eShaderRead,
 		vk::AccessFlagBits::eColorAttachmentWrite, vk::PipelineStageFlagBits::eRayTracingShaderKHR, vk::PipelineStageFlagBits::eColorAttachmentOutput, 0, 1,
 		*m_rt_cmd_buffers[fif].buf);
 
-	gbuffer.rma_image.TransitionImageLayout(vk::ImageLayout::eShaderReadOnlyOptimal, vk::ImageLayout::eColorAttachmentOptimal, vk::AccessFlagBits::eShaderRead,
+	render_resources.rma_image.TransitionImageLayout(vk::ImageLayout::eShaderReadOnlyOptimal, vk::ImageLayout::eColorAttachmentOptimal, vk::AccessFlagBits::eShaderRead,
 		vk::AccessFlagBits::eColorAttachmentWrite, vk::PipelineStageFlagBits::eRayTracingShaderKHR, vk::PipelineStageFlagBits::eColorAttachmentOutput, 0, 1,
 		*m_rt_cmd_buffers[fif].buf);
 
-	gbuffer.depth_image.TransitionImageLayout(vk::ImageLayout::eShaderReadOnlyOptimal, vk::ImageLayout::eDepthAttachmentOptimal, vk::AccessFlagBits::eDepthStencilAttachmentWrite,
+	render_resources.depth_image.TransitionImageLayout(vk::ImageLayout::eShaderReadOnlyOptimal, vk::ImageLayout::eDepthAttachmentOptimal, vk::AccessFlagBits::eDepthStencilAttachmentWrite,
 		vk::AccessFlagBits::eShaderRead, vk::PipelineStageFlagBits::eEarlyFragmentTests, vk::PipelineStageFlagBits::eRayTracingShaderKHR, 0, 1,
 		*m_rt_cmd_buffers[fif].buf);
 
 	if (m_render_settings.dlss_preset != 0)
-		m_streamline.EvaluateDLSS(*m_rt_cmd_buffers[fif].buf, gbuffer, internal_render_image, display_render_image);
+		m_streamline.EvaluateDLSS(*m_rt_cmd_buffers[fif].buf, render_resources, internal_render_image, display_render_image);
 
 	//VkRenderer::RecordRenderDebugCommands(*m_cmd_buffers[VkContext::GetCurrentFIF()].buf, render_image, depth_image, 
 	//	scene.GetSystem<SceneInfoBufferSystem>()->descriptor_buffers[VkContext::GetCurrentFIF()]);
@@ -592,7 +612,7 @@ void EditorLayer::OnRender() {
 	graphics_cmd_buffers = util::array(*m_rt_cmd_buffers[fif].buf);
 	submit_info_graphics.pCommandBuffers = graphics_cmd_buffers.data();
 	VkContext::GetLogicalDevice().SubmitGraphics(submit_info_graphics);
-
+	VkContext::GetLogicalDevice().GraphicsQueueWaitIdle();
 	auto blit_cmd = *m_final_blit_cmd_buffers[fif].buf;
 	blit_cmd.reset();
 	SNK_CHECK_VK_RESULT(blit_cmd.begin(begin_info));

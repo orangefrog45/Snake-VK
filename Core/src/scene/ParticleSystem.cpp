@@ -11,7 +11,10 @@
 // For integer log
 #include <glm/gtc/integer.hpp>
 
+extern "C" void SortUintsByKey(unsigned* device_keys, unsigned* device_values, unsigned count);
+
 using namespace SNAKE;
+
 
 void ParticleSystem::OnSystemAdd() {
 	for (FrameInFlightIndex i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
@@ -23,7 +26,7 @@ void ParticleSystem::OnSystemAdd() {
 	
 	m_frame_start_listener.callback = [&]([[maybe_unused]] Event const*) {
 		auto fif = VkContext::GetCurrentFIF();
-		unsigned PARTICLE_DATA_SIZE = sizeof(glm::vec4) * 2 * m_num_particles;
+		unsigned PARTICLE_DATA_SIZE = sizeof(glm::vec4) * 3 * m_num_particles;
 
 		auto cmd = *m_cmd_buffers[fif].buf;
 		cmd.reset();
@@ -142,7 +145,7 @@ void ParticleSystem::InitParticles() {
 }
 
 void ParticleSystem::InitBuffers() {
-	unsigned PARTICLE_DATA_SIZE = sizeof(glm::vec4) * 2 * m_num_particles;
+	unsigned PARTICLE_DATA_SIZE = sizeof(glm::vec4) * 3 * m_num_particles;
 	VkContext::GetLogicalDevice().GraphicsQueueWaitIdle();
 
 	for (FrameInFlightIndex i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
@@ -202,7 +205,7 @@ void ParticleSystem::InitializeSimulation() {
 
 	cmd.dispatch(m_num_particles, 1, 1);
 	for (FrameInFlightIndex i = 1; i < MAX_FRAMES_IN_FLIGHT; i++) {
-		CopyBuffer(m_ptcl_buffers[i - 1].buffer, m_ptcl_buffers[i].buffer, sizeof(glm::vec4) * 2 * m_num_particles, 0u, 0u, *m_cmd_buffers[fif].buf);
+		CopyBuffer(m_ptcl_buffers[i - 1].buffer, m_ptcl_buffers[i].buffer, sizeof(glm::vec4) * 3 * m_num_particles, 0u, 0u, *m_cmd_buffers[fif].buf);
 	}
 	SNK_CHECK_VK_RESULT(cmd.end());
 
@@ -221,11 +224,11 @@ struct BitonicSortData {
 void ParticleSystem::UpdateParticles() {
 	SNK_ASSERT(m_ptcl_compute_descriptor_buffers[0].GetDescriptorSpec().lock());
 	SNK_ASSERT(m_ptcl_compute_descriptor_buffers[1].GetDescriptorSpec().lock());
-	if (!active)
-		return;
 
 	auto fif = VkContext::GetCurrentFIF();
 	auto cmd = *m_cmd_buffers[fif].buf;
+	if (!active)
+		goto submit;
 
 	for (int i = 0; i < 3; i++) {
 		cmd.bindPipeline(vk::PipelineBindPoint::eCompute, m_compute_pipelines[ParticleComputeShader::CELL_KEY_GENERATION].GetPipeline());
@@ -283,11 +286,12 @@ void ParticleSystem::UpdateParticles() {
 		cmd.setDescriptorBufferOffsetsEXT(vk::PipelineBindPoint::eRayTracingKHR, m_ptcl_rt_pipeline.GetPipelineLayout(), 0, db_indices, db_offsets);
 		cmd.traceRaysKHR(sbt.address_regions.rgen, sbt.address_regions.rmiss, sbt.address_regions.rhit, sbt.address_regions.callable, m_num_particles, 1, 1);
 		m_ptcl_result_buffers[fif].MemoryBarrier(vk::AccessFlagBits::eShaderWrite, vk::AccessFlagBits::eTransferRead, vk::PipelineStageFlagBits::eRayTracingShaderKHR, vk::PipelineStageFlagBits::eTransfer, cmd);
-		CopyBuffer(m_ptcl_result_buffers[fif].buffer, m_ptcl_buffers[fif].buffer, m_num_particles * sizeof(glm::vec4) * 2, 0, 0, cmd);
+		CopyBuffer(m_ptcl_result_buffers[fif].buffer, m_ptcl_buffers[fif].buffer, m_num_particles * sizeof(glm::vec4) * 3, 0, 0, cmd);
 		m_ptcl_buffers[fif].MemoryBarrier(vk::AccessFlagBits::eTransferRead, vk::AccessFlagBits::eTransferWrite, vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eTransfer, cmd);
 
 	}
 	
+submit:
 	SNK_CHECK_VK_RESULT(cmd.end());
 	vk::SubmitInfo submit_info{};
 	submit_info.pCommandBuffers = &cmd;

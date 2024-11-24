@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.8)
 
-project(SNAKE_VK_CORE)
+project(SNAKE_VK_CORE LANGUAGES CXX)
 
 find_package(Vulkan REQUIRED)
 find_library(SHADERC_LIB shaderc_combined $ENV{VULKAN_SDK}/Lib)
@@ -149,8 +149,7 @@ add_library(SNAKE_VK_CORE
  "headers/scene/SceneSnapshotSystem.h" 
  "src/scene/SceneSnapshotSystem.cpp"
  
- "headers/renderpasses/TAA_ResolvePass.h" "src/renderpasses/TAA_ResolvePass.cpp" "headers/rendering/StreamlineWrapper.h" "src/rendering/StreamlineWrapper.cpp" "headers/renderpasses/StreamlinePasses.h" "src/renderpasses/StreamlinePasses.cpp" "src/scene/TlasSystem.cpp" "headers/scene/TlasSystem.h" "headers/scene/ParticleSystem.h" "src/scene/ParticleSystem.cpp" "src/renderpasses/GBufferPass.cpp")
-
+ "headers/renderpasses/TAA_ResolvePass.h" "src/renderpasses/TAA_ResolvePass.cpp" "headers/rendering/StreamlineWrapper.h" "src/rendering/StreamlineWrapper.cpp" "headers/renderpasses/StreamlinePasses.h" "src/renderpasses/StreamlinePasses.cpp" "src/scene/TlasSystem.cpp" "headers/scene/TlasSystem.h" "headers/scene/ParticleSystem.h" "src/scene/ParticleSystem.cpp" "src/renderpasses/GBufferPass.cpp" "headers/core/Frametiming.h")
 
 target_link_options(SNAKE_VK_CORE PRIVATE -INCREMENTAL -ZI)
 target_compile_options(SNAKE_VK_CORE PRIVATE -ZI)
@@ -160,7 +159,6 @@ headers/pch/pch.h
 )
 
 find_package(spirv_cross_cpp)
-
 
 target_link_libraries(SNAKE_VK_CORE PUBLIC
 ${Vulkan_LIBRARIES}

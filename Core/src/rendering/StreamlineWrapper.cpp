@@ -32,6 +32,8 @@ bool StreamlineWrapper::Init() {
 	pref.numFeaturesToLoad = (uint32_t)features.size();
 	pref.logMessageCallback = SL_LogMessageCallback;
 	pref.renderAPI = sl::RenderAPI::eVulkan;
+	pref.engine = sl::EngineType::eCustom;
+	pref.engineVersion = "0.1";
 	pref.applicationId = 1;
 
 	if (SL_FAILED(res, slInit(pref))) {

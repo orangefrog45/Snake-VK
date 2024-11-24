@@ -1,3 +1,7 @@
+24/11/24:
+-Weighted reservoir sampling for pointlights
+-Particle colour diffusion
+
 4/11/24:
 -Removed all WaitIdle's in main loop and fixed synchronization issues with transform/particle buffers
 

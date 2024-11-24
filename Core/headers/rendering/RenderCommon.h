@@ -22,6 +22,11 @@ namespace SNAKE {
 		Image2D mat_flag_image;
 	};
 
+	struct RaytracingResources : public GBufferResources {
+		// 16-bit RGBA image
+		Image2D reservoir_image;
+	};
+
 
 	inline static float Halton(unsigned frame_idx, unsigned base) {
 		float f = 1.f;

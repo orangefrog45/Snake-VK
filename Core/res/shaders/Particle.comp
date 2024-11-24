@@ -31,6 +31,17 @@ void Init() {
     WakeParticle(ptcl_buf.ptcls[ptcl_idx]);
     ptcl_buf.ptcls[ptcl_idx].position_radius.xyz += vec3(-100, 20, 190);
     ptcl_buf.ptcls[ptcl_idx].velocity.xyz = -vec3(-100, 0, 0) * 0.0 + 0.1 * vec3(sin(ptcl_idx*8.34534), cos(ptcl_idx*5.34342), sin(ptcl_idx*2.3435));
+
+    uint num_ptcls = ptcl_buf.ptcls.length();
+    vec3 ptcl_col = vec3(0);
+    if (ptcl_idx > num_ptcls / 3.0 * 2.0)
+        ptcl_col = vec3(1.0, 0.0, 0.0);
+    else if (ptcl_idx > num_ptcls / 3.0)
+        ptcl_col = vec3(0.0, 1.0, 0.0);
+    else
+        ptcl_col = vec3(0.0, 0.0, 1.0);
+
+    ptcl_buf.ptcls[ptcl_idx].colour.xyz = ptcl_col;
 }
 
 void GenerateCellKey() {

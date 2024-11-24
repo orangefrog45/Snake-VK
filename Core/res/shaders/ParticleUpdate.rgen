@@ -35,7 +35,7 @@ layout(set = 1, binding = 11) uniform PhysicsParamsUBO {
 uint ptcl_idx = gl_LaunchIDEXT.x;
 #define P ptcl_buf.ptcls[ptcl_idx]
 
-uint HandleParticleOnParticleCollision(inout vec3 total_impulse, inout vec3 total_offset) {
+uint HandleParticleOnParticleCollision(inout vec3 total_impulse, inout vec3 total_offset, inout vec3 colour_mix) {
     ivec3 cell_pos = GetParticleCellPos(ptcl_buf.ptcls[ptcl_idx]);
     uint collision_count = 0;
     vec3 total_local_impulse = vec3(0);
@@ -72,6 +72,7 @@ uint HandleParticleOnParticleCollision(inout vec3 total_impulse, inout vec3 tota
                         total_local_offset += contact_normal * (min_dist - dist) * 0.5;
                         impulse += contact_normal / DT * (min_dist - dist - 0.005) * params_ubo.repulsion_factor;
                         total_local_impulse += impulse;
+                        colour_mix = mix(colour_mix, OTHER.colour.xyz, params_ubo.timestep);
 #undef OTHER
                     }
                 }
@@ -186,7 +187,8 @@ void main() {
     
     vec3 total_offset = vec3(0);
     vec3 total_impulse = vec3(0);
-    uint num_collisions = HandleParticleOnParticleCollision(total_impulse, total_offset);
+    vec3 colour_mix = P.colour.xyz;
+    uint num_collisions = HandleParticleOnParticleCollision(total_impulse, total_offset, colour_mix);
     total_impulse.y += CalculateGravity();
 
     if (candidate_payload.distance > 0.f) { // Collision with scene detected
@@ -223,4 +225,5 @@ void main() {
     ptcl_buf_result.ptcls[ptcl_idx].position_radius.xyz = P.position_radius.xyz + total_offset * float(!IsParticleAsleep(P));
     ptcl_buf_result.ptcls[ptcl_idx].position_radius.w = P.position_radius.w;
     ptcl_buf_result.ptcls[ptcl_idx].velocity.xyz = new_velocity * float(!IsParticleAsleep(P));
+    ptcl_buf_result.ptcls[ptcl_idx].colour.xyz = colour_mix;
 }

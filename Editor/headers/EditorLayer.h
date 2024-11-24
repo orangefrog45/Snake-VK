@@ -46,7 +46,7 @@ namespace SNAKE {
 		// Not created/used unless DLSS is active
 		Image2D display_render_image;
 
-		GBufferResources gbuffer;
+		RaytracingResources render_resources;
 
 		ProjectState project;
 
@@ -76,7 +76,7 @@ namespace SNAKE {
 
 		vk::UniqueSemaphore m_compute_graphics_semaphore;
 
-		TAA_ResolvePass m_taa_resolve_pass{ &internal_render_image, &gbuffer.pixel_motion_image };
+		TAA_ResolvePass m_taa_resolve_pass{ &internal_render_image, &render_resources.pixel_motion_image };
 		StreamlinePasses m_streamline;
 
 		EventListener m_window_resize_listener;

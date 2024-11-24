@@ -135,9 +135,6 @@ void main() {
 
   vec3 light = CalcDirectionalLight(v, f0, n, material.roughness, material.metallic, albedo.rgb) * ShadowTest(biased_pos, ssbo_light_data.dir_light.dir.xyz, 10000);
 
-  if (ssbo_light_data.num_pointlights > 0) {
-    light += CalcPointlight(ssbo_light_data.pointlights[0], v, f0, pos, n, material.roughness, material.metallic, albedo.rgb) * ShadowTest(biased_pos, ssbo_light_data.pointlights[0].pos.xyz - biased_pos, 10000);;
-  }
   payload.colour = light;
   payload.normal = n;
   payload.distance = gl_RayTmaxEXT;

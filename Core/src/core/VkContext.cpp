@@ -150,7 +150,7 @@ void VkContext::ICreateLogicalDevice(vk::SurfaceKHR surface, const std::vector<c
 
 void VkContext::ICreateInstance(const char* app_name, PFN_vkCreateInstance create_instance_func) {
 	std::vector<const char*> layers = {
-		"VK_LAYER_KHRONOS_validation"
+		//"VK_LAYER_KHRONOS_validation"
 	};
 
 	std::vector<const char*> extensions = {

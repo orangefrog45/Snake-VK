@@ -1,7 +1,8 @@
 #include "assets/AssetManager.h"
+#include "core/Frametiming.h"
+#include "core/JobSystem.h"
 #include "core/VkContext.h"
 #include "core/VkCommon.h"
-#include "core/JobSystem.h"
 #include "core/App.h"
 #include "events/EventManager.h"
 #include "events/EventsCommon.h"
@@ -117,6 +118,7 @@ void App::MainLoop() {
 
 		window.OnUpdate();
 		glfwPollEvents();
+		FrameTiming::Update();
 	}
 
 	SNK_CHECK_VK_RESULT(VkContext::GetLogicalDevice().device->waitIdle());

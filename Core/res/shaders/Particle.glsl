@@ -3,6 +3,7 @@
 struct Particle {
     vec4 position_radius;
     vec4 velocity; // w component is sleep state (0 = asleep, 1 = awake)
+    vec4 colour;
 };
 
 struct CellKeyEntry {

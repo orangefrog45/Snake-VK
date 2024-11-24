@@ -67,7 +67,7 @@ using namespace SNAKE;
 	//SNK_ASSERT(tlas_handle);
 //}
 
-void RT::InitDescriptorBuffers(Image2D& output_image, Scene& scene, GBufferResources& output_gbuffer, TlasSystem& tlas_system) {
+void RT::InitDescriptorBuffers(Image2D& output_image, Scene& scene, RaytracingResources& output_resources, TlasSystem& tlas_system) {
 	rt_descriptor_set_spec = std::make_shared<DescriptorSetSpec>();
 	rt_descriptor_set_spec->AddDescriptor(0, vk::DescriptorType::eAccelerationStructureKHR, vk::ShaderStageFlagBits::eAll) // TLAS
 		.AddDescriptor(1, vk::DescriptorType::eStorageImage, vk::ShaderStageFlagBits::eRaygenKHR) // Output image
@@ -102,11 +102,11 @@ void RT::InitDescriptorBuffers(Image2D& output_image, Scene& scene, GBufferResou
 		auto get_info_tangent_buf = mesh_buffers.tangent_buf.CreateDescriptorGetInfo();
 		auto get_info_instance_buf = scene.GetSystem<RaytracingInstanceBufferSystem>()->GetStorageBuffer(i).CreateDescriptorGetInfo();
 		auto get_info_light_buf = scene.GetSystem<LightBufferSystem>()->light_ssbos[i].CreateDescriptorGetInfo();
-		auto get_info_albedo_gbuffer_image = output_gbuffer.albedo_image.CreateDescriptorGetInfo(vk::ImageLayout::eGeneral, vk::DescriptorType::eCombinedImageSampler);
-		auto get_info_normal_gbuffer_image = output_gbuffer.normal_image.CreateDescriptorGetInfo(vk::ImageLayout::eGeneral, vk::DescriptorType::eCombinedImageSampler);
-		auto get_info_depth_gbuffer_image = output_gbuffer.depth_image.CreateDescriptorGetInfo(vk::ImageLayout::eGeneral, vk::DescriptorType::eCombinedImageSampler);
-		auto get_info_rma_gbuffer_image = output_gbuffer.rma_image.CreateDescriptorGetInfo(vk::ImageLayout::eGeneral, vk::DescriptorType::eCombinedImageSampler);
-		auto get_info_mat_flag_image = output_gbuffer.mat_flag_image.CreateDescriptorGetInfo(vk::ImageLayout::eGeneral, vk::DescriptorType::eCombinedImageSampler);
+		auto get_info_albedo_gbuffer_image = output_resources.albedo_image.CreateDescriptorGetInfo(vk::ImageLayout::eGeneral, vk::DescriptorType::eCombinedImageSampler);
+		auto get_info_normal_gbuffer_image = output_resources.normal_image.CreateDescriptorGetInfo(vk::ImageLayout::eGeneral, vk::DescriptorType::eCombinedImageSampler);
+		auto get_info_depth_gbuffer_image = output_resources.depth_image.CreateDescriptorGetInfo(vk::ImageLayout::eGeneral, vk::DescriptorType::eCombinedImageSampler);
+		auto get_info_rma_gbuffer_image = output_resources.rma_image.CreateDescriptorGetInfo(vk::ImageLayout::eGeneral, vk::DescriptorType::eCombinedImageSampler);
+		auto get_info_mat_flag_image = output_resources.mat_flag_image.CreateDescriptorGetInfo(vk::ImageLayout::eGeneral, vk::DescriptorType::eCombinedImageSampler);
 		auto* p_transform_buffer_sys = scene.GetSystem<TransformBufferSystem>();
 		auto get_info_transform_buffer = p_transform_buffer_sys->GetTransformStorageBuffer(i).CreateDescriptorGetInfo();
 		auto get_info_transform_buffer_prev_frame = p_transform_buffer_sys->GetLastFramesTransformStorageBuffer(i).CreateDescriptorGetInfo();
@@ -120,11 +120,11 @@ void RT::InitDescriptorBuffers(Image2D& output_image, Scene& scene, GBufferResou
 		rt_descriptor_buffers[i].LinkResource(&mesh_buffers.tangent_buf, get_info_tangent_buf, 6, 0);
 		rt_descriptor_buffers[i].LinkResource(&scene.GetSystem<RaytracingInstanceBufferSystem>()->GetStorageBuffer(i), get_info_instance_buf, 7, 0);
 		rt_descriptor_buffers[i].LinkResource(&scene.GetSystem<LightBufferSystem>()->light_ssbos[i], get_info_light_buf, 8, 0);
-		rt_descriptor_buffers[i].LinkResource(&output_gbuffer.albedo_image, get_info_albedo_gbuffer_image, 9, 0);
-		rt_descriptor_buffers[i].LinkResource(&output_gbuffer.normal_image, get_info_normal_gbuffer_image, 10, 0);
-		rt_descriptor_buffers[i].LinkResource(&output_gbuffer.depth_image, get_info_depth_gbuffer_image, 11, 0);
-		rt_descriptor_buffers[i].LinkResource(&output_gbuffer.rma_image, get_info_rma_gbuffer_image, 12, 0);
-		rt_descriptor_buffers[i].LinkResource(&output_gbuffer.mat_flag_image, get_info_mat_flag_image, 13, 0);
+		rt_descriptor_buffers[i].LinkResource(&output_resources.albedo_image, get_info_albedo_gbuffer_image, 9, 0);
+		rt_descriptor_buffers[i].LinkResource(&output_resources.normal_image, get_info_normal_gbuffer_image, 10, 0);
+		rt_descriptor_buffers[i].LinkResource(&output_resources.depth_image, get_info_depth_gbuffer_image, 11, 0);
+		rt_descriptor_buffers[i].LinkResource(&output_resources.rma_image, get_info_rma_gbuffer_image, 12, 0);
+		rt_descriptor_buffers[i].LinkResource(&output_resources.mat_flag_image, get_info_mat_flag_image, 13, 0);
 		rt_descriptor_buffers[i].LinkResource(&p_transform_buffer_sys->GetTransformStorageBuffer(i), get_info_transform_buffer, 14, 0);
 		rt_descriptor_buffers[i].LinkResource(&p_transform_buffer_sys->GetLastFramesTransformStorageBuffer(i), get_info_transform_buffer_prev_frame, 15, 0);
 	}
@@ -236,9 +236,9 @@ void RT::RecordRenderCmdBuf(vk::CommandBuffer cmd, Image2D& output_image, Scene&
 		//vk::PipelineStageFlagBits::eAllCommands, 0, 1, cmd);
 }
 
-void RT::Init(Scene& scene, Image2D& output_image, std::weak_ptr<const DescriptorSetSpec> common_ubo_set, GBufferResources& gbuffer) {
+void RT::Init(Scene& scene, Image2D& output_image, std::weak_ptr<const DescriptorSetSpec> common_ubo_set, RaytracingResources& resources) {
 	if (auto* p_tlas_system = scene.GetSystem<TlasSystem>(); p_tlas_system) {
-		InitDescriptorBuffers(output_image, scene, gbuffer, *p_tlas_system);
+		InitDescriptorBuffers(output_image, scene, resources, *p_tlas_system);
 	} else {
 		SNK_CORE_ERROR("RT::Init failed, tried to initialize from a scene with no TlasSystem attached");
 		return;

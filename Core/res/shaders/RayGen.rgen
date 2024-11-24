@@ -27,6 +27,7 @@ layout(set = 1, binding = 10) uniform sampler2D sampler_gbuffer_normals;
 layout(set = 1, binding = 11) uniform sampler2D sampler_gbuffer_depth;
 layout(set = 1, binding = 12) uniform sampler2D sampler_gbuffer_rma;
 layout(set = 1, binding = 13) uniform usampler2D sampler_gbuffer_mat_flags;
+layout(set = 1, binding = 16, rgba16) uniform image2D img_reservoirs;
 
 #define LIGHT_BUFFER_DESCRIPTOR_SET_BINDING_OVERRIDE
 #define LIGHT_BUFFER_DESCRIPTOR_SET_IDX 1
@@ -43,35 +44,58 @@ layout(set = 1, binding = 13) uniform usampler2D sampler_gbuffer_mat_flags;
 #define TEX_MAT_DESCRIPTOR_SET_IDX 2
 #include "TexMatBuffers.glsl"
 
+#define LIGHT_RIS_ITERS 32u
+#define INVALID_RESERVOIR_IDX ~0u
 
-vec3 BouncePerfectReflections(vec3 ro, vec3 rd) {
-  vec3 colour_sum = vec3(0);
-  for (uint bounce = 0; bounce < 8; bounce++) {
+struct Reservoir {
+  float w_sum;
+  uint current_light_idx;
+};
 
-    traceRayEXT(
-      as,
-      gl_RayFlagsOpaqueEXT,
-      0xff,
-      0,
-      0,
-      0,
-      ro,
-      0.001,
-      rd, 
-      1000,
-      0
-    );
+float ShadowTest(vec3 ro, vec3 rd, float max_dist) {
+  // Set initially to true, miss shader sets to false
+  shadow_payload.hit = true;
 
-    colour_sum += payload.colour;
-    if (payload.distance < 0.f) {
-      break;
+  uint flags = gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsOpaqueEXT | gl_RayFlagsSkipClosestHitShaderEXT;
+  traceRayEXT(
+    as,
+    flags,
+    0xff,
+    0,
+    0,
+    1,
+    ro,
+    0.001,
+    rd, 
+    max_dist,
+    1
+  );
+
+  return 1.0 - float(shadow_payload.hit);
+}
+
+Reservoir UpdateReservoir(vec3 v, vec3 f0, vec3 world_pos, vec3 n, float roughness, float metallic, vec3 albedo, vec3 biased_pos, uint N) {
+  const ivec2 coord = ivec2(gl_LaunchIDEXT.xy);
+  Reservoir reservoir;
+  reservoir.current_light_idx = INVALID_RESERVOIR_IDX;
+  reservoir.w_sum = 0.0;
+
+  for (uint i = 0u; i < LIGHT_RIS_ITERS; i++) {
+    const uint rnd_idx = uint(gold_noise(vec2(coord), fract(common_ubo.delta_time+sin(N*937.281739)) + i / float(LIGHT_RIS_ITERS)) * float(ssbo_light_data.num_pointlights));
+    float weight = length(CalcPointlight(ssbo_light_data.pointlights[rnd_idx], v, f0, world_pos, n, roughness, metallic, albedo));
+    weight = weight / (1.0 / float(ssbo_light_data.num_pointlights));
+
+    reservoir.w_sum += weight;
+
+    const float rnd = gold_noise(vec2(coord.yx), fract(common_ubo.delta_time*0.1+sin(N*383.48273)) - i / float(LIGHT_RIS_ITERS));
+    if (rnd < weight / reservoir.w_sum) {
+      reservoir.current_light_idx = rnd_idx;
     }
+  }
 
-    ro = ro + rd * payload.distance;
-    rd = normalize(reflect(rd, payload.normal));
-  } 
+  //imageStore(img_reservoirs, coord, vec4(reservoir.w_sum, reservoir.current_weight, uintBitsToFloat(reservoir.current_light_idx), 1.0));
 
-  return colour_sum;
+  return reservoir;
 }
 
 void CreateCoordinateSystem(in vec3 n, out vec3 nt, out vec3 nb) {
@@ -89,13 +113,9 @@ vec3 UniformSampleHemisphere(float r1, float r2) {
   return vec3(sin_theta * cos(phi), r1, sin_theta * sin(phi));
 }
 
-float r(vec2 st) {
-  return fract(sin(dot(st.xy,
-                         vec2(12.9898,78.233)))*
-        43758.5453123);
-}
 
 vec3 BounceDiffuse(vec3 ro, vec3 normal, vec3 reflected_dir, vec3 albedo, float roughness) {
+  return vec3(0);
   vec3 colour_sum = vec3(0);
 
   vec3 nt;
@@ -108,8 +128,12 @@ vec3 BounceDiffuse(vec3 ro, vec3 normal, vec3 reflected_dir, vec3 albedo, float 
 
   float l2_ro = dot(ro, ro);
 
+  float seed = fract(l2_ro+ro.x+ro.y+ro.z+common_ubo.time_elapsed+common_ubo.delta_time);
+  vec2 xy = gl_LaunchIDEXT.xy;
+  xy += fract(vec2(sin(xy.x*1038.283726 + xy.y*common_ubo.delta_time), cos(xy.x*common_ubo.time_elapsed+xy.y*9278.33337)));
   for (uint ray_idx = 0; ray_idx < 8; ray_idx++) {
-    vec3 rnd = UniformSampleHemisphere(random(ray_idx+l2_ro+ro.x+common_ubo.frame_idx), random(ray_idx-l2_ro+ro.y+common_ubo.frame_idx));
+    seed = fract(seed + ray_idx/8.0);
+    vec3 rnd = UniformSampleHemisphere(gold_noise(xy, fract(seed+ray_idx/8.0)), gold_noise(xy, fract(seed+ray_idx/8.0)+0.1));
     vec3 rd = vec3(
       rnd.x * nb.x + rnd.y * normal.x + rnd.z * nt.x,
       rnd.x * nb.y + rnd.y * normal.y + rnd.z * nt.y,
@@ -140,7 +164,7 @@ vec3 BounceDiffuse(vec3 ro, vec3 normal, vec3 reflected_dir, vec3 albedo, float 
     CreateCoordinateSystem(n_inner, nt_inner, nb_inner);
 
     for (uint bounce_idx = 0; bounce_idx < 2; bounce_idx++) {
-      rd = UniformSampleHemisphere(random(bounce_idx+l2_ro+new_pos.x+common_ubo.frame_idx), random(bounce_idx-l2_ro+new_pos.y+common_ubo.frame_idx));
+      rd = UniformSampleHemisphere(gold_noise(xy, fract(seed+bounce_idx*0.5+0.2)), gold_noise(xy, fract(seed+bounce_idx*0.5+0.3)));
       rd = vec3(
       rd.x * nb_inner.x + rd.y * n_inner.x + rd.z * nt_inner.x,
       rd.x * nb_inner.y + rd.y * n_inner.y + rd.z * nt_inner.y,
@@ -160,33 +184,11 @@ vec3 BounceDiffuse(vec3 ro, vec3 normal, vec3 reflected_dir, vec3 albedo, float 
         1000,
         0
       );
-      colour_sum += albedo * payload.colour * 0.25 * max(cos(dot(rd, n_inner)), 0.0);
+      colour_sum += albedo * payload.colour * 0.25 * max(cos(dot(rd, n_inner)), 0.0) / 8.0;
     }
   }
 
-  return colour_sum / (2 * PI);
-}
-
-float ShadowTest(vec3 ro, vec3 rd, float max_dist) {
-  // Set initially to true, miss shader sets to false
-  shadow_payload.hit = true;
-
-  uint flags = gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsOpaqueEXT | gl_RayFlagsSkipClosestHitShaderEXT;
-  traceRayEXT(
-    as,
-    flags,
-    0xff,
-    0,
-    0,
-    1,
-    ro,
-    0.001,
-    rd, 
-    max_dist,
-    1
-  );
-
-  return 1.0 - float(shadow_payload.hit);
+  return colour_sum * (2 * PI);
 }
 
 
@@ -218,9 +220,24 @@ void main() {
   vec3 biased_pos = ro + normal * 0.1;
 
   vec3 light = CalcDirectionalLight(v, f0, normal, rma.r, rma.g, albedo) * ShadowTest(biased_pos, ssbo_light_data.dir_light.dir.xyz, 1000);
+
   if (ssbo_light_data.num_pointlights > 0) {
-    light += CalcPointlight(ssbo_light_data.pointlights[0], v, f0, ro, normal, rma.r, rma.g, albedo.rgb) * ShadowTest(biased_pos, ssbo_light_data.pointlights[0].pos.xyz - biased_pos, 10000);
+    const uint N = 16;
+    for (uint i = 0u; i < N; i++) {
+      Reservoir reservoir = UpdateReservoir(v, f0, ro, normal, rma.r, rma.g, albedo, biased_pos, N);
+      if (reservoir.current_light_idx != INVALID_RESERVOIR_IDX) {
+        float light_dist = length(ssbo_light_data.pointlights[reservoir.current_light_idx].pos.xyz - biased_pos);
+        vec3 pointlight_radiance = CalcPointlight(ssbo_light_data.pointlights[reservoir.current_light_idx], v, f0, ro, normal, rma.r, rma.g, albedo.rgb) * 
+          ShadowTest(biased_pos, (ssbo_light_data.pointlights[reservoir.current_light_idx].pos.xyz - biased_pos) / light_dist, light_dist);
+
+        float p_hat = length(pointlight_radiance);
+
+        pointlight_radiance *= p_hat > 0.0 ? (1.0 / p_hat) * reservoir.w_sum / float(LIGHT_RIS_ITERS) : 0.0;
+        light += pointlight_radiance / 8.0;
+      }
+    }
   }
+
 
   vec3 colour_sum = light;
   colour_sum += BounceDiffuse(biased_pos, normal, r, albedo, rma.r);

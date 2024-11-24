@@ -10,13 +10,13 @@ namespace SNAKE {
 
 	class RT {
 	public:
-		void InitDescriptorBuffers(Image2D& output_image, Scene& scene, struct GBufferResources& output_gbuffer, TlasSystem& tlas_system);
+		void InitDescriptorBuffers(Image2D& output_image, Scene& scene, struct RaytracingResources& output_resources, TlasSystem& tlas_system);
 
 		void InitPipeline(std::weak_ptr<const DescriptorSetSpec> common_ubo_set);
 
 		void RecordRenderCmdBuf(vk::CommandBuffer cmd, Image2D& output_image, Scene& scene);
 
-		void Init(Scene& scene, Image2D& output_image, std::weak_ptr<const DescriptorSetSpec> common_ubo_set, struct GBufferResources& gbuffer);
+		void Init(Scene& scene, Image2D& output_image, std::weak_ptr<const DescriptorSetSpec> common_ubo_set, RaytracingResources& resources);
 	private:
 		EventListener frame_start_listener;
 

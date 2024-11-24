@@ -3,6 +3,7 @@
 #include "scene/CameraSystem.h"
 #include "scene/Scene.h"
 #include "scene/SceneInfoBufferSystem.h"
+#include "core/Frametiming.h"
 #include "core/VkContext.h"
 #include "core/VkCommon.h"
 
@@ -10,12 +11,14 @@ using namespace SNAKE;
 
 
 struct CommonUBO {
-	alignas(16) glm::mat4 view;
-	alignas(16) glm::mat4 proj;
-	alignas(16) glm::mat4 proj_view;
-	alignas(16) glm::vec4 cam_pos;
-	alignas(16) glm::vec4 cam_forward;
-	alignas(16) uint32_t frame_idx;
+	glm::mat4 view;
+	glm::mat4 proj;
+	glm::mat4 proj_view;
+	glm::vec4 cam_pos;
+	glm::vec4 cam_forward;
+	uint32_t frame_idx;
+	float app_time_elapsed;
+	float delta_time;
 };
 
 static CommonUBO s_ubo{};
@@ -70,6 +73,8 @@ void SceneInfoBufferSystem::UpdateUBO(FrameInFlightIndex frame_idx) {
 	s_ubo.view = glm::lookAt(p_transform->GetPosition(), p_transform->GetPosition() + p_transform->forward, glm::vec3(0.f, 1.f, 0.f));
 	s_ubo.proj = p_cam_comp->GetProjectionMatrix();
 	s_ubo.proj_view = s_ubo.proj * s_ubo.view;
+	s_ubo.app_time_elapsed = FrameTiming::GetTotalElapsedTime();
+	s_ubo.delta_time = FrameTiming::GetTimeStep();
 
 	auto* p_cam_transform = p_scene->GetSystem<CameraSystem>()->GetActiveCam()->GetEntity()->GetComponent<TransformComponent>();
 	s_ubo.cam_pos = glm::vec4(p_cam_transform->GetAbsPosition(), 1.f);

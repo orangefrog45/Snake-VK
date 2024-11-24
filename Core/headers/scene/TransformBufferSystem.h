@@ -141,10 +141,12 @@ namespace SNAKE {
 		struct TransformUpdateEntry {
 			TransformUpdateEntry(uint32_t _transform_buf_idx, const glm::mat4& _transform) : 
 				transform_buf_idx(_transform_buf_idx), transform(_transform), frame_idx_transform_updated(VkContext::GetCurrentFrameIdx()) {};
+
 			// First 4 bits represent if the CURRENT transform buffer at FIF=(bit index) has been updated
 			// Last 4 bits represent if the OLD transform buffer at FIF=(bit index - 4) has been updated
 			// Entry is erased once all frames are updated
 			uint8_t update_bitset = 0u;
+
 			uint32_t transform_buf_idx;
 			glm::mat4 transform;
 			uint32_t frame_idx_transform_updated;
