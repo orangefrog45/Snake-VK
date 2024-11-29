@@ -21,8 +21,7 @@ void RaytracingInstanceBufferSystem::OnSystemAdd() {
 
 			// Allocate space for submeshes
 			m_current_buffer_idx += (uint32_t)p_casted->p_component->GetMeshAsset()->data->submeshes.size();
-		}
-		else {
+		} else {
 			// Delete all references to this instance from the update queue
 			unsigned deletion_count = 0;
 			std::vector<uint32_t> deletion_indices;
@@ -49,7 +48,8 @@ void RaytracingInstanceBufferSystem::OnSystemAdd() {
 	};
 
 	m_frame_start_event_listener.callback = [this]([[maybe_unused]] Event const* p_event) {
-		UpdateBuffer(VkContext::GetCurrentFIF());
+		UpdateInstanceBuffer();
+		UpdateEmissiveIdxBuffer();
 		};
 
 	EventManagerG::RegisterListener<FrameStartEvent>(m_frame_start_event_listener);
@@ -57,13 +57,17 @@ void RaytracingInstanceBufferSystem::OnSystemAdd() {
 	EventManagerG::RegisterListener<ComponentEvent<StaticMeshComponent>>(m_mesh_event_listener);
 
 	for (FrameInFlightIndex i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-		m_storage_buffers[i].CreateBuffer(sizeof(InstanceData) * 4096, vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress,
+		m_storage_buffers_instances[i].CreateBuffer(sizeof(InstanceData) * 4096, vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress,
 			VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT);
-		m_storage_buffers[i].Map();
+		m_storage_buffers_emissive_indices[i].CreateBuffer(sizeof(InstanceData) * 4096, vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress,
+			VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT);
+		m_storage_buffers_instances[i].Map();
+		m_storage_buffers_emissive_indices[i].Map();
 	}
 };
 
-void RaytracingInstanceBufferSystem::UpdateBuffer(FrameInFlightIndex idx) {
+void RaytracingInstanceBufferSystem::UpdateInstanceBuffer() {
+	FrameInFlightIndex fif = VkContext::GetCurrentFIF();
 	auto& mesh_buffer_manager = AssetManager::Get().mesh_buffer_manager;
 
 	for (size_t i = 0; i < m_instances_to_update.size(); i++) {
@@ -79,7 +83,6 @@ void RaytracingInstanceBufferSystem::UpdateBuffer(FrameInFlightIndex idx) {
 
 		InstanceData instance_data{
 			.transform_idx = reg.get<TransformBufferIdxComponent>(ent).idx,
-			.flags = 0,
 		};
 
 		for (size_t j = 0; j < p_mesh_asset->data->submeshes.size(); j++) {
@@ -87,7 +90,8 @@ void RaytracingInstanceBufferSystem::UpdateBuffer(FrameInFlightIndex idx) {
 			instance_data.material_idx = mat.GetGlobalBufferIndex();
 			instance_data.mesh_buffer_vertex_offset = mesh_buffer_entry_data.data_start_vertex_idx + p_mesh_asset->data->submeshes[j].base_vertex;
 			instance_data.mesh_buffer_index_offset = mesh_buffer_entry_data.data_start_indices_idx + p_mesh_asset->data->submeshes[j].base_index;
-			memcpy(reinterpret_cast<std::byte*>(m_storage_buffers[idx].Map()) + (buf_idx + j) * sizeof(InstanceData),
+			instance_data.num_mesh_indices = p_mesh_asset->data->submeshes[j].num_indices;
+			memcpy(reinterpret_cast<std::byte*>(m_storage_buffers_instances[fif].Map()) + (buf_idx + j) * sizeof(InstanceData),
 				&instance_data, sizeof(InstanceData));
 		}
 
@@ -98,6 +102,37 @@ void RaytracingInstanceBufferSystem::UpdateBuffer(FrameInFlightIndex idx) {
 	}
 }
 
-const S_VkBuffer& RaytracingInstanceBufferSystem::GetStorageBuffer(FrameInFlightIndex idx) {
-	return m_storage_buffers[idx];
+void RaytracingInstanceBufferSystem::UpdateEmissiveIdxBuffer() {
+	FrameInFlightIndex fif = VkContext::GetCurrentFIF();
+	auto& reg = p_scene->GetRegistry();
+	uint32_t current_idx = 0;
+
+	// Locate indices of any emissive object instances and store these indices in m_storage_buffers_emissive_indices
+	for (auto [entity, rt_instance_comp] : p_scene->GetRegistry().view<RaytracingInstanceBufferIdxComponent>().each()) {
+		auto& mesh = reg.get<StaticMeshComponent>(entity);
+		auto& materials = mesh.GetMaterials();
+		const auto& submeshes = mesh.GetMeshAsset()->data->submeshes;
+		
+		for (size_t i = 0; i < submeshes.size(); i++) {
+			if (materials[submeshes[i].material_index]->flags & (uint32_t)MaterialAsset::MaterialFlagBits::EMISSIVE) {
+				uint32_t emissive_instance_idx = rt_instance_comp.idx + (uint32_t)i;
+
+				memcpy(reinterpret_cast<std::byte*>(m_storage_buffers_emissive_indices[fif].Map()) + (1 + current_idx) * sizeof(uint32_t),
+					&emissive_instance_idx, sizeof(uint32_t));
+
+				current_idx++;
+			}
+		}
+	}
+
+	memcpy(m_storage_buffers_emissive_indices[fif].Map(),
+		&current_idx, sizeof(uint32_t));
+}
+
+const S_VkBuffer& RaytracingInstanceBufferSystem::GetInstanceStorageBuffer(FrameInFlightIndex idx) {
+	return m_storage_buffers_instances[idx];
+}
+
+const S_VkBuffer& RaytracingInstanceBufferSystem::GetEmissiveIdxStorageBuffer(FrameInFlightIndex idx) {
+	return m_storage_buffers_emissive_indices[idx];
 }

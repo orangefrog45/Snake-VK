@@ -149,7 +149,7 @@ add_library(SNAKE_VK_CORE
  "headers/scene/SceneSnapshotSystem.h" 
  "src/scene/SceneSnapshotSystem.cpp"
  
- "headers/renderpasses/TAA_ResolvePass.h" "src/renderpasses/TAA_ResolvePass.cpp" "headers/rendering/StreamlineWrapper.h" "src/rendering/StreamlineWrapper.cpp" "headers/renderpasses/StreamlinePasses.h" "src/renderpasses/StreamlinePasses.cpp" "src/scene/TlasSystem.cpp" "headers/scene/TlasSystem.h" "headers/scene/ParticleSystem.h" "src/scene/ParticleSystem.cpp" "src/renderpasses/GBufferPass.cpp" "headers/core/Frametiming.h")
+ "headers/renderpasses/TAA_ResolvePass.h" "src/renderpasses/TAA_ResolvePass.cpp" "headers/rendering/StreamlineWrapper.h" "src/rendering/StreamlineWrapper.cpp" "headers/renderpasses/StreamlinePasses.h" "src/renderpasses/StreamlinePasses.cpp" "src/scene/TlasSystem.cpp" "headers/scene/TlasSystem.h" "headers/scene/ParticleSystem.h" "src/scene/ParticleSystem.cpp" "src/renderpasses/GBufferPass.cpp" "headers/core/Frametiming.h" "headers/assets/MeshProcessor.h" "src/assets/MeshProcessor.cpp")
 
 target_link_options(SNAKE_VK_CORE PRIVATE -INCREMENTAL -ZI)
 target_compile_options(SNAKE_VK_CORE PRIVATE -ZI)

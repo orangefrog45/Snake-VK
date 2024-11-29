@@ -100,6 +100,29 @@ vec3 FresnelSchlickRoughness(float cos_theta, vec3 F0, float roughness)
 	return F0 + (max(vec3(1.0 - roughness), F0) - F0) * pow(clamp(1.0 - cos_theta, 0.0, 1.0), 5.0);
 }
 
+
+vec3 CookTorranceBRDF(vec3 light_pos, vec3 surface_pos, vec3 v, vec3 f0, vec3 surface_normal, float roughness, float metallic) {
+	vec3 frag_to_light = light_pos - surface_pos;
+	
+	vec3 l = normalize(frag_to_light);
+	vec3 h = normalize(v + l);
+
+	vec3 f = FresnelSchlick(max(dot(h, v), 0.0), f0);
+	float ndf = DistributionGGX(h, surface_normal, roughness);
+	float g = GeometrySmith(v, l, surface_normal, roughness);
+
+	float n_dot_l = max(dot(surface_normal, l), 0.0);
+
+	vec3 num = ndf * g * f;
+	float denom = 4.0 * max(dot(surface_normal, v), 0.0) * max(n_dot_l, 0.0) + 0.0001;
+	vec3 specular = num / denom;
+
+	vec3 kd = vec3(1.0) - f;
+	kd *= 1.0 - metallic;
+
+	return (kd / PI + specular) * n_dot_l;
+}
+
 vec3 CalcDirectionalLight(vec3 v, vec3 f0, vec3 n, float roughness, float metallic, vec3 albedo) {
 	vec3 l = ssbo_light_data.dir_light.dir.xyz;
 	vec3 h = normalize(v + l);
@@ -121,7 +144,6 @@ vec3 CalcDirectionalLight(vec3 v, vec3 f0, vec3 n, float roughness, float metall
 }
 
 
-
 vec3 CalcPointlight(in Pointlight light, vec3 v, vec3 f0, vec3 world_pos, vec3 n, float roughness, float metallic, vec3 albedo) {
 	vec3 frag_to_light = light.pos.xyz - world_pos.xyz;
 
@@ -130,29 +152,8 @@ vec3 CalcPointlight(in Pointlight light, vec3 v, vec3 f0, vec3 world_pos, vec3 n
 		light.atten_linear * distance +
 		light.atten_exp * pow(distance, 2);
 
-	if (attenuation > 5000)
-		return vec3(0);
-
-	vec3 l = normalize(frag_to_light);
-	vec3 h = normalize(v + l);
-
-	vec3 f = FresnelSchlick(max(dot(h, v), 0.0), f0);
-	float ndf = DistributionGGX(h, n, roughness);
-	float g = GeometrySmith(v, l, n, roughness);
-
-	float n_dot_l = max(dot(n, l), 0.0);
-
-	vec3 num = ndf * g * f;
-	float denom = 4.0 * max(dot(n, v), 0.0) * max(n_dot_l, 0.0) + 0.0001;
-	vec3 specular = num / denom;
-
-
-	vec3 kd = vec3(1.0) - f;
-	kd *= 1.0 - metallic;
-
-
-
-	return (kd * albedo / PI + specular) * n_dot_l * (light.colour.xyz / attenuation);
+	vec3 brdf = CookTorranceBRDF(light.pos.xyz, world_pos, v, f0, n, roughness, metallic);
+	return brdf * albedo * light.colour.xyz / attenuation;
 }
 
 
@@ -173,24 +174,7 @@ vec3 CalcSpotlight(Spotlight light, vec3 v, vec3 f0, vec3 world_pos, vec3 n, flo
 	if (attenuation > 5000)
 		return vec3(0);
 
-	vec3 l = normalize(frag_to_light);
-	vec3 h = normalize(v + l);
-
-	vec3 f = FresnelSchlick(max(dot(h, v), 0.0), f0);
-	float ndf = DistributionGGX(h, n, roughness);
-	float g = GeometrySmith(v, l, n, roughness);
-
-	float n_dot_l = max(dot(n, l), 0.0);
-
-	vec3 num = ndf * g * f;
-	float denom = 4.0 * max(dot(n, v), 0.0) * max(n_dot_l, 0.0) + 0.0001;
-	vec3 specular = num / denom;
-
-
-	vec3 kd = vec3(1.0) - f;
-	kd *= 1.0 - metallic;
-
-
+	vec3 brdf = CookTorranceBRDF(light.pos.xyz, world_pos, v, f0, n, roughness, metallic);
 	float spotlight_intensity = (1.0 - (1.0 - spot_factor) / max((1.0 - light.aperture), 1e-5));
-	return max((kd * albedo / PI + specular) * n_dot_l * (light.colour.xyz / attenuation) * spotlight_intensity, vec3(0.0, 0.0, 0.0));
+	return max(brdf * albedo * light.colour.xyz * spotlight_intensity / attenuation, vec3(0.0, 0.0, 0.0));
 }

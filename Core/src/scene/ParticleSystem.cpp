@@ -121,7 +121,7 @@ void ParticleSystem::InitParticles() {
 		auto& tlas = p_scene->GetSystem<TlasSystem>()->GetTlas(i);
 		auto tlas_get_info = tlas.CreateDescriptorGetInfo();
 		auto* p_rt_buf_system = p_scene->GetSystem<RaytracingInstanceBufferSystem>();
-		auto rt_instance_buf_get_info = p_rt_buf_system->GetStorageBuffer(i).CreateDescriptorGetInfo();
+		auto rt_instance_buf_get_info = p_rt_buf_system->GetInstanceStorageBuffer(i).CreateDescriptorGetInfo();
 		auto* p_transform_buffer_system = p_scene->GetSystem<TransformBufferSystem>();
 		auto transform_buf_get_info = p_transform_buffer_system->GetTransformStorageBuffer(i).CreateDescriptorGetInfo();
 		auto transform_buf_prev_frame_get_info = p_transform_buffer_system->GetLastFramesTransformStorageBuffer(i).CreateDescriptorGetInfo();
@@ -131,7 +131,7 @@ void ParticleSystem::InitParticles() {
 		m_ptcl_rt_descriptor_buffers[i].LinkResource(&m_ptcl_buffers[i], ptcl_buf_get_info, 1, 0);
 		m_ptcl_rt_descriptor_buffers[i].LinkResource(&mesh_buffers.indices_buf, index_buf_get_info, 2, 0);
 		m_ptcl_rt_descriptor_buffers[i].LinkResource(&mesh_buffers.normal_buf, normal_buf_get_info, 3, 0);
-		m_ptcl_rt_descriptor_buffers[i].LinkResource(&p_rt_buf_system->GetStorageBuffer(i), rt_instance_buf_get_info, 4, 0);
+		m_ptcl_rt_descriptor_buffers[i].LinkResource(&p_rt_buf_system->GetInstanceStorageBuffer(i), rt_instance_buf_get_info, 4, 0);
 		m_ptcl_rt_descriptor_buffers[i].LinkResource(&p_transform_buffer_system->GetTransformStorageBuffer(i), transform_buf_get_info, 5, 0);
 		m_ptcl_rt_descriptor_buffers[i].LinkResource(&p_transform_buffer_system->GetLastFramesTransformStorageBuffer(i), transform_buf_prev_frame_get_info, 6, 0);
 		m_ptcl_rt_descriptor_buffers[i].LinkResource(&mesh_buffers.position_buf, position_buf_get_info, 7, 0);

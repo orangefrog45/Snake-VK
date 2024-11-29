@@ -18,6 +18,7 @@ layout(set = 1, binding = 3, scalar) readonly buffer VertexNormalBuf { vec3 n[];
 layout(set = 1, binding = 7, scalar) readonly buffer VertexPosBuf { vec3 p[]; } vert_positions;
 #define RAYTRACING_INSTANCE_BUFFER_DESCRIPTOR_SET_IDX 1
 #define RAYTRACING_INSTANCE_BUFFER_DESCRIPTOR_BINDING 4
+#define RAYTRACING_EMISSIVE_BUFFER_DESCRIPTOR_BINDING -1
 #include "RaytracingInstances.glsl"
 
 #define TRANSFORM_BUFFER_DESCRIPTOR_SET_IDX 1

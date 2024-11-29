@@ -481,16 +481,27 @@ void EditorLayer::OnUpdate() {
 		}
 	}
 
+	static float h = 0.f;
+
+	auto cols = util::array(glm::vec3(1, 0, 0), glm::vec3(0, 1, 0), glm::vec3(0, 0, 1));
 	if (p_window->input.IsKeyPressed('h')) {
-		for (float x = 0.f; x <= 20.f; x++) {
+		for (float x = 0.f; x <= 0.5f; x++) {
 			for (float z = 0.f; z <= 20.f; z++) {
 				auto& ent = scene.CreateEntity();
-				auto* p_light = ent.AddComponent<PointlightComponent>();
-				p_light->attenuation.exp = 0.1f;
-				p_light->colour = glm::vec3{ abs(sinf(x * 0.1f * 2.f * glm::pi<float>())), (x + z) / 20.f , abs(cosf(z * 0.1f * 2.f * glm::pi<float>()))} * 3.f;
-				ent.GetComponent<TransformComponent>()->SetPosition(x * 20.f, 5.f, z * 20.f);
+				auto* p_mesh = ent.AddComponent<StaticMeshComponent>();
+				p_mesh->SetMeshAsset(AssetManager::GetAsset<StaticMeshAsset>(AssetManager::CoreAssetIDs::CUBE_MESH));
+				auto mat = AssetManager::CreateAsset<MaterialAsset>();
+				mat->RaiseFlag(MaterialAsset::MaterialFlagBits::EMISSIVE);
+				mat->albedo = glm::vec3{ cols[rand() % 3]} * 10.f;
+				p_mesh->SetMaterial(0, mat);
+				//auto* p_light = ent.AddComponent<PointlightComponent>();
+				//p_light->attenuation.exp = 0.1f;
+				//p_light->colour = glm::vec3{ abs(sinf(x * 0.1f * 2.f * glm::pi<float>())), (x + z) / 20.f , abs(cosf(z * 0.1f * 2.f * glm::pi<float>()))} * 3.f;
+				ent.GetComponent<TransformComponent>()->SetPosition(x * 20.f + rand() % 5, 1.f, (z + h) * 20.f);
+				ent.GetComponent<TransformComponent>()->SetOrientation(rand() % 10, rand() % 10, rand() % 10);
 			}
 		}
+		h += 2.f;
 	}
 
 	static float e = 0.f;

@@ -53,7 +53,6 @@ void MeshBufferManager::LoadMeshFromData(MeshDataAsset* p_mesh_data_asset, MeshD
 	m_index_buf.Resize(aligned_size(m_total_indices * sizeof(unsigned), alignment));
 
 
-
 	// Copy data from newly loaded mesh into new buffer
 	memcpy(p_staging_data, data.positions, data.num_vertices * sizeof(aiVector3D));
 	CopyBuffer(staging_buf.buffer, m_position_buf.buffer, data.num_vertices * sizeof(aiVector3D), 0, prev_total_vertices * sizeof(aiVector3D));
