@@ -113,6 +113,8 @@ void App::MainLoop() {
 		JobSystem::WaitAll();
 		layers.OnImGuiRender();
 
+		EventManagerG::DispatchEvent(FrameEndEvent{});
+
 		vk_context.m_current_fif = (vk_context.m_current_fif + 1) % MAX_FRAMES_IN_FLIGHT;
 		vk_context.m_current_frame_idx++;
 

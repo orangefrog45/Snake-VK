@@ -11,9 +11,11 @@ namespace SNAKE {
 
 		void UpdateUBO(FrameInFlightIndex frame_idx);
 
-		void OnUpdate() override {
-
+		// Call this method whenever the last frames data will be unavailable or incorrect, e.g after a window resize
+		void MarkPreviousFrameAsInvalid() {
+			m_prev_frame_invalid = true;
 		}
+
 		std::array<DescriptorBuffer, MAX_FRAMES_IN_FLIGHT> descriptor_buffers;
 
 		const S_VkBuffer& GetSceneInfoUBO(FrameInFlightIndex idx) {
@@ -25,6 +27,9 @@ namespace SNAKE {
 		}
 
 	private:
+		// Set to false automatically at the start of each frame
+		bool m_prev_frame_invalid = true;
+
 		std::array<CommandBuffer, MAX_FRAMES_IN_FLIGHT> m_cmd_buffers;
 
 		std::array<S_VkBuffer, MAX_FRAMES_IN_FLIGHT> m_ubos;
@@ -35,5 +40,6 @@ namespace SNAKE {
 		std::shared_ptr<DescriptorSetSpec> mp_descriptor_set_spec = nullptr;
 
 		EventListener m_frame_start_listener;
+		EventListener m_frame_end_listener;
 	};
 }

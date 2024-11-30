@@ -86,6 +86,10 @@ void RT::InitDescriptorBuffers(Image2D& output_image, Scene& scene, RaytracingRe
 		.AddDescriptor(14, vk::DescriptorType::eStorageBuffer, vk::ShaderStageFlagBits::eAll) // Transforms
 		.AddDescriptor(15, vk::DescriptorType::eStorageBuffer, vk::ShaderStageFlagBits::eAll) // Transforms (previous frame)
 		.AddDescriptor(16, vk::DescriptorType::eStorageBuffer, vk::ShaderStageFlagBits::eAll) // Raytracing emissive instance idx buffer
+		.AddDescriptor(17, vk::DescriptorType::eStorageBuffer, vk::ShaderStageFlagBits::eRaygenKHR) // Pixel reservoir buffer
+		.AddDescriptor(18, vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eRaygenKHR) // Input gbuffer pixel motion sampler
+		.AddDescriptor(19, vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eRaygenKHR) // Input gbuffer prev frame depth sampler
+		.AddDescriptor(20, vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eRaygenKHR) // Input gbuffer prev frame normal motion sampler
 		.GenDescriptorLayout();
 
 	for (FrameInFlightIndex i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
@@ -112,6 +116,10 @@ void RT::InitDescriptorBuffers(Image2D& output_image, Scene& scene, RaytracingRe
 		auto* p_transform_buffer_sys = scene.GetSystem<TransformBufferSystem>();
 		auto get_info_transform_buffer = p_transform_buffer_sys->GetTransformStorageBuffer(i).CreateDescriptorGetInfo();
 		auto get_info_transform_buffer_prev_frame = p_transform_buffer_sys->GetLastFramesTransformStorageBuffer(i).CreateDescriptorGetInfo();
+		auto get_info_reservoir_buf = output_resources.reservoir_buffer.CreateDescriptorGetInfo();
+		auto get_info_pixel_motion_image = output_resources.pixel_motion_image.CreateDescriptorGetInfo(vk::ImageLayout::eGeneral, vk::DescriptorType::eCombinedImageSampler);
+		auto get_info_prev_depth_image = output_resources.prev_frame_depth_image.CreateDescriptorGetInfo(vk::ImageLayout::eGeneral, vk::DescriptorType::eCombinedImageSampler);
+		auto get_info_prev_normal_image = output_resources.prev_frame_normal_image.CreateDescriptorGetInfo(vk::ImageLayout::eGeneral, vk::DescriptorType::eCombinedImageSampler);
 
 		rt_descriptor_buffers[i].LinkResource(&tlas_system.GetTlas(i), get_info_tlas, 0, 0);
 		rt_descriptor_buffers[i].LinkResource(&output_image, get_info_image, 1, 0);
@@ -130,6 +138,10 @@ void RT::InitDescriptorBuffers(Image2D& output_image, Scene& scene, RaytracingRe
 		rt_descriptor_buffers[i].LinkResource(&p_transform_buffer_sys->GetTransformStorageBuffer(i), get_info_transform_buffer, 14, 0);
 		rt_descriptor_buffers[i].LinkResource(&p_transform_buffer_sys->GetLastFramesTransformStorageBuffer(i), get_info_transform_buffer_prev_frame, 15, 0);
 		rt_descriptor_buffers[i].LinkResource(&scene.GetSystem<RaytracingInstanceBufferSystem>()->GetEmissiveIdxStorageBuffer(i), get_info_emissive_idx_buf, 16, 0);
+		rt_descriptor_buffers[i].LinkResource(&output_resources.reservoir_buffer, get_info_reservoir_buf, 17, 0);
+		rt_descriptor_buffers[i].LinkResource(&output_resources.pixel_motion_image, get_info_pixel_motion_image, 18, 0);
+		rt_descriptor_buffers[i].LinkResource(&output_resources.prev_frame_depth_image, get_info_prev_depth_image, 19, 0);
+		rt_descriptor_buffers[i].LinkResource(&output_resources.prev_frame_normal_image, get_info_prev_normal_image, 20, 0);
 	}
 }
 
@@ -148,6 +160,7 @@ void RT::InitPipeline(std::weak_ptr<const DescriptorSetSpec> common_ubo_set) {
 	layout_builder.AddDescriptorSet(0, common_ubo_set)
 		.AddDescriptorSet(1, rt_descriptor_buffers[0].GetDescriptorSpec())
 		.AddDescriptorSet(2, AssetManager::GetGlobalTexMatBufDescriptorSetSpec(0))
+		.AddPushConstant(0, sizeof(bool), vk::ShaderStageFlagBits::eRaygenKHR)
 		.Build();
 
 	pipeline.Init(pipeline_builder, layout_builder);
@@ -209,7 +222,7 @@ void SBT::Init(vk::Pipeline pipeline, const RtPipelineBuilder& builder) {
 }
 
 
-void RT::RecordRenderCmdBuf(vk::CommandBuffer cmd, Image2D& output_image, Scene& scene) {
+void RT::RecordRenderCmdBuf(vk::CommandBuffer cmd, Image2D& output_image, Scene& scene, RaytracingResources& output_resources) {
 	FrameInFlightIndex fif = VkContext::GetCurrentFIF();
 
 	output_image.TransitionImageLayout(vk::ImageLayout::eUndefined, vk::ImageLayout::eGeneral,
@@ -231,6 +244,16 @@ void RT::RecordRenderCmdBuf(vk::CommandBuffer cmd, Image2D& output_image, Scene&
 
 	auto& spec = output_image.GetSpec();
 	auto& sbt = pipeline.GetSBT();
+
+	uint32_t initial_reservoir_pass = 1;
+	cmd.pushConstants(pipeline.GetPipelineLayout(), vk::ShaderStageFlagBits::eRaygenKHR, 0u, sizeof(uint32_t), &initial_reservoir_pass);
+	cmd.traceRaysKHR(sbt.address_regions.rgen, sbt.address_regions.rmiss, sbt.address_regions.rhit, sbt.address_regions.callable, spec.size.x, spec.size.y, 1);
+
+	output_resources.reservoir_buffer.MemoryBarrier(vk::AccessFlagBits::eShaderWrite, vk::AccessFlagBits::eShaderRead,
+		vk::PipelineStageFlagBits::eRayTracingShaderKHR, vk::PipelineStageFlagBits::eRayTracingShaderKHR, cmd);
+
+	initial_reservoir_pass = 0;
+	cmd.pushConstants(pipeline.GetPipelineLayout(), vk::ShaderStageFlagBits::eRaygenKHR, 0u, sizeof(uint32_t), &initial_reservoir_pass);
 	cmd.traceRaysKHR(sbt.address_regions.rgen, sbt.address_regions.rmiss, sbt.address_regions.rhit, sbt.address_regions.callable, spec.size.x, spec.size.y, 1);
 	//output_image.TransitionImageLayout(vk::ImageLayout::eGeneral, vk::ImageLayout::eGeneral,
 		//vk::AccessFlagBits::eShaderWrite, vk::AccessFlagBits::eShaderRead, vk::PipelineStageFlagBits::eRayTracingShaderKHR,

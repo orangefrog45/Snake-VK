@@ -19,6 +19,7 @@ struct CommonUBO {
 	uint32_t frame_idx;
 	float app_time_elapsed;
 	float delta_time;
+	bool prev_frame_invalid;
 };
 
 static CommonUBO s_ubo{};
@@ -31,7 +32,12 @@ void SceneInfoBufferSystem::OnSystemAdd() {
 		UpdateUBO(fif);
 	};
 
+	m_frame_end_listener.callback = [this]([[maybe_unused]] auto _event) {
+		m_prev_frame_invalid = false;
+		};
+
 	EventManagerG::RegisterListener<FrameStartEvent>(m_frame_start_listener);
+	EventManagerG::RegisterListener<FrameEndEvent>(m_frame_end_listener);
 
 	mp_descriptor_set_spec = std::make_shared<DescriptorSetSpec>();
 	mp_descriptor_set_spec->AddDescriptor(0, vk::DescriptorType::eUniformBuffer, vk::ShaderStageFlagBits::eAll) // Current buffer
@@ -75,6 +81,7 @@ void SceneInfoBufferSystem::UpdateUBO(FrameInFlightIndex frame_idx) {
 	s_ubo.proj_view = s_ubo.proj * s_ubo.view;
 	s_ubo.app_time_elapsed = FrameTiming::GetTotalElapsedTime();
 	s_ubo.delta_time = FrameTiming::GetTimeStep();
+	s_ubo.prev_frame_invalid = m_prev_frame_invalid;
 
 	auto* p_cam_transform = p_scene->GetSystem<CameraSystem>()->GetActiveCam()->GetEntity()->GetComponent<TransformComponent>();
 	s_ubo.cam_pos = glm::vec4(p_cam_transform->GetAbsPosition(), 1.f);

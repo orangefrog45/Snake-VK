@@ -37,6 +37,9 @@ namespace SNAKE {
 
 	};
 
+	struct FrameEndEvent : public Event {
+	};
+
 	struct EngineShutdownEvent : public Event {
 
 	};

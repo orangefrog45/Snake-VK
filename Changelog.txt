@@ -1,3 +1,7 @@
+30/11/24:
+-Temporal resampling of pointlight reservoirs
+-Fixes to WRS
+
 29/11/24:
 -Weighted reservoir sampling for emissive triangle meshes
 

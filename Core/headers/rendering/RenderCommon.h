@@ -1,5 +1,6 @@
 #pragma once
 #include "resources/Images.h"
+#include "resources/S_VkBuffer.h"
 
 namespace SNAKE {
 	struct GBufferResources {
@@ -9,8 +10,14 @@ namespace SNAKE {
 		// 16-bit normals
 		Image2D normal_image;
 
+		// 16-bit normals
+		Image2D prev_frame_normal_image;
+
 		// 32-bit depth
 		Image2D depth_image;
+
+		// 32-bit depth
+		Image2D prev_frame_depth_image;
 
 		// 16-bit RMA
 		Image2D rma_image;
@@ -23,8 +30,8 @@ namespace SNAKE {
 	};
 
 	struct RaytracingResources : public GBufferResources {
-		// 16-bit RGBA image
-		Image2D reservoir_image;
+		// Buffer containing reservoir (pointlight and emissive) data for each pixel
+		S_VkBuffer reservoir_buffer;
 	};
 
 

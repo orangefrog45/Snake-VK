@@ -7,6 +7,9 @@ layout(set = 0, binding = 0) uniform CommonUBO {
     uint frame_idx;
     float time_elapsed;
     float delta_time;
+
+    // If the previous frames data is invalid due to a scene change, window resize etc
+    bool prev_frame_invalid;
 } common_ubo;
 
 layout(set = 0, binding = 1) uniform CommonUBO_PrevFrame {
@@ -18,4 +21,7 @@ layout(set = 0, binding = 1) uniform CommonUBO_PrevFrame {
     uint frame_idx;
     float time_elapsed;
     float delta_time;
+
+    // If the previous frames data is invalid due to a scene change, window resize etc
+    bool prev_frame_invalid;
 } common_ubo_prev_frame;

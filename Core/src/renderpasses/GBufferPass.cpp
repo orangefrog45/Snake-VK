@@ -70,10 +70,11 @@ void GBufferPass::Init(Scene& scene, GBufferResources& output) {
 void GBufferPass::RecordCommandBuffer(GBufferResources& output, Scene& scene, glm::uvec2 output_size, vk::CommandBuffer cmd_buffer) {
 	auto frame_idx = VkContext::GetCurrentFIF();
 
-	output.albedo_image.TransitionImageLayout(vk::ImageLayout::eUndefined,
-		vk::ImageLayout::eColorAttachmentOptimal, 0, 1, cmd_buffer);
-	output.normal_image.TransitionImageLayout(vk::ImageLayout::eUndefined,
-		vk::ImageLayout::eColorAttachmentOptimal, 0, 1, cmd_buffer);
+	output.normal_image.BlitTo(output.prev_frame_normal_image, 0, 0, vk::ImageLayout::eUndefined, vk::ImageLayout::eShaderReadOnlyOptimal,
+		vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eShaderReadOnlyOptimal, vk::Filter::eNearest, std::nullopt, cmd_buffer);
+
+	output.depth_image.BlitTo(output.prev_frame_depth_image, 0, 0, vk::ImageLayout::eDepthAttachmentOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
+		vk::ImageLayout::eDepthAttachmentOptimal, vk::ImageLayout::eShaderReadOnlyOptimal, vk::Filter::eNearest, std::nullopt, cmd_buffer);
 
 	auto depth_attachment_info = output.depth_image.CreateAttachmentInfo(vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore, vk::ImageLayout::eDepthAttachmentOptimal, { 1.f, 1.f, 1.f, 1.f });
 	auto colour_attachments = util::array(
@@ -129,8 +130,6 @@ void GBufferPass::RecordCommandBuffer(GBufferResources& output, Scene& scene, gl
 	std::vector<vk::Buffer> vert_buffers = { buffers.position_buf.buffer, buffers.normal_buf.buffer, buffers.tex_coord_buf.buffer, buffers.tangent_buf.buffer };
 	std::vector<vk::Buffer> index_buffers = { buffers.indices_buf.buffer };
 
-	const auto& snapshot = scene.GetSystem<SceneSnapshotSystem>()->GetSnapshotData();
-
 	GBufferPC pc;
 	{
 		pc.render_resolution = output.albedo_image.GetSpec().size;
@@ -139,6 +138,8 @@ void GBufferPass::RecordCommandBuffer(GBufferResources& output, Scene& scene, gl
 		cmd_buffer.pushConstants(m_mesh_pipeline.pipeline_layout.GetPipelineLayout(), vk::ShaderStageFlagBits::eAll, sizeof(uint32_t) * 4, sizeof(float) * 2, &pc.jitter_offset);
 	}
 
+	const auto& snapshot = scene.GetSystem<SceneSnapshotSystem>()->GetSnapshotData();
+	// Draw all meshes in scene snapshot data
 	for (auto& range : snapshot.mesh_ranges) {
 		auto mesh_asset = AssetManager::GetAssetRaw<StaticMeshAsset>(range.mesh_uuid);
 		auto& mesh_buffer_entry_data = asset_manager.mesh_buffer_manager.GetEntryData(mesh_asset->data.get());

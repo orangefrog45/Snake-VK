@@ -264,10 +264,21 @@ void EditorLayer::InitGBuffer(glm::vec2 internal_render_dim) {
 	render_resources.normal_image.TransitionImageLayout(vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal,
 		vk::AccessFlagBits::eNone, vk::AccessFlagBits::eNone, vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTopOfPipe);
 
+	render_resources.prev_frame_normal_image.SetSpec(normal_spec);
+	render_resources.prev_frame_normal_image.CreateImage();
+	render_resources.prev_frame_normal_image.TransitionImageLayout(vk::ImageLayout::eUndefined, vk::ImageLayout::eShaderReadOnlyOptimal,
+		vk::AccessFlagBits::eNone, vk::AccessFlagBits::eNone, vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTopOfPipe);
+
 	render_resources.depth_image.SetSpec(depth_spec);
 	render_resources.depth_image.CreateImage();
 	render_resources.depth_image.TransitionImageLayout(vk::ImageLayout::eUndefined,
 		(HasStencilComponent(depth_format) ? vk::ImageLayout::eDepthAttachmentOptimal : vk::ImageLayout::eDepthAttachmentOptimal), 0);
+
+	render_resources.prev_frame_depth_image.SetSpec(depth_spec);
+	render_resources.prev_frame_depth_image.CreateImage();
+	render_resources.prev_frame_depth_image.TransitionImageLayout(vk::ImageLayout::eUndefined,
+		(HasStencilComponent(depth_format) ? vk::ImageLayout::eShaderReadOnlyOptimal : vk::ImageLayout::eShaderReadOnlyOptimal),
+		vk::AccessFlagBits::eNone, vk::AccessFlagBits::eNone, vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTopOfPipe);
 
 	render_resources.rma_image.SetSpec(rma_spec);
 	render_resources.rma_image.CreateImage();
@@ -283,6 +294,10 @@ void EditorLayer::InitGBuffer(glm::vec2 internal_render_dim) {
 	render_resources.mat_flag_image.CreateImage();
 	render_resources.mat_flag_image.TransitionImageLayout(vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal,
 		vk::AccessFlagBits::eNone, vk::AccessFlagBits::eNone, vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTopOfPipe);
+
+	constexpr uint32_t PIXEL_RESERVOIR_DATA_SIZE = sizeof(float) * 12;
+	render_resources.reservoir_buffer.CreateBuffer(internal_render_dim.x * internal_render_dim.y * PIXEL_RESERVOIR_DATA_SIZE,
+		vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eStorageBuffer);
 }
 
 void EditorLayer::OnInit() {
@@ -291,7 +306,6 @@ void EditorLayer::OnInit() {
 	};
 
 	EventManagerG::RegisterListener<SwapchainInvalidateEvent>(m_window_resize_listener);
-
 
 	vk::SemaphoreCreateInfo semaphore_info{};
 	auto [semaphore_res, semaphore] = VkContext::GetLogicalDevice().device->createSemaphoreUnique(semaphore_info);
@@ -343,7 +357,10 @@ void EditorLayer::InitRenderResources() {
 		render_resources.rma_image.DestroyImage();
 		render_resources.pixel_motion_image.DestroyImage();
 		render_resources.normal_image.DestroyImage();
+		render_resources.prev_frame_normal_image.DestroyImage();
+		render_resources.prev_frame_depth_image.DestroyImage();
 		render_resources.mat_flag_image.DestroyImage();
+		render_resources.reservoir_buffer.DestroyBuffer();
 	}
 
 	m_render_settings.internal_render_dim = { p_window->GetWidth(), p_window->GetHeight() };
@@ -400,6 +417,7 @@ void EditorLayer::OnFrameStart() {
 		InitRenderResources();
 		m_render_settings.realloc_render_resources = false;
 		c.reset = sl::Boolean::eTrue;
+		scene.GetSystem<SceneInfoBufferSystem>()->MarkPreviousFrameAsInvalid();
 	}
 	else {
 		c.reset = sl::Boolean::eFalse;
@@ -488,15 +506,15 @@ void EditorLayer::OnUpdate() {
 		for (float x = 0.f; x <= 0.5f; x++) {
 			for (float z = 0.f; z <= 20.f; z++) {
 				auto& ent = scene.CreateEntity();
-				auto* p_mesh = ent.AddComponent<StaticMeshComponent>();
-				p_mesh->SetMeshAsset(AssetManager::GetAsset<StaticMeshAsset>(AssetManager::CoreAssetIDs::CUBE_MESH));
-				auto mat = AssetManager::CreateAsset<MaterialAsset>();
-				mat->RaiseFlag(MaterialAsset::MaterialFlagBits::EMISSIVE);
-				mat->albedo = glm::vec3{ cols[rand() % 3]} * 10.f;
-				p_mesh->SetMaterial(0, mat);
-				//auto* p_light = ent.AddComponent<PointlightComponent>();
-				//p_light->attenuation.exp = 0.1f;
-				//p_light->colour = glm::vec3{ abs(sinf(x * 0.1f * 2.f * glm::pi<float>())), (x + z) / 20.f , abs(cosf(z * 0.1f * 2.f * glm::pi<float>()))} * 3.f;
+				//auto* p_mesh = ent.AddComponent<StaticMeshComponent>();
+				//p_mesh->SetMeshAsset(AssetManager::GetAsset<StaticMeshAsset>(AssetManager::CoreAssetIDs::CUBE_MESH));
+				//auto mat = AssetManager::CreateAsset<MaterialAsset>();
+				//mat->RaiseFlag(MaterialAsset::MaterialFlagBits::EMISSIVE);
+				//mat->albedo = glm::vec3{ cols[rand() % 3]} * 10.f;
+				//p_mesh->SetMaterial(0, mat);
+				auto* p_light = ent.AddComponent<PointlightComponent>();
+				p_light->attenuation.exp = 0.1f;
+				p_light->colour = glm::vec3{ abs(sinf(x * 0.1f * 2.f * glm::pi<float>())), (x + z) / 20.f , abs(cosf(z * 0.1f * 2.f * glm::pi<float>()))} * 3.f;
 				ent.GetComponent<TransformComponent>()->SetPosition(x * 20.f + rand() % 5, 1.f, (z + h) * 20.f);
 				ent.GetComponent<TransformComponent>()->SetOrientation(rand() % 10, rand() % 10, rand() % 10);
 			}
@@ -588,7 +606,7 @@ void EditorLayer::OnRender() {
 		vk::AccessFlagBits::eShaderRead, vk::PipelineStageFlagBits::eEarlyFragmentTests, vk::PipelineStageFlagBits::eRayTracingShaderKHR, 0, 1,
 		*m_rt_cmd_buffers[fif].buf);
 
-	raytracing.RecordRenderCmdBuf(*m_rt_cmd_buffers[fif].buf, internal_render_image, scene);
+	raytracing.RecordRenderCmdBuf(*m_rt_cmd_buffers[fif].buf, internal_render_image, scene, render_resources);
 
 	render_resources.albedo_image.TransitionImageLayout(vk::ImageLayout::eShaderReadOnlyOptimal, vk::ImageLayout::eColorAttachmentOptimal, vk::AccessFlagBits::eShaderRead,
 		vk::AccessFlagBits::eColorAttachmentWrite, vk::PipelineStageFlagBits::eRayTracingShaderKHR, vk::PipelineStageFlagBits::eColorAttachmentOutput, 0, 1,
