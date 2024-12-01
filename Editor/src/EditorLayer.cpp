@@ -231,7 +231,7 @@ void EditorLayer::InitGBuffer(glm::vec2 internal_render_dim) {
 	depth_spec.format = depth_format;
 	depth_spec.size = internal_render_dim;
 	depth_spec.tiling = vk::ImageTiling::eOptimal;
-	depth_spec.usage = vk::ImageUsageFlagBits::eDepthStencilAttachment | vk::ImageUsageFlagBits::eSampled;
+	depth_spec.usage = vk::ImageUsageFlagBits::eDepthStencilAttachment | vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eTransferDst;
 	depth_spec.aspect_flags = vk::ImageAspectFlagBits::eDepth | (HasStencilComponent(depth_format) ? vk::ImageAspectFlagBits::eStencil : vk::ImageAspectFlagBits::eNone);
 
 	Image2DSpec albedo_spec{};
@@ -243,6 +243,7 @@ void EditorLayer::InitGBuffer(glm::vec2 internal_render_dim) {
 
 	Image2DSpec normal_spec = albedo_spec;
 	normal_spec.format = vk::Format::eR16G16B16A16Sfloat;
+	normal_spec.usage |= vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eTransferDst;
 
 	Image2DSpec rma_spec = normal_spec;
 	rma_spec.format = vk::Format::eR16G16B16A16Sfloat;
@@ -295,8 +296,9 @@ void EditorLayer::InitGBuffer(glm::vec2 internal_render_dim) {
 	render_resources.mat_flag_image.TransitionImageLayout(vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal,
 		vk::AccessFlagBits::eNone, vk::AccessFlagBits::eNone, vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTopOfPipe);
 
-	constexpr uint32_t PIXEL_RESERVOIR_DATA_SIZE = sizeof(float) * 12;
-	render_resources.reservoir_buffer.CreateBuffer(internal_render_dim.x * internal_render_dim.y * PIXEL_RESERVOIR_DATA_SIZE,
+	constexpr uint32_t PIXEL_RESERVOIR_DATA_SIZE = sizeof(float) * 16;
+	// 2x size as results are written to different part of the buffer
+	render_resources.reservoir_buffer.CreateBuffer(internal_render_dim.x * internal_render_dim.y * PIXEL_RESERVOIR_DATA_SIZE * 2,
 		vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eStorageBuffer);
 }
 
@@ -506,17 +508,18 @@ void EditorLayer::OnUpdate() {
 		for (float x = 0.f; x <= 0.5f; x++) {
 			for (float z = 0.f; z <= 20.f; z++) {
 				auto& ent = scene.CreateEntity();
-				//auto* p_mesh = ent.AddComponent<StaticMeshComponent>();
-				//p_mesh->SetMeshAsset(AssetManager::GetAsset<StaticMeshAsset>(AssetManager::CoreAssetIDs::CUBE_MESH));
-				//auto mat = AssetManager::CreateAsset<MaterialAsset>();
-				//mat->RaiseFlag(MaterialAsset::MaterialFlagBits::EMISSIVE);
-				//mat->albedo = glm::vec3{ cols[rand() % 3]} * 10.f;
-				//p_mesh->SetMaterial(0, mat);
-				auto* p_light = ent.AddComponent<PointlightComponent>();
-				p_light->attenuation.exp = 0.1f;
-				p_light->colour = glm::vec3{ abs(sinf(x * 0.1f * 2.f * glm::pi<float>())), (x + z) / 20.f , abs(cosf(z * 0.1f * 2.f * glm::pi<float>()))} * 3.f;
-				ent.GetComponent<TransformComponent>()->SetPosition(x * 20.f + rand() % 5, 1.f, (z + h) * 20.f);
-				ent.GetComponent<TransformComponent>()->SetOrientation(rand() % 10, rand() % 10, rand() % 10);
+				auto* p_mesh = ent.AddComponent<StaticMeshComponent>();
+				p_mesh->SetMeshAsset(AssetManager::GetAsset<StaticMeshAsset>(AssetManager::CoreAssetIDs::CUBE_MESH));
+				auto mat = AssetManager::CreateAsset<MaterialAsset>();
+				mat->RaiseFlag(MaterialAsset::MaterialFlagBits::EMISSIVE);
+				mat->albedo = glm::vec3{ cols[rand() % 3]} * 10.f;
+				p_mesh->SetMaterial(0, mat);
+				//auto* p_light = ent.AddComponent<PointlightComponent>();
+				//p_light->attenuation.exp = 0.1f;
+				//p_light->colour = glm::vec3{ abs(sinf(x * 0.1f * 2.f * glm::pi<float>())), (x + z) / 20.f , abs(cosf(z * 0.1f * 2.f * glm::pi<float>()))} * 3.f;
+				ent.GetComponent<TransformComponent>()->SetPosition((x + h) * 20.f + rand() % 5, 1.f, (z + h) * 20.f);
+				//ent.GetComponent<TransformComponent>()->SetOrientation(rand() % 180, rand() % 180, rand() % 180);
+				//ent.GetComponent<TransformComponent>()->SetScale(0.02, 0.02, 0.02);
 			}
 		}
 		h += 2.f;
@@ -606,7 +609,7 @@ void EditorLayer::OnRender() {
 		vk::AccessFlagBits::eShaderRead, vk::PipelineStageFlagBits::eEarlyFragmentTests, vk::PipelineStageFlagBits::eRayTracingShaderKHR, 0, 1,
 		*m_rt_cmd_buffers[fif].buf);
 
-	raytracing.RecordRenderCmdBuf(*m_rt_cmd_buffers[fif].buf, internal_render_image, scene, render_resources);
+	raytracing.RecordRenderCmdBuf(*m_rt_cmd_buffers[fif].buf, internal_render_image, scene, render_resources, m_render_settings.rt_settings);
 
 	render_resources.albedo_image.TransitionImageLayout(vk::ImageLayout::eShaderReadOnlyOptimal, vk::ImageLayout::eColorAttachmentOptimal, vk::AccessFlagBits::eShaderRead,
 		vk::AccessFlagBits::eColorAttachmentWrite, vk::PipelineStageFlagBits::eRayTracingShaderKHR, vk::PipelineStageFlagBits::eColorAttachmentOutput, 0, 1,
@@ -641,7 +644,6 @@ void EditorLayer::OnRender() {
 	graphics_cmd_buffers = util::array(*m_rt_cmd_buffers[fif].buf);
 	submit_info_graphics.pCommandBuffers = graphics_cmd_buffers.data();
 	VkContext::GetLogicalDevice().SubmitGraphics(submit_info_graphics);
-	VkContext::GetLogicalDevice().GraphicsQueueWaitIdle();
 	auto blit_cmd = *m_final_blit_cmd_buffers[fif].buf;
 	blit_cmd.reset();
 	SNK_CHECK_VK_RESULT(blit_cmd.begin(begin_info));
@@ -803,6 +805,8 @@ void EditorLayer::OnImGuiRender() {
 			ImGui::TreePop();
 		}
 
+		ImGui::InputInt("Temporal resamples", &m_render_settings.rt_settings.num_temporal_resamples);
+		ImGui::InputInt("Spatial resamples", &m_render_settings.rt_settings.num_spatial_resamples);
 		ImGui::Checkbox("Particles updating", &scene.GetSystem<ParticleSystem>()->active);
 		PhysicsParamsUI();
 

@@ -90,6 +90,7 @@ void RT::InitDescriptorBuffers(Image2D& output_image, Scene& scene, RaytracingRe
 		.AddDescriptor(18, vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eRaygenKHR) // Input gbuffer pixel motion sampler
 		.AddDescriptor(19, vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eRaygenKHR) // Input gbuffer prev frame depth sampler
 		.AddDescriptor(20, vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eRaygenKHR) // Input gbuffer prev frame normal motion sampler
+		.AddDescriptor(21, vk::DescriptorType::eStorageBuffer, vk::ShaderStageFlagBits::eRaygenKHR) // Spatial resample reservoir output buffer
 		.GenDescriptorLayout();
 
 	for (FrameInFlightIndex i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
@@ -142,6 +143,7 @@ void RT::InitDescriptorBuffers(Image2D& output_image, Scene& scene, RaytracingRe
 		rt_descriptor_buffers[i].LinkResource(&output_resources.pixel_motion_image, get_info_pixel_motion_image, 18, 0);
 		rt_descriptor_buffers[i].LinkResource(&output_resources.prev_frame_depth_image, get_info_prev_depth_image, 19, 0);
 		rt_descriptor_buffers[i].LinkResource(&output_resources.prev_frame_normal_image, get_info_prev_normal_image, 20, 0);
+
 	}
 }
 
@@ -160,7 +162,7 @@ void RT::InitPipeline(std::weak_ptr<const DescriptorSetSpec> common_ubo_set) {
 	layout_builder.AddDescriptorSet(0, common_ubo_set)
 		.AddDescriptorSet(1, rt_descriptor_buffers[0].GetDescriptorSpec())
 		.AddDescriptorSet(2, AssetManager::GetGlobalTexMatBufDescriptorSetSpec(0))
-		.AddPushConstant(0, sizeof(bool), vk::ShaderStageFlagBits::eRaygenKHR)
+		.AddPushConstant(0, 3 * sizeof(uint32_t), vk::ShaderStageFlagBits::eRaygenKHR)
 		.Build();
 
 	pipeline.Init(pipeline_builder, layout_builder);
@@ -222,7 +224,7 @@ void SBT::Init(vk::Pipeline pipeline, const RtPipelineBuilder& builder) {
 }
 
 
-void RT::RecordRenderCmdBuf(vk::CommandBuffer cmd, Image2D& output_image, Scene& scene, RaytracingResources& output_resources) {
+void RT::RecordRenderCmdBuf(vk::CommandBuffer cmd, Image2D& output_image, Scene& scene, RaytracingResources& output_resources, const RtSettings& settings) {
 	FrameInFlightIndex fif = VkContext::GetCurrentFIF();
 
 	output_image.TransitionImageLayout(vk::ImageLayout::eUndefined, vk::ImageLayout::eGeneral,
@@ -247,6 +249,7 @@ void RT::RecordRenderCmdBuf(vk::CommandBuffer cmd, Image2D& output_image, Scene&
 
 	uint32_t initial_reservoir_pass = 1;
 	cmd.pushConstants(pipeline.GetPipelineLayout(), vk::ShaderStageFlagBits::eRaygenKHR, 0u, sizeof(uint32_t), &initial_reservoir_pass);
+	cmd.pushConstants(pipeline.GetPipelineLayout(), vk::ShaderStageFlagBits::eRaygenKHR, sizeof(uint32_t), sizeof(RtSettings), &settings);
 	cmd.traceRaysKHR(sbt.address_regions.rgen, sbt.address_regions.rmiss, sbt.address_regions.rhit, sbt.address_regions.callable, spec.size.x, spec.size.y, 1);
 
 	output_resources.reservoir_buffer.MemoryBarrier(vk::AccessFlagBits::eShaderWrite, vk::AccessFlagBits::eShaderRead,
@@ -255,6 +258,9 @@ void RT::RecordRenderCmdBuf(vk::CommandBuffer cmd, Image2D& output_image, Scene&
 	initial_reservoir_pass = 0;
 	cmd.pushConstants(pipeline.GetPipelineLayout(), vk::ShaderStageFlagBits::eRaygenKHR, 0u, sizeof(uint32_t), &initial_reservoir_pass);
 	cmd.traceRaysKHR(sbt.address_regions.rgen, sbt.address_regions.rmiss, sbt.address_regions.rhit, sbt.address_regions.callable, spec.size.x, spec.size.y, 1);
+
+	output_resources.reservoir_buffer.MemoryBarrier(vk::AccessFlagBits::eShaderWrite, vk::AccessFlagBits::eShaderRead,
+		vk::PipelineStageFlagBits::eRayTracingShaderKHR, vk::PipelineStageFlagBits::eRayTracingShaderKHR, cmd);
 	//output_image.TransitionImageLayout(vk::ImageLayout::eGeneral, vk::ImageLayout::eGeneral,
 		//vk::AccessFlagBits::eShaderWrite, vk::AccessFlagBits::eShaderRead, vk::PipelineStageFlagBits::eRayTracingShaderKHR,
 		//vk::PipelineStageFlagBits::eAllCommands, 0, 1, cmd);

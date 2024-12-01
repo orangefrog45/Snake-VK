@@ -103,7 +103,7 @@ void main() {
   vec2 tc2 = vert_tex_coords.t[i.z];
 
   vec3 p = p0 * bary.x + p1 * bary.y + p2 * bary.z;
-  vec3 n = normalize(n0 * bary.x + n1 * bary.y + n2 * bary.z);
+  vec3 n = n0 * bary.x + n1 * bary.y + n2 * bary.z;
   vec2 tc = tc0 * bary.x + tc1 * bary.y + tc2 * bary.z;
 
   mat4 transform = transforms.m[instance_data.transform_idx];

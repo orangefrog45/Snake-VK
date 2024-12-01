@@ -30,7 +30,7 @@ namespace SNAKE {
 	};
 
 	struct RaytracingResources : public GBufferResources {
-		// Buffer containing reservoir (pointlight and emissive) data for each pixel
+		// Pixel reservoirs used for ReSTIR DI
 		S_VkBuffer reservoir_buffer;
 	};
 

@@ -50,34 +50,34 @@ layout(set = 1, binding = 13) uniform usampler2D sampler_gbuffer_mat_flags;
 #define RAYTRACING_EMISSIVE_BUFFER_DESCRIPTOR_BINDING 16
 #include "RaytracingInstances.glsl"
 
-struct PointlightReservoir {
-  float w_sum;
-  uint current_light_idx;
-  float w;
-};
+struct TriangleData {
+  // The object the triangle belongs to
+  uint object_instance_idx;
 
-struct EmissivePointReservoir {
-  vec3 point;
-  float w_sum;
-  vec3 radiance;
-  uint emissive_object_instance_idx;
-  float w;
+  // The index of the triangle's indices in the index buffer
+  uint triangle_idx;
+
+  // The barycentric coordinates for the point inside the triangle
+  vec2 bary_coords;
 };
 
 struct PixelReservoir {
   // Pointlights
   float w_sum_pl;
+  float w_pl;
   uint pl_idx;
+  uint pl_m;
 
   // Emissives
+  TriangleData emissive_triangle;
   float w_sum_em;
-  uint emissive_object_instance_idx;
+  float w_em;
+  uint m_em;
+  float p_hat_em;
+  vec3 radiance_em;
 
-  // .w = W for pointlight
-  vec4 point;
-
-  // .w = W for emissive
-  vec4 radiance;
+  // Down here for alignment
+  float p_hat_pl;
 };
 
 layout(set = 1, binding = 17) buffer ReservoirBuf { PixelReservoir r[]; } reservoirs;
@@ -87,6 +87,8 @@ layout(set = 1, binding = 20) uniform sampler2D sampler_prev_frame_normals;
 
 layout(push_constant) uniform pc {
     uint initial_reservoir_pass;
+    int num_temporal_resamples;
+    int num_spatial_resamples;
 } push;
 
 #include "CommonUBO.glsl"
@@ -122,104 +124,154 @@ float ShadowTest(vec3 ro, vec3 rd, float max_dist) {
   return 1.0 - float(shadow_payload.hit);
 }
 
-PointlightReservoir UpdatePointlightReservoir(vec3 v, vec3 f0, vec3 world_pos, vec3 n, float roughness, float metallic, vec3 albedo, vec3 biased_pos, uint N) {
-  const ivec2 coord = ivec2(gl_LaunchIDEXT.xy);
-  PointlightReservoir reservoir;
-  reservoir.current_light_idx = INVALID_RESERVOIR_IDX;
-  reservoir.w_sum = 0.0;
+bool UpdatePointlightReservoir(inout PixelReservoir reservoir, uint pl_idx, float weight, float rnd_seed) {
+  reservoir.pl_m++;
+  const float rnd = gold_noise(vec2(gl_LaunchIDEXT.xy), fract(weight+common_ubo.time_elapsed*0.0009783 + rnd_seed));
 
+  reservoir.w_sum_pl += weight;
+  if (rnd < weight / reservoir.w_sum_pl) {
+    reservoir.pl_idx = pl_idx;
+    return true;
+  }
+
+  return false;
+}
+
+bool UpdateEmissiveReservoir(inout PixelReservoir reservoir, TriangleData triangle, float weight, float rnd_seed) {
+  reservoir.m_em++;
+  const float rnd = gold_noise(vec2(gl_LaunchIDEXT.xy), fract(weight+common_ubo.time_elapsed*0.000789 + rnd_seed));
+
+  reservoir.w_sum_em += weight;
+  if (rnd < weight / reservoir.w_sum_em) {
+    reservoir.emissive_triangle = triangle;
+    return true;
+  }
+
+  return false;
+}
+
+vec3 ComputeTriangleRadiance(TriangleData triangle, vec3 v, vec3 f0, vec3 world_pos, vec3 n, float roughness, float metallic, vec3 albedo, vec3 biased_pos, bool shadow_test) {
+  InstanceData instance = rt_instances.i[triangle.object_instance_idx];
+  ivec3 ti = indices.i[triangle.triangle_idx + instance.mesh_buffer_index_offset / 3] + ivec3(instance.mesh_buffer_vertex_offset);
+
+  vec3 bary = vec3(triangle.bary_coords, 1.0 - triangle.bary_coords.x - triangle.bary_coords.y);
+
+  vec3 p = bary.x * vert_positions.p[ti.x] + bary.y * vert_positions.p[ti.y] + bary.z * vert_positions.p[ti.z];
+  vec3 point_normal = bary.x * vert_normals.n[ti.x] + bary.y * vert_normals.n[ti.y] + bary.z * vert_normals.n[ti.z];
+
+  p = vec4(transforms.m[instance.transform_idx] * vec4(p, 1.0)).xyz;
+  point_normal = normalize(transpose(inverse(mat3(transforms.m[instance.transform_idx]))) * point_normal);
+
+  vec3 emissive = material_ubo.materials[instance.material_idx].albedo.xyz;
+  vec3 brdf = CookTorranceBRDF(p, world_pos, v, f0, n, roughness, metallic);
+
+  vec3 radiance = emissive*albedo*brdf / abs(dot(world_pos - p, world_pos - p));
+
+  if (shadow_test) {
+    float point_dist = length(biased_pos - (p + point_normal * 0.01));
+    vec3 dir = ((p + point_normal * 0.01) - biased_pos) / point_dist;
+    radiance *= ShadowTest(biased_pos, dir, point_dist);
+  }
+
+  return radiance;
+}
+
+void InitPixelReservoir(inout PixelReservoir reservoir) {
+  const ivec2 coord = ivec2(gl_LaunchIDEXT.xy);
+  reservoir.pl_idx = INVALID_RESERVOIR_IDX;
+  reservoir.w_sum_pl = 0.0;
+  reservoir.pl_m = 0;
+  reservoir.w_pl = 0.0;
+  reservoir.p_hat_pl = 0.0;
+
+  reservoir.emissive_triangle.object_instance_idx = INVALID_RESERVOIR_IDX;
+  reservoir.emissive_triangle.triangle_idx = INVALID_RESERVOIR_IDX;
+  reservoir.w_sum_em = 0.0;
+  reservoir.m_em = 0;
+  reservoir.w_em = 0.0;
+  reservoir.p_hat_em = 0.0;
+}
+
+void DoInitialWRS(inout PixelReservoir reservoir, vec3 v, vec3 f0, vec3 world_pos, vec3 n, float roughness, float metallic, vec3 albedo, vec3 biased_pos) {
   for (uint i = 0u; i < LIGHT_RIS_ITERS; i++) {
-    const uint rnd_idx = uint(gold_noise(vec2(coord), fract(common_ubo.delta_time+sin(N*937.281739)) + i / float(LIGHT_RIS_ITERS)) * float(ssbo_light_data.num_pointlights));
+    const uint rnd_idx = uint(gold_noise(vec2(gl_LaunchIDEXT.xy), fract(common_ubo.time_elapsed * 0.001197 + world_pos.x + world_pos.y + world_pos.z) + i / float(LIGHT_RIS_ITERS))
+     * float(ssbo_light_data.num_pointlights));
 
     float p_hat = length(CalcPointlight(ssbo_light_data.pointlights[rnd_idx], v, f0, world_pos, n, roughness, metallic, albedo));
     float weight = p_hat / (1.0 / float(ssbo_light_data.num_pointlights));
-    reservoir.w_sum += weight;
 
-    const float rnd = gold_noise(vec2(coord.yx), fract(common_ubo.delta_time*0.1+sin(N*383.48273)) - i / float(LIGHT_RIS_ITERS));
-    if (rnd < weight / reservoir.w_sum) {
-      reservoir.current_light_idx = rnd_idx;
-      reservoir.w = (1.0 / p_hat) * (reservoir.w_sum / float(LIGHT_RIS_ITERS));
+    if (UpdatePointlightReservoir(reservoir, rnd_idx, weight, sin(i*20382997.34741))) {
+      reservoir.p_hat_pl = p_hat;
     }
   }
-
-  //imageStore(img_reservoirs, coord, vec4(reservoir.w_sum, reservoir.current_weight, uintBitsToFloat(reservoir.current_light_idx), 1.0));
-
-  return reservoir;
-}
-
-EmissivePointReservoir UpdateEmissivePointReservoir(vec3 surface_pos, vec3 v, vec3 f0, vec3 n, float roughness, float metallic, vec3 albedo, vec3 biased_pos, uint N) {
-  const ivec2 coord = ivec2(gl_LaunchIDEXT.xy);
-  
-  EmissivePointReservoir reservoir;
-  reservoir.w_sum = 0.0;
-  reservoir.emissive_object_instance_idx = INVALID_RESERVOIR_IDX;
 
   for (uint i = 0u; i < LIGHT_RIS_ITERS; i++) {
-    uint rnd_emissive_idx = uint(gold_noise(vec2(coord), abs(fract(surface_pos.z+common_ubo.time_elapsed*0.001534+sin(N*633.267) + i / float(LIGHT_RIS_ITERS))))
+    uint rnd_emissive_idx = uint(gold_noise(vec2(gl_LaunchIDEXT.xy), abs(fract(world_pos.x+world_pos.y+world_pos.z+common_ubo.time_elapsed*0.001534 + i / float(LIGHT_RIS_ITERS))))
      * float(rt_emissive_instance_indices.num_emissive_instances));
 
-    // Pick a random emissive object
-    InstanceData instance = rt_instances.i[rt_emissive_instance_indices.i[rnd_emissive_idx]];
+    TriangleData triangle;
 
-    const uint rnd_triangle_idx = uint(gold_noise(vec2(coord), abs(fract(surface_pos.x+common_ubo.time_elapsed*0.001+sin(N*237.379) + i / float(LIGHT_RIS_ITERS))))
-     * float(instance.num_mesh_indices / 3));
+    // Pick random emissive object
+    triangle.object_instance_idx = rt_emissive_instance_indices.i[rnd_emissive_idx];
+    InstanceData instance = rt_instances.i[triangle.object_instance_idx];
 
-    // Pick random triangle on the emissive object
-    ivec3 ti = indices.i[rnd_triangle_idx + instance.mesh_buffer_index_offset / 3] + ivec3(instance.mesh_buffer_vertex_offset);
+    // Pick random triangle on object
+    triangle.triangle_idx = uint(gold_noise(vec2(gl_LaunchIDEXT.xy), abs(fract(world_pos.x+world_pos.y+world_pos.z+common_ubo.time_elapsed*0.00119 + i / float(LIGHT_RIS_ITERS))))
+     * float(instance.num_mesh_indices / 3)); 
+     ivec3 ti = indices.i[triangle.triangle_idx + instance.mesh_buffer_index_offset / 3] + ivec3(instance.mesh_buffer_vertex_offset);
 
-    // Create random barycentric coordinate to sample inside triangle
-    vec3 bary = vec3(random(sin(i+N+coord.x*293.28) + common_ubo.time_elapsed*0.001+i), random(sin(i*0.8583+N+coord.y*983.3399) + ti.y + common_ubo.time_elapsed*0.001+i), 0);
-    if (bary.x + bary.y >= 1) {
-      bary.x = 1 - bary.x;
-      bary.y = 1 - bary.y;
+    // Pick random coordinates inside triangle
+    triangle.bary_coords = vec2(random(sin(i*27934.3221+gl_LaunchIDEXT.x*293.28) + common_ubo.time_elapsed*0.001+i), random(sin(i*12391.8583+gl_LaunchIDEXT.y*983.3399) + ti.y + common_ubo.time_elapsed*0.0091+i));
+    if (triangle.bary_coords.x + triangle.bary_coords.y >= 1.0) {
+      triangle.bary_coords.x = 1.0 - triangle.bary_coords.x;
+      triangle.bary_coords.y = 1.0 - triangle.bary_coords.y;
     }
-    bary.z = 1.0 - bary.x - bary.y;
-
-    vec3 p = bary.x * vert_positions.p[ti.x] + bary.y * vert_positions.p[ti.y] + bary.z * vert_positions.p[ti.z];
-    vec3 point_normal = bary.x * vert_normals.n[ti.x] + bary.y * vert_normals.n[ti.y] + bary.z * vert_normals.n[ti.z];
-
-    p = vec4(transforms.m[instance.transform_idx] * vec4(p, 1.0)).xyz;
-    point_normal = normalize(transpose(inverse(mat3(transforms.m[instance.transform_idx]))) * point_normal);
 
     float triangle_area = 0.5 * length(cross(vert_positions.p[ti.y] - vert_positions.p[ti.x], vert_positions.p[ti.y] - vert_positions.p[ti.z]));
-    vec3 emissive = material_ubo.materials[instance.material_idx].albedo.xyz;
-    vec3 brdf = CookTorranceBRDF(p, surface_pos, v, f0, n, roughness, metallic);
 
+    vec3 radiance = ComputeTriangleRadiance(triangle, v, f0, world_pos, n, roughness, metallic, albedo, biased_pos, false);
+    float p_hat = length(radiance);
     float pdf = 1.0 / (rt_emissive_instance_indices.num_emissive_instances * (instance.num_mesh_indices / 3) * triangle_area);
-    float p_hat = length(emissive*albedo*brdf) / abs(dot(surface_pos - p, surface_pos - p));
     float weight = p_hat / pdf;
-    reservoir.w_sum += weight;
 
-    float rnd = gold_noise(vec2(coord), abs(fract(p.z+p.y+p.z+common_ubo.time_elapsed*0.00089+sin(N*237.379) + i / float(LIGHT_RIS_ITERS))));
-    if (rnd < weight / max(reservoir.w_sum, 0.000001)) {
-        reservoir.emissive_object_instance_idx = rnd_emissive_idx;
-        reservoir.point = p;
-        reservoir.radiance = albedo*brdf*emissive / abs(dot(surface_pos - p, surface_pos - p));
-        reservoir.w = (1.0 / p_hat) * (reservoir.w_sum / float(LIGHT_RIS_ITERS));
+    if (UpdateEmissiveReservoir(reservoir, triangle, weight, sin(i*38293.28347))) {
+      reservoir.p_hat_em = p_hat;
+      reservoir.radiance_em = radiance;
     }
   }
 
-  return reservoir;
+  reservoir.w_em = (1.0 / reservoir.p_hat_em) * (reservoir.w_sum_em / reservoir.m_em);
+  reservoir.w_pl = (1.0 / reservoir.p_hat_pl) * (reservoir.w_sum_pl / reservoir.pl_m);
 }
 
-void UpdatePixelReservoirTemporal(inout PixelReservoir current_pixel_reservoir, in PixelReservoir prev_pixel_reservoir, vec3 v, vec3 f0, vec3 world_pos, vec3 n, float roughness, float metallic, vec3 albedo, vec3 biased_pos) {
-  if (prev_pixel_reservoir.pl_idx == INVALID_RESERVOIR_IDX) {
-    return;
+
+
+void CombinePixelReservoir(inout PixelReservoir current_pixel_reservoir, in PixelReservoir neighbour_reservoir, vec3 v, vec3 f0, vec3 world_pos, vec3 n, float roughness, float metallic, vec3 albedo, vec3 biased_pos, float rnd_seed) {
+  // Pointlight reservoir
+  if (neighbour_reservoir.pl_idx != INVALID_RESERVOIR_IDX) {
+    float light_dist = length(ssbo_light_data.pointlights[neighbour_reservoir.pl_idx].pos.xyz - biased_pos);
+    float p_hat = length(CalcPointlight(ssbo_light_data.pointlights[neighbour_reservoir.pl_idx], v, f0, world_pos, n, roughness, metallic, albedo)) *
+     ShadowTest(biased_pos, (ssbo_light_data.pointlights[neighbour_reservoir.pl_idx].pos.xyz - biased_pos) / light_dist, light_dist - 0.001);
+
+    float weight = p_hat * neighbour_reservoir.pl_m * neighbour_reservoir.w_pl;
+
+    if (UpdatePointlightReservoir(current_pixel_reservoir, neighbour_reservoir.pl_idx, weight, rnd_seed)) {
+      current_pixel_reservoir.p_hat_pl = p_hat;
+    }
   }
 
-  float light_dist = length(ssbo_light_data.pointlights[prev_pixel_reservoir.pl_idx].pos.xyz - biased_pos);
-  float weight = length(CalcPointlight(ssbo_light_data.pointlights[prev_pixel_reservoir.pl_idx], v, f0, world_pos, n, roughness, metallic, albedo)) * 
-    LIGHT_RIS_ITERS * prev_pixel_reservoir.point.w * ShadowTest(biased_pos, (ssbo_light_data.pointlights[prev_pixel_reservoir.pl_idx].pos.xyz - biased_pos) / light_dist, light_dist - 0.001);
+  // Emissive triangle reservoir
+  if (neighbour_reservoir.emissive_triangle.object_instance_idx != INVALID_RESERVOIR_IDX) {
+    vec3 radiance = ComputeTriangleRadiance(neighbour_reservoir.emissive_triangle, v, f0, world_pos, n, roughness, metallic, albedo, biased_pos, true);
+    float p_hat = length(radiance);
 
-  current_pixel_reservoir.w_sum_pl += weight;
+    float weight = p_hat * neighbour_reservoir.w_em * neighbour_reservoir.m_em;
 
-  float rnd = gold_noise(vec2(gl_LaunchIDEXT.xy), common_ubo.time_elapsed * 0.001 + current_pixel_reservoir.w_sum_pl);
-  if (rnd < weight / current_pixel_reservoir.w_sum_pl) {
-    current_pixel_reservoir.pl_idx = prev_pixel_reservoir.pl_idx;
-
-    current_pixel_reservoir.point.w = (1.0 / weight) * (current_pixel_reservoir.w_sum_pl / float(LIGHT_RIS_ITERS * 2));
+    if (UpdateEmissiveReservoir(current_pixel_reservoir, neighbour_reservoir.emissive_triangle, weight, rnd_seed + 0.283673699)) {
+      current_pixel_reservoir.p_hat_em = p_hat;
+      current_pixel_reservoir.radiance_em = radiance;
+    }
   }
-
 }
 
 void CreateCoordinateSystem(in vec3 n, out vec3 nt, out vec3 nb) {
@@ -315,70 +367,111 @@ vec3 BounceDiffuse(vec3 ro, vec3 normal, vec3 reflected_dir, vec3 albedo, float 
   return colour_sum * (2 * PI);
 }
 
+// start_coord should be texture coordinates between 0 and 1
+vec2 FindNeighbourPixelCoord(vec2 start_coord, float radius, vec2 seed) {
+  ivec2 render_size = textureSize(sampler_pixel_motion, 0);
+
+  vec2 offset = vec2(
+    (gold_noise(vec2(gl_LaunchIDEXT.xy), fract(seed.x + common_ubo.time_elapsed * 0.0011)) - 0.5) * 2.0 * radius / float(render_size.x),
+    (gold_noise(vec2(gl_LaunchIDEXT.xy), fract(seed.y + common_ubo.time_elapsed * 0.0006)) - 0.5) * 2.0 * radius / float(render_size.y)
+  );
+
+  // Keep searching for valid coordinate
+  int i = 0;
+  while (any(lessThan(start_coord + offset, vec2(0))) || any(greaterThan(start_coord + offset, vec2(1)))) {
+    i++;
+    offset = vec2(
+      (gold_noise(vec2(gl_LaunchIDEXT.xy+i), fract(seed.x + sin(i*293.28937)+ common_ubo.time_elapsed * 0.0011)) - 0.5) * 2.0 * radius / float(render_size.x),
+      (gold_noise(vec2(gl_LaunchIDEXT.xy+i), fract(seed.y + sin(i*293.28937)+ common_ubo.time_elapsed * 0.0006)) - 0.5) * 2.0 * radius / float(render_size.y)
+    );
+  }
+
+  return start_coord + offset;
+}
 
 void WriteInitialReservoirs(vec3 v, vec3 f0, vec3 ro, vec3 normal, vec3 rma, vec3 albedo, vec3 biased_pos) {
   PixelReservoir pixel_reservoir;
 
-  // Initial WRS
-  if (ssbo_light_data.num_pointlights > 0) {
-    PointlightReservoir reservoir = UpdatePointlightReservoir(v, f0, ro, normal, rma.r, rma.g, albedo, biased_pos, 0);
-    pixel_reservoir.w_sum_pl = reservoir.w_sum;
-    pixel_reservoir.pl_idx = reservoir.current_light_idx;
-    pixel_reservoir.point.w = reservoir.w;
-  }
+  InitPixelReservoir(pixel_reservoir);
+  DoInitialWRS(pixel_reservoir, v, f0, ro, normal, rma.r, rma.g, albedo, biased_pos);
 
-  if (rt_emissive_instance_indices.num_emissive_instances > 0) {
-    EmissivePointReservoir reservoir = UpdateEmissivePointReservoir(ro, v, f0, normal, rma.r, rma.g, albedo, biased_pos, 0);
-    pixel_reservoir.w_sum_em = reservoir.w_sum;
-    pixel_reservoir.emissive_object_instance_idx = reservoir.emissive_object_instance_idx;
-    pixel_reservoir.point.xyz = reservoir.point;
-    pixel_reservoir.radiance.xyz = reservoir.radiance;
-    pixel_reservoir.radiance.w = reservoir.w;
-  }
+  PixelReservoir temporal_reservoir;
+  InitPixelReservoir(temporal_reservoir);
   
   // Temporal resample
   ivec2 render_size = textureSize(sampler_pixel_motion, 0);
-  if (!common_ubo.prev_frame_invalid) {
+  if (!common_ubo.prev_frame_invalid && push.num_temporal_resamples != 0) {
+    // Reproject pixel
     vec2 pixel_velocity = texelFetch(sampler_pixel_motion, ivec2(gl_LaunchIDEXT.xy), 0).xy;
     vec2 history_tex_coord = (vec2(gl_LaunchIDEXT.xy) + 0.5) / vec2(render_size) + pixel_velocity;
 
+    // Make sure pixel has a valid history
     if (all(greaterThan(history_tex_coord, vec2(0))) && all(lessThan(history_tex_coord, vec2(1)))) {
-      float prev_depth = texture(sampler_prev_frame_depth, history_tex_coord).r;
-      vec3 prev_normal = texture(sampler_prev_frame_normals, history_tex_coord).rgb;
+      float seed = biased_pos.x + biased_pos.y + biased_pos.z;
+      //vec2 neighbour_coord = FindNeighbourPixelCoord(history_tex_coord, 30.0, vec2(seed, -seed));      
+      vec2 neighbour_coord = history_tex_coord;      
 
-      if (dot(prev_normal, normal) > 0.95) {
-        ivec2 history_coord_pixel_space = ivec2(history_tex_coord * render_size);
-        UpdatePixelReservoirTemporal(pixel_reservoir, reservoirs.r[history_coord_pixel_space.y * render_size.x + history_coord_pixel_space.x], v, f0, ro, normal, rma.r, rma.g, albedo, biased_pos);
-
+      //float prev_depth = texture(sampler_prev_frame_depth, history_tex_coord + offset).r;
+      vec3 neighbour_normal = texture(sampler_prev_frame_normals, neighbour_coord).rgb;
+      if (dot(neighbour_normal, normal) > 0.95) {
+        ivec2 neighbour_coord_pixel_space = ivec2(neighbour_coord * render_size);
+        CombinePixelReservoir(temporal_reservoir, pixel_reservoir, v, f0, ro, normal, rma.r, rma.g, albedo, biased_pos, 0.846746997);
+        CombinePixelReservoir(temporal_reservoir, reservoirs.r[neighbour_coord_pixel_space.y * render_size.x + neighbour_coord_pixel_space.x], v, f0, ro, normal, rma.r, rma.g, albedo, biased_pos, 0);
+        
+        const uint M_CAP = 30; 
+        temporal_reservoir.m_em = min(reservoirs.r[neighbour_coord_pixel_space.y * render_size.x + neighbour_coord_pixel_space.x].m_em + pixel_reservoir.m_em, pixel_reservoir.m_em * M_CAP);
+        temporal_reservoir.pl_m = min(reservoirs.r[neighbour_coord_pixel_space.y * render_size.x + neighbour_coord_pixel_space.x].pl_m + pixel_reservoir.pl_m, pixel_reservoir.pl_m * M_CAP);
+        
+        temporal_reservoir.w_em = temporal_reservoir.p_hat_em > 0.0 ? (1.0 / temporal_reservoir.p_hat_em) * (temporal_reservoir.w_sum_em / temporal_reservoir.m_em) : 0.0;
+        temporal_reservoir.w_pl = temporal_reservoir.p_hat_pl > 0.0 ? (1.0 / temporal_reservoir.p_hat_pl) * (temporal_reservoir.w_sum_pl / float(temporal_reservoir.pl_m)) : 0.0;
       }
     }
   }
 
-  reservoirs.r[gl_LaunchIDEXT.y * render_size.x + gl_LaunchIDEXT.x] = pixel_reservoir;
+  // Write to a different part of the buffer to prevent race conditions
+  const uint write_offset = render_size.x * render_size.y;
+  reservoirs.r[write_offset + gl_LaunchIDEXT.y * render_size.x + gl_LaunchIDEXT.x] = temporal_reservoir;
 }
 
-vec3 CalculateRadianceFromReservoirs(vec3 v, vec3 f0, vec3 ro, vec3 normal, vec3 rma, vec3 albedo, vec3 biased_pos) {
+PixelReservoir ComputeAndWriteSpatialReservoirReuse(vec3 v, vec3 f0, vec3 ro, vec3 normal, vec3 rma, vec3 albedo, vec3 biased_pos) {
+  ivec2 render_size = textureSize(sampler_pixel_motion, 0);
+  vec2 pixel_coord = vec2(gl_LaunchIDEXT.xy) / vec2(render_size);
+  
+  // Read from the section of the buffer that was previously written to during the temporal resample stage
+  const uint read_offset = render_size.x * render_size.y;
+  PixelReservoir pixel_reservoir = reservoirs.r[read_offset + gl_LaunchIDEXT.y * render_size.x + gl_LaunchIDEXT.x];
+  float seed = biased_pos.x + biased_pos.y + biased_pos.z + common_ubo.delta_time;
+  for (int i = 0; i < push.num_spatial_resamples; i++) {
+    ivec2 neighbour_coord_pixel_space = ivec2(render_size * FindNeighbourPixelCoord(pixel_coord, 30.0, vec2(seed, -seed) + sin(i*13477.3793)));
+    
+    vec3 neighbour_normal = texelFetch(sampler_prev_frame_normals, neighbour_coord_pixel_space, 0).rgb;
+    if (dot(neighbour_normal, normal) < 0.95) continue;
+
+   // CombinePixelReservoir(pixel_reservoir, reservoirs.r[read_offset + neighbour_coord_pixel_space.y * render_size.x + neighbour_coord_pixel_space.x], v, f0, ro, normal, rma.r, rma.g, albedo, biased_pos);
+  }
+
+  // Write to section of buffer not currently being read from
+  reservoirs.r[gl_LaunchIDEXT.y * render_size.x + gl_LaunchIDEXT.x] = pixel_reservoir;
+  return pixel_reservoir;
+}
+
+vec3 CalculateRadianceFromReservoirs(PixelReservoir reservoir, vec3 v, vec3 f0, vec3 ro, vec3 normal, vec3 rma, vec3 albedo, vec3 biased_pos) {
   ivec2 render_size = textureSize(sampler_pixel_motion, 0);
 
   vec3 radiance = vec3(0);
-  PixelReservoir reservoir = reservoirs.r[gl_LaunchIDEXT.y * render_size.x + gl_LaunchIDEXT.x];
-
 
   if (ssbo_light_data.num_pointlights > 0 && reservoir.pl_idx != INVALID_RESERVOIR_IDX) {
     float light_dist = length(ssbo_light_data.pointlights[reservoir.pl_idx].pos.xyz - biased_pos);
     vec3 pointlight_radiance = CalcPointlight(ssbo_light_data.pointlights[reservoir.pl_idx], v, f0, ro, normal, rma.r, rma.g, albedo.rgb) * 
       ShadowTest(biased_pos, (ssbo_light_data.pointlights[reservoir.pl_idx].pos.xyz - biased_pos) / light_dist, light_dist);
 
-    pointlight_radiance *= reservoir.point.w;
+    pointlight_radiance *= reservoir.w_pl;
     radiance += pointlight_radiance;
   }
 
-  if (rt_emissive_instance_indices.num_emissive_instances > 0 && reservoir.emissive_object_instance_idx != INVALID_RESERVOIR_IDX) {
-    float point_dist = length(reservoir.point.xyz - biased_pos);
-    reservoir.radiance *= ShadowTest(biased_pos, (reservoir.point.xyz - biased_pos) / point_dist, point_dist - 0.001);
-
-    reservoir.radiance.xyz *= reservoir.radiance.w;
-    radiance += reservoir.radiance.xyz;
+  if (rt_emissive_instance_indices.num_emissive_instances > 0 && reservoir.emissive_triangle.object_instance_idx != INVALID_RESERVOIR_IDX) {
+    reservoir.radiance_em.xyz = ComputeTriangleRadiance(reservoir.emissive_triangle, v, f0, ro, normal, rma.r, rma.g, albedo, biased_pos, true);
+    radiance += reservoir.radiance_em.xyz * reservoir.w_em;
   }
 
   return radiance;
@@ -409,7 +502,7 @@ void main() {
   vec3 f0 = vec3(0.04); // TODO: Support different values for more metallic objects
   f0 = mix(f0, albedo, rma.g);
 
-  vec3 biased_pos = ro + normal * 0.1;
+  vec3 biased_pos = ro + normal * (0.01 + max(length(common_ubo.cam_pos.xyz - ro) * 0.001, 0.01));
 
   if (push.initial_reservoir_pass == 1) {
     WriteInitialReservoirs(v, f0, ro, normal, rma, albedo, biased_pos);
@@ -417,7 +510,8 @@ void main() {
   }
 
   vec3 light = CalcDirectionalLight(v, f0, normal, rma.r, rma.g, albedo) * ShadowTest(biased_pos, ssbo_light_data.dir_light.dir.xyz, 1000);
-  light += CalculateRadianceFromReservoirs(v, f0, ro, normal, rma, albedo, biased_pos);
+  PixelReservoir reservoir = ComputeAndWriteSpatialReservoirReuse(v, f0, ro, normal, rma, albedo, biased_pos);
+  light += CalculateRadianceFromReservoirs(reservoir, v, f0, ro, normal, rma, albedo, biased_pos);
 
   vec3 colour_sum = light;
   colour_sum += BounceDiffuse(biased_pos, normal, r, albedo, rma.r);
