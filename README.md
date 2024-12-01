@@ -4,6 +4,7 @@ A Vulkan-based game engine (currently more of a renderer) with a focus on realti
 ### Current features
 - Pathtracing renderer accelerated through Vulkan's hardware raytracing features
 - Deferred raster renderer
+- ReSTIR DI
 - NVIDIA DLSS
 - Temporal anti-aliasing
 - Multithreaded architecture with a job system
