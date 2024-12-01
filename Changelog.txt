@@ -1,3 +1,6 @@
+1/12/24:
+-ReSTIR DI implementation
+
 30/11/24:
 -Temporal resampling of pointlight reservoirs
 -Fixes to WRS
