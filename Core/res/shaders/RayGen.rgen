@@ -73,11 +73,6 @@ struct PixelReservoir {
   float w_sum_em;
   float w_em;
   uint m_em;
-  float p_hat_em;
-  vec3 radiance_em;
-
-  // Down here for alignment
-  float p_hat_pl;
 };
 
 layout(set = 1, binding = 17) buffer ReservoirBuf { PixelReservoir r[]; } reservoirs;
@@ -142,7 +137,6 @@ vec3 UniformSampleHemisphere(float r1, float r2) {
 
 
 vec3 BounceDiffuse(vec3 ro, vec3 normal, vec3 reflected_dir, vec3 albedo, float roughness) {
-  return vec3(0);
   vec3 colour_sum = vec3(0);
 
   vec3 nt;
@@ -292,18 +286,17 @@ void InitPixelReservoir(inout PixelReservoir reservoir) {
   reservoir.pl_idx = INVALID_RESERVOIR_IDX;
   reservoir.w_sum_pl = 0.0;
   reservoir.pl_m = 0;
-  reservoir.w_pl = 0.0;
-  reservoir.p_hat_pl = 0.0;
 
   reservoir.emissive_triangle.object_instance_idx = INVALID_RESERVOIR_IDX;
   reservoir.emissive_triangle.triangle_idx = INVALID_RESERVOIR_IDX;
   reservoir.w_sum_em = 0.0;
   reservoir.m_em = 0;
-  reservoir.w_em = 0.0;
-  reservoir.p_hat_em = 0.0;
 }
 
 void DoInitialWRS(inout PixelReservoir reservoir, vec3 v, vec3 f0, vec3 world_pos, vec3 n, float roughness, float metallic, vec3 albedo, vec3 biased_pos) {
+  float p_hat_pl = 0.0;
+  float p_hat_em = 0.0;
+
   for (uint i = 0u; i < LIGHT_RIS_ITERS; i++) {
     const uint rnd_idx = uint(gold_noise(vec2(gl_LaunchIDEXT.xy), fract(common_ubo.time_elapsed * 0.001197 + world_pos.x + world_pos.y + world_pos.z) + i / float(LIGHT_RIS_ITERS))
      * float(ssbo_light_data.num_pointlights));
@@ -311,9 +304,8 @@ void DoInitialWRS(inout PixelReservoir reservoir, vec3 v, vec3 f0, vec3 world_po
     float p_hat = length(CalcPointlight(ssbo_light_data.pointlights[rnd_idx], v, f0, world_pos, n, roughness, metallic, albedo));
     float weight = p_hat / (1.0 / float(ssbo_light_data.num_pointlights));
 
-    if (UpdatePointlightReservoir(reservoir, rnd_idx, weight, sin(i*20382997.34741))) {
-      reservoir.p_hat_pl = p_hat;
-    }
+    if (UpdatePointlightReservoir(reservoir, rnd_idx, weight, sin(i*20382997.34741)))
+      p_hat_pl = p_hat;
   }
 
   for (uint i = 0u; i < LIGHT_RIS_ITERS; i++) {
@@ -345,21 +337,19 @@ void DoInitialWRS(inout PixelReservoir reservoir, vec3 v, vec3 f0, vec3 world_po
     float pdf = 1.0 / (rt_emissive_instance_indices.num_emissive_instances * (instance.num_mesh_indices / 3) * triangle_area);
     float weight = p_hat / pdf;
 
-    if (UpdateEmissiveReservoir(reservoir, triangle, weight, sin(i*38293.28347))) {
-      reservoir.p_hat_em = p_hat;
-      reservoir.radiance_em = radiance;
-    }
+    if (UpdateEmissiveReservoir(reservoir, triangle, weight, sin(i*38293.28347)))
+      p_hat_em = p_hat;
   }
 
   if (reservoir.pl_idx != INVALID_RESERVOIR_IDX) {
     float pl_dist = length(ssbo_light_data.pointlights[reservoir.pl_idx].pos.xyz - biased_pos);
-    reservoir.w_pl = ShadowTest(biased_pos, ssbo_light_data.pointlights[reservoir.pl_idx].pos.xyz - biased_pos / pl_dist, pl_dist) * (reservoir.w_sum_pl / reservoir.pl_m / reservoir.p_hat_pl);
+    reservoir.w_pl = ShadowTest(biased_pos, ssbo_light_data.pointlights[reservoir.pl_idx].pos.xyz - biased_pos / pl_dist, pl_dist) * (reservoir.w_sum_pl / reservoir.pl_m / p_hat_pl);
   } else {
     reservoir.w_pl = 0.0;
   }
 
   if (reservoir.emissive_triangle.object_instance_idx != INVALID_RESERVOIR_IDX) {
-    reservoir.w_em = TriangleShadowTest(reservoir.emissive_triangle, biased_pos) * (reservoir.w_sum_em / float(reservoir.m_em) / reservoir.p_hat_em);
+    reservoir.w_em = TriangleShadowTest(reservoir.emissive_triangle, biased_pos) * (reservoir.w_sum_em / float(reservoir.m_em) / p_hat_em);
   } else {
     reservoir.w_em = 0.0;
   }
@@ -368,7 +358,7 @@ void DoInitialWRS(inout PixelReservoir reservoir, vec3 v, vec3 f0, vec3 world_po
 
 
 
-void CombinePixelReservoir(inout PixelReservoir current_pixel_reservoir, in PixelReservoir neighbour_reservoir, vec3 v, vec3 f0, vec3 world_pos, vec3 n, float roughness, float metallic, vec3 albedo, vec3 biased_pos, float rnd_seed) {
+void CombinePixelReservoir(inout PixelReservoir current_pixel_reservoir, in PixelReservoir neighbour_reservoir, inout float p_hat_pl, inout float p_hat_em, vec3 v, vec3 f0, vec3 world_pos, vec3 n, float roughness, float metallic, vec3 albedo, vec3 biased_pos, float rnd_seed) {
   // Pointlight reservoir
   if (neighbour_reservoir.pl_idx != INVALID_RESERVOIR_IDX) {
     float light_dist = length(ssbo_light_data.pointlights[neighbour_reservoir.pl_idx].pos.xyz - biased_pos);
@@ -378,7 +368,7 @@ void CombinePixelReservoir(inout PixelReservoir current_pixel_reservoir, in Pixe
     float weight = p_hat * neighbour_reservoir.pl_m * neighbour_reservoir.w_pl;
 
     if (UpdatePointlightReservoir(current_pixel_reservoir, neighbour_reservoir.pl_idx, weight, rnd_seed)) {
-      current_pixel_reservoir.p_hat_pl = p_hat;
+      p_hat_pl = p_hat;
     }
   }
 
@@ -390,8 +380,7 @@ void CombinePixelReservoir(inout PixelReservoir current_pixel_reservoir, in Pixe
     float weight = p_hat * neighbour_reservoir.w_em * neighbour_reservoir.m_em;
     
     if (UpdateEmissiveReservoir(current_pixel_reservoir, neighbour_reservoir.emissive_triangle, weight, rnd_seed + 0.283673699)) {
-      current_pixel_reservoir.p_hat_em = p_hat;
-      current_pixel_reservoir.radiance_em = radiance;
+      p_hat_em = p_hat;
     }
   }
 }
@@ -458,14 +447,17 @@ void WriteInitialReservoirs(vec3 v, vec3 f0, vec3 ro, vec3 normal, vec3 rma, vec
           history_reservoir.m_em = M_CAP * pixel_reservoir.m_em;
         }
 
-        CombinePixelReservoir(temporal_reservoir, pixel_reservoir, v, f0, ro, normal, rma.r, rma.g, albedo, biased_pos, 0.846746997);
-        CombinePixelReservoir(temporal_reservoir, history_reservoir, v, f0, ro, normal, rma.r, rma.g, albedo, biased_pos, 0);
+        float p_hat_em = 0.0;
+        float p_hat_pl = 0.0;
+
+        CombinePixelReservoir(temporal_reservoir, pixel_reservoir, p_hat_pl, p_hat_em, v, f0, ro, normal, rma.r, rma.g, albedo, biased_pos, 0.846746997);
+        CombinePixelReservoir(temporal_reservoir, history_reservoir, p_hat_pl, p_hat_em, v, f0, ro, normal, rma.r, rma.g, albedo, biased_pos, 0);
         
         temporal_reservoir.m_em = history_reservoir.m_em + pixel_reservoir.m_em;
         temporal_reservoir.pl_m = history_reservoir.pl_m + pixel_reservoir.pl_m;
         
-        temporal_reservoir.w_em = temporal_reservoir.p_hat_em > 0.0 ? (temporal_reservoir.w_sum_em / temporal_reservoir.m_em) / temporal_reservoir.p_hat_em : 0.0;
-        temporal_reservoir.w_pl = temporal_reservoir.p_hat_pl > 0.0 ? (temporal_reservoir.w_sum_pl / float(temporal_reservoir.pl_m)) / temporal_reservoir.p_hat_pl : 0.0;
+        temporal_reservoir.w_em = p_hat_em > 0.0 ? (temporal_reservoir.w_sum_em / temporal_reservoir.m_em) / p_hat_em : 0.0;
+        temporal_reservoir.w_pl = p_hat_pl > 0.0 ? (temporal_reservoir.w_sum_pl / float(temporal_reservoir.pl_m)) / p_hat_pl : 0.0;
       }
     }
   }
@@ -484,7 +476,10 @@ PixelReservoir ComputeAndWriteSpatialReservoirReuse(vec3 v, vec3 f0, vec3 ro, ve
   const uint read_offset = render_size.x * render_size.y;
   PixelReservoir pixel_reservoir = reservoirs.r[read_offset + gl_LaunchIDEXT.y * render_size.x + gl_LaunchIDEXT.x];
   
-  CombinePixelReservoir(r, pixel_reservoir,  v, f0, ro, normal, rma.r, rma.g, albedo, biased_pos, 0);
+  float p_hat_pl = 0.0;
+  float p_hat_em = 0.0;
+
+  CombinePixelReservoir(r, pixel_reservoir, p_hat_pl, p_hat_em, v, f0, ro, normal, rma.r, rma.g, albedo, biased_pos, 0);
   r.m_em += pixel_reservoir.m_em; 
   r.pl_m += pixel_reservoir.pl_m; 
   // Read from the section of the buffer that was previously written to during the temporal resample stage
@@ -495,24 +490,19 @@ PixelReservoir ComputeAndWriteSpatialReservoirReuse(vec3 v, vec3 f0, vec3 ro, ve
     vec3 neighbour_normal = texelFetch(sampler_prev_frame_normals, neighbour_coord_pixel_space, 0).rgb;
     if (dot(neighbour_normal, normal) < 0.95) continue;
 
-    CombinePixelReservoir(r, reservoirs.r[read_offset + neighbour_coord_pixel_space.y * render_size.x + neighbour_coord_pixel_space.x], v, f0, ro, normal, rma.r, rma.g, albedo, biased_pos, sin(i*234473.344));
+    CombinePixelReservoir(r, reservoirs.r[read_offset + neighbour_coord_pixel_space.y * render_size.x + neighbour_coord_pixel_space.x], p_hat_pl, p_hat_em, v, f0, ro, normal, rma.r, rma.g, albedo, biased_pos, sin(i*234473.344));
     r.m_em += reservoirs.r[read_offset + neighbour_coord_pixel_space.y * render_size.x + neighbour_coord_pixel_space.x].m_em; 
     r.pl_m += reservoirs.r[read_offset + neighbour_coord_pixel_space.y * render_size.x + neighbour_coord_pixel_space.x].pl_m; 
   }
 
-  // Write to section of buffer not currently being read from
   //r.m_em = min(r.m_em, LIGHT_RIS_ITERS * M_CAP);
   //r.pl_m = min(r.pl_m, LIGHT_RIS_ITERS * M_CAP);
-  r.w_em = r.p_hat_em > 0.0 ? r.w_sum_em / r.p_hat_em / float(r.m_em) : 0.0;
-  r.w_pl = r.p_hat_pl > 0.0 ? r.w_sum_pl / r.p_hat_pl / float(r.pl_m) : 0.0;
+  r.w_em = p_hat_em > 0.0 ? r.w_sum_em / p_hat_em / float(r.m_em) : 0.0;
+  r.w_pl = p_hat_pl > 0.0 ? r.w_sum_pl / p_hat_pl / float(r.pl_m) : 0.0;
 
-  if (push.num_spatial_resamples == -1) {
-    reservoirs.r[gl_LaunchIDEXT.y * render_size.x + gl_LaunchIDEXT.x] = pixel_reservoir;
-    return pixel_reservoir;
-  } else {
-    reservoirs.r[gl_LaunchIDEXT.y * render_size.x + gl_LaunchIDEXT.x] = r;
-    return r;
-  }
+  // Write to section of buffer not currently being read from
+  reservoirs.r[gl_LaunchIDEXT.y * render_size.x + gl_LaunchIDEXT.x] = r;
+  return r;
 }
 
 vec3 CalculateRadianceFromReservoirs(PixelReservoir reservoir, vec3 v, vec3 f0, vec3 ro, vec3 normal, vec3 rma, vec3 albedo, vec3 biased_pos) {
@@ -530,8 +520,8 @@ vec3 CalculateRadianceFromReservoirs(PixelReservoir reservoir, vec3 v, vec3 f0, 
   }
 
   if (rt_emissive_instance_indices.num_emissive_instances > 0 && reservoir.emissive_triangle.object_instance_idx != INVALID_RESERVOIR_IDX) {
-    reservoir.radiance_em.xyz = ComputeTriangleRadiance(reservoir.emissive_triangle, v, f0, ro, normal, rma.r, rma.g, albedo, biased_pos, true);
-    radiance += reservoir.radiance_em.xyz * reservoir.w_em;
+    vec3 emissive_radiance = ComputeTriangleRadiance(reservoir.emissive_triangle, v, f0, ro, normal, rma.r, rma.g, albedo, biased_pos, true);
+    radiance += emissive_radiance * reservoir.w_em;
   }
 
   return radiance;

@@ -296,7 +296,7 @@ void EditorLayer::InitGBuffer(glm::vec2 internal_render_dim) {
 	render_resources.mat_flag_image.TransitionImageLayout(vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal,
 		vk::AccessFlagBits::eNone, vk::AccessFlagBits::eNone, vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTopOfPipe);
 
-	constexpr uint32_t PIXEL_RESERVOIR_DATA_SIZE = sizeof(float) * 16;
+	constexpr uint32_t PIXEL_RESERVOIR_DATA_SIZE = sizeof(float) * 12;
 	// 2x size as results are written to different part of the buffer
 	render_resources.reservoir_buffer.CreateBuffer(internal_render_dim.x * internal_render_dim.y * PIXEL_RESERVOIR_DATA_SIZE * 2,
 		vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eStorageBuffer);

@@ -484,11 +484,12 @@ void AssetEditor::OnRequestTextureAssetAddFromFile(const std::string& filepath) 
 	p_box->name = "Texture settings";
 
 	p_box->imgui_render_cb = [filepath, this, p_box] {
-		bool format_is_srgb = load_format == vk::Format::eR8G8B8A8Srgb;
+		static bool format_is_srgb = false;
+		format_is_srgb = load_format == vk::Format::eR8G8B8A8Srgb;
 		ImGui::SameLine(ImGui::GetContentRegionAvail().x - 25); if (ImGui::Button("X")) p_box->close = true;
 		ImGui::Text(std::format("Selected file: '{}'", filepath).c_str());
 		if (ImGui::Checkbox("SRGB (select for albedo textures)", &format_is_srgb))
-			load_format = format_is_srgb ? vk::Format::eR8G8B8A8Unorm : vk::Format::eR8G8B8A8Srgb;
+			load_format = format_is_srgb ? vk::Format::eR8G8B8A8Srgb : vk::Format::eR8G8B8A8Unorm;
 
 		if (ImGui::Button("Load")) {
 			if (!filepath.empty()) {
@@ -511,6 +512,10 @@ void AssetEditor::OnRequestTextureAssetAddFromFile(const std::string& filepath) 
 
 
 bool AssetEditor::RenderImGui() {
+	if (!asset_deletion_queue.empty()) {
+		VkContext::GetLogicalDevice().GraphicsQueueWaitIdle();
+	}
+
 	for (auto* p_asset : asset_deletion_queue) {
 		AssetManager::DeleteAsset(p_asset);
 	}

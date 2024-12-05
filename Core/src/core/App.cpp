@@ -66,8 +66,7 @@ void App::Init(const char* app_name) {
 
 		VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME,
 		VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME,
-		VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME
-
+		VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME,
 	};
 
 	VkContext::PickPhysicalDevice(*window.GetVkContext().surface, required_device_extensions);
