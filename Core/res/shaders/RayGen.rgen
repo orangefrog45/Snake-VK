@@ -135,32 +135,66 @@ vec3 UniformSampleHemisphere(float r1, float r2) {
   return vec3(sin_theta * cos(phi), r1, sin_theta * sin(phi));
 }
 
+float SmithGGXMaskingShadowing(vec3 wi, vec3 wo, vec3 n, float roughness2)
+{
+    float dotNL = dot(n, wi);
+    float dotNV = dot(n, wo);
 
-vec3 BounceDiffuse(vec3 ro, vec3 normal, vec3 reflected_dir, vec3 albedo, float roughness) {
+    float denomA = dotNV * sqrt(roughness2 + (1.0f - roughness2) * dotNL * dotNL);
+    float denomB = dotNL * sqrt(roughness2 + (1.0f - roughness2) * dotNV * dotNV);
+
+    return 2.0f * dotNL * dotNV / (denomA + denomB);
+}
+
+// wi - Sample direction in tangent space
+// wo - Outgoing direction in tangent space
+// n - Normal in tangent space (should be (0, 0, 1))
+void ImportanceSampleGgxD(vec3 wo, float roughness, vec2 rnd_seed, vec3 n, inout vec3 wi, out vec3 reflectance) {
+  float a = roughness;
+  float a2 = a * a;
+
+  float r0 = gold_noise(ivec2(gl_LaunchIDEXT.xy), fract(common_ubo.time_elapsed * 0.00773 + rnd_seed.x));
+  float r1 = gold_noise(ivec2(gl_LaunchIDEXT.xy), fract(common_ubo.time_elapsed * 0.0183 + rnd_seed.y));
+
+  float theta = acos(sqrt((1.0 - r0) / ((a2 - 1.0) * r0 + 1.0)));
+  float phi = 2.0 * PI * r1;
+
+  vec3 wm = normalize(vec3(sin(theta) * cos(phi), sin(theta) * sin(phi), cos(theta)));
+  wi = reflect(wo, wm);
+  
+  float dot_wi_wm = dot(wi, wm);
+  if (dot(n, wi) < 0.0 || dot_wi_wm < 0.0) {
+    reflectance = vec3(0);
+    return;
+  };
+  
+  vec3 F = FresnelSchlick(dot_wi_wm, vec3(0.04));
+  float G = SmithGGXMaskingShadowing(wi, -wo, n, a2);
+
+  float weight = abs(dot(wo, wm)) / (dot(n, -wo) * dot(n, wm));
+  reflectance = vec3(F * G * weight); 
+}
+
+vec3 BounceDiffuse(vec3 ro, vec3 normal, vec3 reflected_dir, vec3 albedo, float roughness, vec3 v) {
   vec3 colour_sum = vec3(0);
+
+  float seed = fract(dot(ro+gl_LaunchIDEXT, vec3(1))+common_ubo.time_elapsed*0.001973);
+  vec2 xy = gl_LaunchIDEXT.xy;
 
   vec3 nt;
   vec3 nb;
   CreateCoordinateSystem(normal, nt, nb);
-
-  vec3 nt_inner;
-  vec3 nb_inner;
-  vec3 n_inner;
-
-  float l2_ro = dot(ro, ro);
-
-  float seed = fract(l2_ro+ro.x+ro.y+ro.z+common_ubo.time_elapsed+common_ubo.delta_time);
-  vec2 xy = gl_LaunchIDEXT.xy;
-  xy += fract(vec2(sin(xy.x*1038.283726 + xy.y*common_ubo.delta_time), cos(xy.x*common_ubo.time_elapsed+xy.y*9278.33337)));
-  for (uint ray_idx = 0; ray_idx < 8; ray_idx++) {
+  mat3 tangent_to_world = mat3(nt, nb, normal);
+  v = normalize(transpose(tangent_to_world) * v);
+  
+  for (uint ray_idx = 0; ray_idx < 4; ray_idx++) {
+    vec3 reflectance;
+    vec3 rd;
     seed = fract(seed + ray_idx/8.0);
-    vec3 rnd = UniformSampleHemisphere(gold_noise(xy, fract(seed+ray_idx/8.0)), gold_noise(xy, fract(seed+ray_idx/8.0)+0.1));
-    vec3 rd = vec3(
-      rnd.x * nb.x + rnd.y * normal.x + rnd.z * nt.x,
-      rnd.x * nb.y + rnd.y * normal.y + rnd.z * nt.y,
-      rnd.x * nb.z + rnd.y * normal.z + rnd.z * nt.z
-    );
 
+    ImportanceSampleGgxD(-v, roughness, vec2(seed, abs(fract(seed + sin(ray_idx*27364.3827)))), vec3(0, 0, 1), rd, reflectance);
+    rd = normalize(tangent_to_world * rd);
+  
     traceRayEXT(
       as,
       gl_RayFlagsOpaqueEXT,
@@ -175,41 +209,10 @@ vec3 BounceDiffuse(vec3 ro, vec3 normal, vec3 reflected_dir, vec3 albedo, float 
       0
     );
 
-    colour_sum += albedo * payload.colour * max(cos(dot(rd, normal)), 0.0) / 8.0;
-    if (payload.distance < 0.f || bool(payload.mat_flags & MAT_FLAG_EMISSIVE)) {
-      continue;
-    }
-
-    vec3 new_pos = ro + rd * payload.distance;
-    n_inner = payload.normal;
-    CreateCoordinateSystem(n_inner, nt_inner, nb_inner);
-
-    for (uint bounce_idx = 0; bounce_idx < 2; bounce_idx++) {
-      rd = UniformSampleHemisphere(gold_noise(xy, fract(seed+bounce_idx*0.5+0.2)), gold_noise(xy, fract(seed+bounce_idx*0.5+0.3)));
-      rd = vec3(
-      rd.x * nb_inner.x + rd.y * n_inner.x + rd.z * nt_inner.x,
-      rd.x * nb_inner.y + rd.y * n_inner.y + rd.z * nt_inner.y,
-      rd.x * nb_inner.z + rd.y * n_inner.z + rd.z * nt_inner.z
-      );
-
-      traceRayEXT(
-        as,
-        gl_RayFlagsOpaqueEXT,
-        0xff,
-        0,
-        0,
-        0,
-        new_pos,
-        0.01,
-        rd, 
-        1000,
-        0
-      );
-      colour_sum += albedo * payload.colour * 0.25 * max(cos(dot(rd, n_inner)), 0.0) / 8.0;
-    }
+    colour_sum += albedo * payload.colour * reflectance;
   }
 
-  return colour_sum * (2 * PI);
+  return colour_sum;
 }
 
 bool UpdatePointlightReservoir(inout PixelReservoir reservoir, uint pl_idx, float weight, float rnd_seed) {
@@ -532,17 +535,24 @@ void main() {
   vec2 uv = pixel_center / vec2(gl_LaunchSizeEXT.xy);
 
   vec3 albedo = texelFetch(sampler_gbuffer_albedo, ivec2(gl_LaunchIDEXT), 0).rgb;
+  vec3 normal = texelFetch(sampler_gbuffer_normals, ivec2(gl_LaunchIDEXT), 0).rgb;
+
+  if (dot(normal, normal) < 0.0001) { // Pixel doesn't have a valid surface on it, shade as sky
+    vec3 rd = normalize(common_ubo.cam_pos.xyz - WorldPosFromDepth(1.0, uv));
+    float t = 0.5 * (rd.y + 1.0);
+    vec3 sky_colour = ((1.0-t) * vec3(0.5, 0.6, 1.0) + t * vec3(1.0)) * 0.25f;
+    imageStore(img_output, ivec2(gl_LaunchIDEXT), vec4(sky_colour, 1.0));
+    return;
+  }
 
   const vec3 rma = texelFetch(sampler_gbuffer_rma, ivec2(gl_LaunchIDEXT), 0).rgb;
   const uint mat_flags = texelFetch(sampler_gbuffer_mat_flags, ivec2(gl_LaunchIDEXT), 0).r;
-
 
   if (bool(mat_flags & MAT_FLAG_EMISSIVE)) {
     imageStore(img_output, ivec2(gl_LaunchIDEXT), vec4(albedo, 1.0));
     return;
   } 
 
-  vec3 normal = texelFetch(sampler_gbuffer_normals, ivec2(gl_LaunchIDEXT), 0).rgb;
   vec3 ro = WorldPosFromDepth(texelFetch(sampler_gbuffer_depth, ivec2(gl_LaunchIDEXT), 0).r, uv);
 
   vec3 v = normalize(common_ubo.cam_pos.xyz - ro);
@@ -561,10 +571,10 @@ void main() {
 
   vec3 light = CalcDirectionalLight(v, f0, normal, rma.r, rma.g, albedo) * ShadowTest(biased_pos, ssbo_light_data.dir_light.dir.xyz, 1000);
   PixelReservoir reservoir = ComputeAndWriteSpatialReservoirReuse(v, f0, ro, normal, rma, albedo, biased_pos);
-  light += CalculateRadianceFromReservoirs(reservoir, v, f0, ro, normal, rma, albedo, biased_pos);
+ // light += CalculateRadianceFromReservoirs(reservoir, v, f0, ro, normal, rma, albedo, biased_pos);
 
   vec3 colour_sum = light;
-  colour_sum += BounceDiffuse(biased_pos, normal, r, albedo, rma.r);
+  colour_sum += BounceDiffuse(biased_pos, normal, r, albedo, rma.r, v);
 
   imageStore(img_output, ivec2(gl_LaunchIDEXT), vec4(colour_sum, 1.0));
 }
